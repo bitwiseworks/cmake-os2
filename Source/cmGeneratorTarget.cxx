@@ -3057,11 +3057,24 @@ void cmGeneratorTarget::GetFullNameInternal(const std::string& config,
   // Append the per-configuration postfix.
   outBase += configPostfix ? configPostfix : "";
 
+#ifdef __OS2__
+  if((this->GetType() == cmState::SHARED_LIBRARY ||
+      this->GetType() == cmState::MODULE_LIBRARY) && !implib &&
+      outBase.length() > 8)
+    outBase.erase(8);
+#endif
+
   // Name shared libraries with their version number on some platforms.
   if (const char* soversion = this->GetProperty("SOVERSION")) {
     if (this->GetType() == cmState::SHARED_LIBRARY && !implib &&
         this->Makefile->IsOn("CMAKE_SHARED_LIBRARY_NAME_WITH_VERSION")) {
-      outBase += "-";
+#ifndef __OS2__
+       outBase += "-";
+#else
+      int len = std::string(soversion).length();
+      if(outBase.length() + len > 8)
+        outBase.erase(8 - len);
+#endif
       outBase += soversion;
     }
   }

@@ -1564,7 +1564,14 @@ std::string cmMakefileTargetGenerator::CreateResponseFile(
   responseFileNameFull += name;
   cmGeneratedFileStream responseStream(responseFileNameFull.c_str());
   responseStream.SetCopyIfDifferent(true);
+#ifndef __OS2__
   responseStream << options << "\n";
+#else
+  std::string opts = options;
+  for(int pos = 0; (pos = opts.find(' ', pos)) != opts.npos; ++pos)
+    opts[pos] = '\n';
+  responseStream << opts << "\n";
+#endif
 
   // Add a dependency so the target will rebuild when the set of
   // objects changes.
