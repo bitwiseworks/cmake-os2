@@ -541,7 +541,7 @@ if (QT_QMAKE_EXECUTABLE AND
     _qt4_query_qmake(QMAKE_MKSPECS qt_mkspecs_dirs)
     # do not replace : on windows as it might be a drive letter
     # and windows should already use ; as a separator
-    if(NOT WIN32)
+    if(NOT WIN32 AND NOT OS2)
       string(REPLACE ":" ";" qt_mkspecs_dirs "${qt_mkspecs_dirs}")
     endif()
     set(qt_cross_paths)
