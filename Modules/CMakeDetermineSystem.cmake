@@ -29,6 +29,7 @@
 # Ultrix                        ULTRIX
 # cygwin                        CYGWIN_NT-5.1
 # MacOSX                        Darwin
+# OS/2                          OS/2
 
 
 # find out on which system cmake runs
@@ -73,6 +74,9 @@ else()
     else()
       set (CMAKE_HOST_SYSTEM_PROCESSOR "$ENV{PROCESSOR_ARCHITECTURE}")
     endif()
+  endif()
+  if(CMAKE_HOST_OS2)
+    set (CMAKE_HOST_SYSTEM_NAME "OS2")
   endif()
 endif()
 

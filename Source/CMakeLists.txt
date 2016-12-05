@@ -707,6 +707,12 @@ if(UNIX)
     )
 endif()
 
+if(OS2)
+  set(CPACK_SRCS ${CPACK_SRCS}
+    CPack/cmCPackRPMGenerator.cxx
+    )
+endif()
+
 if(WIN32)
   set(CPACK_SRCS ${CPACK_SRCS}
     CPack/WiX/cmCPackWIXGenerator.cxx

@@ -200,7 +200,11 @@ bool cmExecProgramCommand::RunCommand(const char* command, std::string& output,
   }
   fflush(stdout);
   fflush(stderr);
+#ifdef __OS2__
+  const char* cmd[] = { "sh", "-c", command, CM_NULLPTR };
+#else
   const char* cmd[] = { "/bin/sh", "-c", command, CM_NULLPTR };
+#endif
   cmsysProcess_SetCommand(cp, cmd);
 #endif
 

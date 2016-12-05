@@ -66,7 +66,7 @@ void cmInstallExportGenerator::ComputeTempDir()
 
   // Enforce a maximum length.
   bool useMD5 = false;
-#if defined(_WIN32) || defined(__CYGWIN__)
+#if defined(_WIN32) || defined(__CYGWIN__) || defined(__OS2__)
   std::string::size_type const max_total_len = 250;
 #else
   std::string::size_type const max_total_len = 1000;

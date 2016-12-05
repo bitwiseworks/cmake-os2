@@ -714,7 +714,7 @@ SET(KWSYS_CXX_SRCS)
 
 # Add the proper sources for this platform's Process implementation.
 IF(KWSYS_USE_Process)
-  IF(NOT UNIX)
+  IF(NOT UNIX AND NOT OS2)
     # Use the Windows implementation.
     SET(KWSYS_C_SRCS ${KWSYS_C_SRCS} ProcessWin32.c)
   ELSE()

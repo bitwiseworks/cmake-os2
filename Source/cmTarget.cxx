@@ -76,7 +76,7 @@ cmTarget::cmTarget(std::string const& name, cmState::TargetType type,
   // Check whether this is a DLL platform.
   this->DLLPlatform =
     (this->Makefile->IsOn("WIN32") || this->Makefile->IsOn("CYGWIN") ||
-     this->Makefile->IsOn("MINGW"));
+     this->Makefile->IsOn("MINGW") || this->Makefile->IsOn("OS2"));
 
   // Check whether we are targeting an Android platform.
   this->IsAndroid =

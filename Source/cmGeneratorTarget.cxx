@@ -305,7 +305,7 @@ cmGeneratorTarget::cmGeneratorTarget(cmTarget* t, cmLocalGenerator* lg)
 
   this->DLLPlatform =
     (this->Makefile->IsOn("WIN32") || this->Makefile->IsOn("CYGWIN") ||
-     this->Makefile->IsOn("MINGW"));
+     this->Makefile->IsOn("MINGW") || this->Makefile->IsOn("OS2"));
 
   this->PolicyMap = t->PolicyMap;
 }

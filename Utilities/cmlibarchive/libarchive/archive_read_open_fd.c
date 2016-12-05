@@ -97,7 +97,7 @@ archive_read_open_fd(struct archive *a, int fd, size_t block_size)
 		archive_read_extract_set_skip_file(a, st.st_dev, st.st_ino);
 		mine->use_lseek = 1;
 	}
-#if defined(__CYGWIN__) || defined(_WIN32)
+#if defined(__CYGWIN__) || defined(_WIN32) || defined(__OS2__)
 	setmode(mine->fd, O_BINARY);
 #endif
 

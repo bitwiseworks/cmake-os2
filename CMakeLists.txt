@@ -341,7 +341,7 @@ macro (CMAKE_BUILD_UTILITIES)
     endif()
     set(_CMAKE_USE_OPENSSL_DEFAULT OFF)
     if(NOT DEFINED CMAKE_USE_OPENSSL AND NOT WIN32 AND NOT APPLE
-        AND CMAKE_SYSTEM_NAME MATCHES "(Linux|FreeBSD)")
+        AND CMAKE_SYSTEM_NAME MATCHES "(Linux|FreeBSD|OS2)")
       find_package(OpenSSL QUIET)
       if(OPENSSL_FOUND)
         set(_CMAKE_USE_OPENSSL_DEFAULT ON)
@@ -479,6 +479,9 @@ int main(void) { return 0; }
       endif()
     elseif(CYGWIN)
       # libuv does not support Cygwin
+      set(CMAKE_USE_LIBUV 0)
+    elseif(OS2)
+      # disable until it's ported
       set(CMAKE_USE_LIBUV 0)
     elseif(CMAKE_SYSTEM_NAME STREQUAL "HP-UX")
       # Disable until it can be ported.

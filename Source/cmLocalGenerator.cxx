@@ -72,7 +72,7 @@ void cmLocalGenerator::IssueMessage(cmake::MessageType t,
 void cmLocalGenerator::ComputeObjectMaxPath()
 {
 // Choose a maximum object file name length.
-#if defined(_WIN32) || defined(__CYGWIN__)
+#if defined(_WIN32) || defined(__CYGWIN__) || defined(__OS2__)
   this->ObjectPathMax = 250;
 #else
   this->ObjectPathMax = 1000;

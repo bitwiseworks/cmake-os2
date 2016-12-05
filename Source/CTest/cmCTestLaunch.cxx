@@ -21,7 +21,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#ifdef _WIN32
+#if defined(_WIN32) || defined(__OS2__)
 #include <fcntl.h> // for _O_BINARY
 #include <io.h>    // for _setmode
 #include <stdio.h> // for std{out,err} and fileno
@@ -135,7 +135,7 @@ bool cmCTestLaunch::ParseArguments(int argc, const char* const* argv)
 
 void cmCTestLaunch::HandleRealArg(const char* arg)
 {
-#ifdef _WIN32
+#if defined(_WIN32) || defined(__OS2__)
   // Expand response file arguments.
   if (arg[0] == '@' && cmSystemTools::FileExists(arg + 1)) {
     cmsys::ifstream fin(arg + 1);
@@ -219,6 +219,12 @@ void cmCTestLaunch::RunChild()
   // and cerr below.
   _setmode(fileno(stdout), _O_BINARY);
   _setmode(fileno(stderr), _O_BINARY);
+#endif
+#if defined(__OS2__)
+  // Do this so that newline transformation is not done when writing to cout
+  // and cerr below.
+  _setmode(fileno(stdout), O_BINARY);
+  _setmode(fileno(stderr), O_BINARY);
 #endif
 
   // Run the real command.

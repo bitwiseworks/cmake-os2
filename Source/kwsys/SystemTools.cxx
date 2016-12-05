@@ -120,7 +120,11 @@ extern char **environ;
 # undef HAVE_TTY_INFO
 #else
 # define HAVE_GETPWNAM 1
+#if defined(__OS2__)
+# undef HAVE_TTY_INFO
+#else
 # define HAVE_TTY_INFO 1
+#endif
 #endif
 
 #define VTK_URL_PROTOCOL_REGEX "([a-zA-Z0-9]*)://(.*)"
@@ -485,7 +489,7 @@ class SystemToolsEnvMap :
 void SystemTools::GetPath(std::vector<std::string>& path, const char* env)
 {
   size_t const old_size = path.size();
-#if defined(_WIN32) && !defined(__CYGWIN__)
+#if defined(_WIN32) && !defined(__CYGWIN__) || defined(__OS2__)
   const char pathSep = ';';
 #else
   const char pathSep = ':';
@@ -802,7 +806,7 @@ bool SystemTools::UnPutEnv(const std::string& env)
 
 const char* SystemTools::GetExecutableExtension()
 {
-#if defined(_WIN32) || defined(__CYGWIN__) || defined(__VMS)
+#if defined(_WIN32) || defined(__CYGWIN__) || defined(__VMS) || defined(__OS2__)
   return ".exe";
 #else
   return "";
@@ -2453,7 +2457,7 @@ bool SystemTools::FilesDiffer(const std::string& source,
   off_t nleft = statSource.st_size;
 #endif
 
-#if defined(_WIN32)
+#if defined(_WIN32) || defined(__OS2__)
   kwsys::ifstream finSource(source.c_str(),
                             (std::ios::binary |
                              std::ios::in));
@@ -3202,7 +3206,7 @@ std::string SystemTools::FindProgram(
 {
   std::string tryPath;
 
-#if defined (_WIN32) || defined(__CYGWIN__) || defined(__MINGW32__)
+#if defined (_WIN32) || defined(__CYGWIN__) || defined(__MINGW32__) || defined(__OS2__)
   std::vector<std::string> extensions;
   // check to see if the name already has a .xxx at
   // the end of it
@@ -3266,7 +3270,7 @@ std::string SystemTools::FindProgram(
     // Remove double quotes from the path on windows
     SystemTools::ReplaceString(*p, "\"", "");
 #endif
-#if defined (_WIN32) || defined(__CYGWIN__) || defined(__MINGW32__)
+#if defined (_WIN32) || defined(__CYGWIN__) || defined(__MINGW32__) || defined(__OS2__)
     // first try with extensions
     for(std::vector<std::string>::iterator ext
           = extensions.begin(); ext != extensions.end(); ++ext)
@@ -3375,7 +3379,11 @@ std::string SystemTools
     tryPath = *p;
     tryPath += "lib";
     tryPath += name;
+#ifdef __OS2__
+    tryPath += "_dll.a";
+#else
     tryPath += ".so";
+#endif
     if(SystemTools::FileExists(tryPath, true))
       {
       return SystemTools::CollapseFullPath(tryPath);
@@ -3922,7 +3930,7 @@ std::string SystemTools::RelativePath(const std::string& local, const std::strin
     ((sameCount <= (localSplit.size()-1)) && (sameCount <= (remoteSplit.size()-1)))
     &&
 // for windows and apple do a case insensitive string compare
-#if defined(_WIN32) || defined(__APPLE__)
+#if defined(_WIN32) || defined(__APPLE__) || defined(__OS2__)
     SystemTools::Strucmp(localSplit[sameCount].c_str(),
                          remoteSplit[sameCount].c_str()) == 0
 #else
@@ -4284,7 +4292,7 @@ SystemTools
 //----------------------------------------------------------------------------
 bool SystemTools::ComparePath(const std::string& c1, const std::string& c2)
 {
-#if defined(_WIN32) || defined(__APPLE__)
+#if defined(_WIN32) || defined(__APPLE__) || defined(__OS2__)
 # ifdef _MSC_VER
   return _stricmp(c1.c_str(), c2.c_str()) == 0;
 # elif defined(__APPLE__) || defined(__GNUC__)
@@ -4385,7 +4393,7 @@ std::string SystemTools::GetFilenamePath(const std::string& filename)
  */
 std::string SystemTools::GetFilenameName(const std::string& filename)
 {
-#if defined(_WIN32)
+#if defined(_WIN32) || defined(__OS2__)
   std::string::size_type slash_pos = filename.find_last_of("/\\");
 #else
   std::string::size_type slash_pos = filename.rfind('/');
@@ -4593,14 +4601,14 @@ bool SystemTools::LocateFileInDir(const char *filename,
   std::string real_dir;
   if (!SystemTools::FileIsDirectory(dir))
     {
-#if defined( _WIN32 )
+#if defined( _WIN32 ) || defined(__OS2__)
     size_t dir_len = strlen(dir);
     if (dir_len < 2 || dir[dir_len - 1] != ':')
       {
 #endif
       real_dir = SystemTools::GetFilenamePath(dir);
       dir = real_dir.c_str();
-#if defined( _WIN32 )
+#if defined( _WIN32 ) || defined(__OS2__)
       }
 #endif
     }
@@ -4641,7 +4649,7 @@ bool SystemTools::LocateFileInDir(const char *filename,
         {
         filename_dir = SystemTools::GetFilenamePath(filename_dir);
         filename_dir_base = SystemTools::GetFilenameName(filename_dir);
-#if defined( _WIN32 )
+#if defined( _WIN32 ) || defined(__OS2__)
         if (filename_dir_base.empty() ||
             *filename_dir_base.rbegin() == ':')
 #else
@@ -4682,7 +4690,7 @@ bool SystemTools::FileIsFullPath(const char* in_name)
 
 bool SystemTools::FileIsFullPath(const char* in_name, size_t len)
 {
-#if defined(_WIN32) || defined(__CYGWIN__)
+#if defined(_WIN32) || defined(__CYGWIN__) || defined(__OS2__)
   // On Windows, the name must be at least two characters long.
   if(len < 2)
     {

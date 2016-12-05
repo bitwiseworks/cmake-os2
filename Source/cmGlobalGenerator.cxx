@@ -2635,7 +2635,7 @@ void cmGlobalGenerator::CheckRuleHashes()
 void cmGlobalGenerator::CheckRuleHashes(std::string const& pfile,
                                         std::string const& home)
 {
-#if defined(_WIN32) || defined(__CYGWIN__)
+#if defined(_WIN32) || defined(__CYGWIN__) || defined(__OS2__)
   cmsys::ifstream fin(pfile.c_str(), std::ios::in | std::ios::binary);
 #else
   cmsys::ifstream fin(pfile.c_str());

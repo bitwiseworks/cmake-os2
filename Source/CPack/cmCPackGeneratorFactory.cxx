@@ -28,7 +28,9 @@
 
 #if !defined(_WIN32) && !defined(__QNXNTO__) && !defined(__BEOS__) &&         \
   !defined(__HAIKU__)
+#ifndef __OS2__
 #include "cmCPackDebGenerator.h"
+#endif
 #include "cmCPackRPMGenerator.h"
 #endif
 
@@ -123,10 +125,12 @@ cmCPackGeneratorFactory::cmCPackGeneratorFactory()
 #endif
 #if !defined(_WIN32) && !defined(__QNXNTO__) && !defined(__BEOS__) &&         \
   !defined(__HAIKU__)
+#ifndef __OS2__
   if (cmCPackDebGenerator::CanGenerate()) {
     this->RegisterGenerator("DEB", "Debian packages",
                             cmCPackDebGenerator::CreateGenerator);
   }
+#endif
   if (cmCPackRPMGenerator::CanGenerate()) {
     this->RegisterGenerator("RPM", "RPM packages",
                             cmCPackRPMGenerator::CreateGenerator);

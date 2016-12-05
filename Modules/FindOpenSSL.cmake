@@ -42,7 +42,7 @@
 # Set ``OPENSSL_USE_STATIC_LIBS`` to ``TRUE`` to look for static libraries.
 # Set ``OPENSSL_MSVC_STATIC_RT`` set ``TRUE`` to choose the MT version of the lib.
 
-if (UNIX)
+if (UNIX OR OS2)
   find_package(PkgConfig QUIET)
   pkg_check_modules(_OPENSSL QUIET openssl)
 endif ()

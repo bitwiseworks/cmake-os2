@@ -244,7 +244,7 @@ file_open(struct archive *a, void *client_data)
 		 * want easy handling of the common case.
 		 */
 		fd = 0;
-#if defined(__CYGWIN__) || defined(_WIN32)
+#if defined(__CYGWIN__) || defined(_WIN32) || defined(__OS2__)
 		setmode(0, O_BINARY);
 #endif
 		filename = "";

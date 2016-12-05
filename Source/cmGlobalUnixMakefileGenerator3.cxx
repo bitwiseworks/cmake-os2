@@ -30,7 +30,7 @@ cmGlobalUnixMakefileGenerator3::cmGlobalUnixMakefileGenerator3(cmake* cm)
   this->FindMakeProgramFile = "CMakeUnixFindMake.cmake";
   this->ToolSupportsColor = true;
 
-#if defined(_WIN32) || defined(__VMS)
+#if defined(_WIN32) || defined(__VMS) || defined(__OS2__)
   this->UseLinkScript = false;
 #else
   this->UseLinkScript = true;

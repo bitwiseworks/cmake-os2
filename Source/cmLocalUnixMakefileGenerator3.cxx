@@ -629,7 +629,14 @@ void cmLocalUnixMakefileGenerator3::WriteMakeVariables(
     makefileStream << "SHELL = cmd.exe\n"
                    << "\n";
   } else {
-#if !defined(__VMS)
+#if defined(__OS2__)
+    /* clang-format off */
+      makefileStream
+        << "# The shell in which to execute make rules.\n"
+        << "SHELL = sh\n"
+        << "\n";
+/* clang-format on */
+#elif !defined(__VMS)
     /* clang-format off */
       makefileStream
         << "# The shell in which to execute make rules.\n"

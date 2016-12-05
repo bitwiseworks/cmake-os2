@@ -181,7 +181,7 @@
 /* Configuration for this platform.  */
 
 /* The path separator for this platform.  */
-#if defined(_WIN32) && !defined(__CYGWIN__)
+#if defined(_WIN32) && !defined(__CYGWIN__) || defined(__OS2__)
 # define KWSYS_SHARED_FORWARD_PATH_SEP ';'
 # define KWSYS_SHARED_FORWARD_PATH_SLASH '\\'
 #else
@@ -274,7 +274,7 @@ static const char kwsys_shared_forward_path_slash[2] = {KWSYS_SHARED_FORWARD_PAT
 # define KWSYS_SHARED_FORWARD_LDPATH "PATH"
 
 /* Windows */
-#elif defined(_WIN32)
+#elif defined(_WIN32) || defined(__OS2__)
 # define KWSYS_SHARED_FORWARD_LDPATH "PATH"
 
 /* Guess on this unknown system.  */
@@ -560,7 +560,7 @@ static void kwsys_shared_forward_dirname(const char* begin, char* result)
     /* Only one leading slash.  */
     strcpy(result, kwsys_shared_forward_path_slash);
     }
-#if defined(_WIN32)
+#if defined(_WIN32) || defined(__OS2__)
   else if(last_slash_index == 2 && begin[1] == ':')
     {
     /* Only one leading drive letter and slash.  */
@@ -687,7 +687,7 @@ static int kwsys_shared_forward_fullpath(const char* self_path,
     /* Already a full path.  */
     strcpy(result, in_path);
     }
-#if defined(_WIN32)
+#if defined(_WIN32) || defined(__OS2__)
   else if(in_path[0] && in_path[1] == ':')
     {
     /* Already a full path.  */
@@ -755,7 +755,7 @@ static int kwsys_shared_forward_get_settings(const char* self_path,
     {
     /* Running in build tree.  Use the build path and exe.  */
     search_path = search_path_build;
-#if defined(_WIN32)
+#if defined(_WIN32) || defined(__OS2__)
     exe_path = KWSYS_SHARED_FORWARD_EXE_BUILD ".exe";
 #else
     exe_path = KWSYS_SHARED_FORWARD_EXE_BUILD;
@@ -770,7 +770,7 @@ static int kwsys_shared_forward_get_settings(const char* self_path,
     {
     /* Running in install tree.  Use the install path and exe.  */
     search_path = search_path_install;
-#if defined(_WIN32)
+#if defined(_WIN32) || defined(__OS2__)
     exe_path = KWSYS_SHARED_FORWARD_EXE_INSTALL ".exe";
 #else
     exe_path = KWSYS_SHARED_FORWARD_EXE_INSTALL;

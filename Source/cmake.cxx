@@ -32,7 +32,7 @@
 
 // only build kdevelop generator on non-windows platforms
 // when not bootstrapping cmake
-#if !defined(_WIN32)
+#if !defined(_WIN32) && !defined(__OS2__)
 #if defined(CMAKE_BUILD_WITH_CMAKE)
 #define CMAKE_USE_KDEVELOP
 #endif
@@ -2232,7 +2232,7 @@ static bool cmakeCheckStampFile(const char* stampName)
   // solution.
   std::string stampDepends = stampName;
   stampDepends += ".depend";
-#if defined(_WIN32) || defined(__CYGWIN__)
+#if defined(_WIN32) || defined(__CYGWIN__) || defined(__OS2__)
   cmsys::ifstream fin(stampDepends.c_str(), std::ios::in | std::ios::binary);
 #else
   cmsys::ifstream fin(stampDepends.c_str());

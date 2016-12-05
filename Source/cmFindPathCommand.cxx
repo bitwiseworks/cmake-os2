@@ -6,7 +6,11 @@
 
 cmFindPathCommand::cmFindPathCommand()
 {
+#ifdef __OS2__
+  this->EnvironmentPath = "C_INCLUDE_PATH";
+#else
   this->EnvironmentPath = "INCLUDE";
+#endif
   this->IncludeFileInPath = false;
 }
 

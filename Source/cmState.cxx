@@ -1243,8 +1243,8 @@ void cmState::Snapshot::SetDefaultDefinitions()
   With CMake must separate between target and host platform. In most cases
   the tests for WIN32, UNIX and APPLE will be for the target system, so an
   additional set of variables for the host system is required ->
-  CMAKE_HOST_WIN32, CMAKE_HOST_UNIX, CMAKE_HOST_APPLE.
-  WIN32, UNIX and APPLE are now set in the platform files in
+  CMAKE_HOST_WIN32, CMAKE_HOST_UNIX, CMAKE_HOST_APPLE, CMAKE_HOST_OS2.
+  WIN32, UNIX APPLE and OS2 are now set in the platform files in
   Modules/Platforms/.
   To keep cmake scripts (-P) and custom language and compiler modules
   working, these variables are still also set here in this place, but they
@@ -1253,6 +1253,9 @@ void cmState::Snapshot::SetDefaultDefinitions()
 #if defined(_WIN32)
   this->SetDefinition("WIN32", "1");
   this->SetDefinition("CMAKE_HOST_WIN32", "1");
+#elif defined(__OS2__)
+  this->SetDefinition("OS2", "1");
+  this->SetDefinition("CMAKE_HOST_OS2", "1");
 #else
   this->SetDefinition("UNIX", "1");
   this->SetDefinition("CMAKE_HOST_UNIX", "1");

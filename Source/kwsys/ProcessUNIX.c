@@ -131,6 +131,11 @@ static inline void kwsysProcess_usleep(unsigned int msec)
 /* The maximum amount to read from a pipe at a time.  */
 #define KWSYSPE_PIPE_BUFFER_SIZE 1024
 
+#ifdef __OS2__
+#include <sys/socket.h>
+# define pipe(A) socketpair(AF_UNIX, SOCK_STREAM, 0, A)
+#endif
+
 /* Keep track of times using a signed representation.  Switch to the
    native (possibly unsigned) representation only when calling native
    functions.  */

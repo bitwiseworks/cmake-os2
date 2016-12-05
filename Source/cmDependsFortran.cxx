@@ -637,7 +637,7 @@ bool cmDependsFortran::ModulesDiffer(const char* modFile,
     return cmSystemTools::FilesDiffer(modFile, stampFile);
   }
 
-#if defined(_WIN32) || defined(__CYGWIN__)
+#if defined(_WIN32) || defined(__CYGWIN__) || defined(__OS2__)
   cmsys::ifstream finModFile(modFile, std::ios::in | std::ios::binary);
   cmsys::ifstream finStampFile(stampFile, std::ios::in | std::ios::binary);
 #else

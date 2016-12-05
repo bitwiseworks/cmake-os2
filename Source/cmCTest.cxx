@@ -1493,7 +1493,7 @@ std::string cmCTest::Base64EncodeFile(std::string const& file)
 {
   size_t const len = cmSystemTools::FileLength(file);
   cmsys::ifstream ifs(file.c_str(), std::ios::in
-#ifdef _WIN32
+#if defined(_WIN32) || defined(__OS2__)
                         | std::ios::binary
 #endif
                       );

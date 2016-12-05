@@ -438,7 +438,7 @@ endfunction()
 
 function(get_item_key item key_var)
   get_filename_component(item_name "${item}" NAME)
-  if(WIN32)
+  if(WIN32 OR OS2)
     string(TOLOWER "${item_name}" item_name)
   endif()
   string(REPLACE "." "_" ${key_var} "${item_name}")
@@ -642,8 +642,8 @@ endfunction()
 
 
 function(copy_resolved_item_into_bundle resolved_item resolved_embedded_item)
-  if(WIN32)
-    # ignore case on Windows
+  if(WIN32 OR OS2)
+    # ignore case on Windows and OS/2
     string(TOLOWER "${resolved_item}" resolved_item_compare)
     string(TOLOWER "${resolved_embedded_item}" resolved_embedded_item_compare)
   else()
@@ -665,8 +665,8 @@ endfunction()
 
 
 function(copy_resolved_framework_into_bundle resolved_item resolved_embedded_item)
-  if(WIN32)
-    # ignore case on Windows
+  if(WIN32 or OS2)
+    # ignore case on Windows or OS/2
     string(TOLOWER "${resolved_item}" resolved_item_compare)
     string(TOLOWER "${resolved_embedded_item}" resolved_embedded_item_compare)
   else()

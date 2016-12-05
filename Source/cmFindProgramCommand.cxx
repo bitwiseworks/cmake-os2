@@ -12,7 +12,7 @@ struct cmFindProgramHelper
 {
   cmFindProgramHelper()
   {
-#if defined(_WIN32) || defined(__CYGWIN__) || defined(__MINGW32__)
+#if defined(_WIN32) || defined(__CYGWIN__) || defined(__MINGW32__) || defined(__OS2__)
     // Consider platform-specific extensions.
     this->Extensions.push_back(".com");
     this->Extensions.push_back(".exe");

@@ -24,7 +24,9 @@
  */
 
 #include "archive_platform.h"
+#ifndef __OS2__
 __FBSDID("$FreeBSD$");
+#endif
 
 #include "archive_private.h"
 

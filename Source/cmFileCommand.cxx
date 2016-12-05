@@ -249,7 +249,7 @@ bool cmFileCommand::HandleReadCommand(std::vector<std::string> const& args)
   std::string variable = resultArg.GetString();
 
 // Open the specified file.
-#if defined(_WIN32) || defined(__CYGWIN__)
+#if defined(_WIN32) || defined(__CYGWIN__) || defined(__OS2__)
   cmsys::ifstream file(
     fileName.c_str(), std::ios::in |
       (hexOutputArg.IsEnabled() ? std::ios::binary : std::ios::in));
@@ -520,7 +520,7 @@ bool cmFileCommand::HandleStringsCommand(std::vector<std::string> const& args)
   }
 
 // Open the specified file.
-#if defined(_WIN32) || defined(__CYGWIN__)
+#if defined(_WIN32) || defined(__CYGWIN__) || defined(__OS2__)
   cmsys::ifstream fin(fileName.c_str(), std::ios::in | std::ios::binary);
 #else
   cmsys::ifstream fin(fileName.c_str());
@@ -1011,7 +1011,7 @@ protected:
   MatchProperties CollectMatchProperties(const char* file)
   {
 // Match rules are case-insensitive on some platforms.
-#if defined(_WIN32) || defined(__APPLE__) || defined(__CYGWIN__)
+#if defined(_WIN32) || defined(__APPLE__) || defined(__CYGWIN__) || defined(__OS2__)
     std::string lower = cmSystemTools::LowerCase(file);
     const char* file_to_match = lower.c_str();
 #else
@@ -2253,7 +2253,7 @@ bool cmFileCommand::HandleCMakePathCommand(
     return false;
   }
   i++; // Get rid of subcommand
-#if defined(_WIN32) && !defined(__CYGWIN__)
+#if defined(_WIN32) && !defined(__CYGWIN__) || defined(__OS2__)
   char pathSep = ';';
 #else
   char pathSep = ':';

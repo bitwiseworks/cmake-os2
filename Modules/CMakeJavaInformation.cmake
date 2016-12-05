@@ -42,7 +42,7 @@ endif()
 
 # set java include flag option and the separator for multiple include paths
 set(CMAKE_INCLUDE_FLAG_Java "-classpath ")
-if(WIN32 AND NOT CYGWIN)
+if(WIN32 AND NOT CYGWIN OR OS2)
   set(CMAKE_INCLUDE_FLAG_SEP_Java ";")
 else()
   set(CMAKE_INCLUDE_FLAG_SEP_Java ":")

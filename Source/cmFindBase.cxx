@@ -215,7 +215,7 @@ void cmFindBase::FillSystemEnvironmentPath()
   // Add LIB or INCLUDE
   if (!this->EnvironmentPath.empty()) {
     paths.AddEnvPath(this->EnvironmentPath);
-#if defined(_WIN32) || defined(__CYGWIN__)
+#if defined(_WIN32) || defined(__CYGWIN__) || defined(__OS2__)
     paths.AddEnvPrefixPath("PATH", true);
 #endif
   }

@@ -88,6 +88,13 @@ else
   cmake_system_mingw=false
 fi
 
+# Determine whether this is a OS/2 environment.
+if echo "${cmake_system}" | grep OS/2 >/dev/null 2>&1; then
+  cmake_system_os2=true
+else
+  cmake_system_os2=false
+fi
+
 # Determine whether this is OS X
 if echo "${cmake_system}" | grep Darwin >/dev/null 2>&1; then
   cmake_system_darwin=true
@@ -564,6 +571,12 @@ cmake_try_run ()
     echo "Test file ${TESTFILE} missing. Please verify your CMake source tree."
     exit 4
   fi
+
+  # on OS/2 we need to add -Zexe to build an exe
+  if ${cmake_system_os2}; then
+    FLAGS="${FLAGS} -Zexe"
+  fi
+
   TMPFILE=`cmake_tmp_file`
   echo "Try: ${COMPILER}"
   echo "Line: ${COMPILER} ${FLAGS} ${TESTFILE} -o ${TMPFILE}"
@@ -734,6 +747,11 @@ cmake_ld_flags=${LDFLAGS}
 # Add Cygwin-specific flags
 if ${cmake_system_cygwin}; then
   cmake_ld_flags="${LDFLAGS} -Wl,--enable-auto-import"
+fi
+
+# Add OS/2 flags
+if ${cmake_system_os2}; then
+  cmake_ld_flags="${LDFLAGS} -Zexe"
 fi
 
 # Add CoreFoundation framework on Darwin
