@@ -163,6 +163,13 @@ foreach(_CURRENT_VERSION ${_Python_VERSIONS})
     PATH_SUFFIXES python${_CURRENT_VERSION}/config
   )
 
+  # on os/2 we also search in the systempath, if not already found
+  if(OS2 AND NOT PYTHON_LIBRARY)
+  find_library(PYTHON_LIBRARY
+    NAMES python${_CURRENT_VERSION_NO_DOTS} python${_CURRENT_VERSION}
+  )
+  endif()
+
   # Don't search for include dir until library location is known
   if(PYTHON_LIBRARY)
 
