@@ -459,7 +459,7 @@ function(_Boost_GUESS_COMPILER_PREFIX _ret)
       _Boost_COMPILER_DUMPVERSION(_boost_COMPILER_VERSION)
       set(_boost_COMPILER "-mgw${_boost_COMPILER_VERSION}")
     endif()
-  elseif (UNIX OR OS2)
+  elseif (UNIX)
     if (CMAKE_COMPILER_IS_GNUCXX)
       if(${Boost_MAJOR_VERSION}.${Boost_MINOR_VERSION} VERSION_LESS 1.34)
         set(_boost_COMPILER "-gcc") # no GCC version encoding prior to 1.34
@@ -487,6 +487,9 @@ function(_Boost_GUESS_COMPILER_PREFIX _ret)
         endif()
       endif()
     endif ()
+  elseif (OS2)
+    # No compiler prefix in OS/2 for now
+    set(_boost_COMPILER "")
   else()
     # TODO at least Boost_DEBUG here?
     set(_boost_COMPILER "")
