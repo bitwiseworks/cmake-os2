@@ -643,6 +643,32 @@ std::string cmLocalGenerator::ExpandRuleVariable(
         return targetBase;
       }
     }
+#ifdef __OS2__
+// give back the name of the target without extension and any leading path
+// this is needed to have the def files created right
+    if (replaceValues.Target) {
+      if (variable == "TARGET_OS2DEF") {
+        std::string targetName;
+        std::string targetBase;
+        std::string::size_type pos;
+
+        // remove leading path stuff if any
+        targetName = replaceValues.Target;
+        pos = targetName.find_last_of("/\\");
+        if (pos != targetName.npos)
+          targetBase = targetName.substr(pos+1);
+        else
+          targetBase = targetName;
+
+        // Strip the last extension off the target name.
+        pos = targetBase.rfind('.');
+        if (pos != targetBase.npos) {
+          return targetBase.substr(0, pos);
+        }
+        return targetBase;
+      }
+    }
+#endif
   }
   if (variable == "TARGET_SONAME" || variable == "SONAME_FLAG" ||
       variable == "TARGET_INSTALLNAME_DIR") {
