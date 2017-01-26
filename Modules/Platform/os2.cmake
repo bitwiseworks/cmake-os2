@@ -84,28 +84,27 @@ SET(CMAKE_C_CREATE_SHARED_MODULE
 SET(CMAKE_CXX_CREATE_SHARED_MODULE
   "<CMAKE_CXX_COMPILER> <LANGUAGE_COMPILE_FLAGS> <CMAKE_SHARED_MODULE_CXX_FLAGS> <LINK_FLAGS> <CMAKE_SHARED_MODULE_CREATE_CXX_FLAGS> -o <TARGET> ${CMAKE_GNULD_IMAGE_VERSION} <OBJECTS> <LINK_LIBRARIES>")
 
-# Init the buildlevel settings, if not set in the main CMakeList.txt.
-# To enable them in the main CMakeList.txt use the below snippet as a reference.
+# When setting the below properties in the CMakeList.txt, a nice buildlevel
+# string is written to the exe or the dll. If the properties are not set,
+# the settings are filled with defaults.
+# To enable them in the CMakeList.txt use the below snippet as a reference.
 # If there is no VERSION or VERSION_PATCH set in CMakeList.txt, either remove
 # this definition, or set it to your liking.
+# It's important that you add this snippet after the target is created and of
+# course <TARGET> needs to be changed to the real target
 #
-#  if(OS2)
-#    SET(VERSION_BLDLevel ${VERSION} CACHE TYPE STRING)
-#    SET(PATCH_BLDLevel ${VERSION_PATCH} CACHE TYPE STRING)
-#    SET(VENDOR_BLDLevel "whoever you are" CACHE TYPE STRING)
-#  endif(OS2)
-
-if(NOT VENDOR_BLDLevel)
-  SET(VENDOR_BLDLevel "community")
-endif(NOT VENDOR_BLDLevel)
-
-if(NOT VERSION_BLDLevel)
-  SET(VERSION_BLDLevel "0")
-endif(NOT VERSION_BLDLevel)
-
-if(NOT PATCH_BLDLevel)
-  SET(PATCH_BLDLevel "0")
-endif(NOT PATCH_BLDLevel)
+# The 2 settings with OS2_DEF_EXE_ are for executables only.
+# Usually the Stack value is not needed, so omit it please.
+#
+# if(OS2)
+#   set_target_properties(<TARGET> PROPERTIES
+#    OS2_DEF_VENDOR "whoever you are"
+#    OS2_DEF_PATCH "${VERSION_PATCH}"
+#    OS2_DEF_VERSION "${VERSION}"
+#    OS2_DEF_EXEType "WINDOWAPI"
+#    OS2_DEF_EXEStack "STACKSIZE 0x8000")
+# endif()
+#
 
 # create the timestamp and build maschine name
 string(TIMESTAMP TSbldLevel "%d %b %Y %H:%M:%S")
@@ -113,15 +112,14 @@ exec_program(uname ARGS -n OUTPUT_VARIABLE unamebldLevel)
 SET(bldLevelInfo "\#\#1\#\# ${TSbldLevel}\\ \\ \\ \\ \\ ${unamebldLevel}")
 
 SET(CMAKE_C_CREATE_SHARED_LIBRARY
-  "echo LIBRARY <TARGET_OS2DEF> INITINSTANCE TERMINSTANCE > <TARGET_BASE>.def && echo DESCRIPTION \\\"@\#${VENDOR_BLDLevel}:${VERSION_BLDLevel}\#@${bldLevelInfo}::::${PATCH_BLDLevel}::@@<TARGET_NAME>\\\" >> <TARGET_BASE>.def && echo DATA MULTIPLE NONSHARED >> <TARGET_BASE>.def && echo EXPORTS >> <TARGET_BASE>.def && emxexp <OBJECTS> >> <TARGET_BASE>.def && <CMAKE_C_COMPILER> <LANGUAGE_COMPILE_FLAGS> <CMAKE_SHARED_LIBRARY_C_FLAGS> <LINK_FLAGS> <CMAKE_SHARED_LIBRARY_CREATE_C_FLAGS> -o <TARGET> ${CMAKE_GNULD_IMAGE_VERSION} <OBJECTS> <LINK_LIBRARIES> <TARGET_BASE>.def && emximp -o <TARGET_IMPLIB> <TARGET_BASE>.def")
+  "echo LIBRARY <OS2_DEF_TARGET> INITINSTANCE TERMINSTANCE > <TARGET_BASE>.def && echo DESCRIPTION \\\"@\#<OS2_DEF_VENDOR>:<OS2_DEF_VERSION>\#@${bldLevelInfo}::::<OS2_DEF_PATCH>::@@<TARGET_NAME>\\\" >> <TARGET_BASE>.def && echo DATA MULTIPLE NONSHARED >> <TARGET_BASE>.def && echo EXPORTS >> <TARGET_BASE>.def && emxexp <OBJECTS> >> <TARGET_BASE>.def && <CMAKE_C_COMPILER> <LANGUAGE_COMPILE_FLAGS> <CMAKE_SHARED_LIBRARY_C_FLAGS> <LINK_FLAGS> <CMAKE_SHARED_LIBRARY_CREATE_C_FLAGS> -o <TARGET> ${CMAKE_GNULD_IMAGE_VERSION} <OBJECTS> <LINK_LIBRARIES> <TARGET_BASE>.def && emximp -o <TARGET_IMPLIB> <TARGET_BASE>.def")
 SET(CMAKE_CXX_CREATE_SHARED_LIBRARY
-  "echo LIBRARY <TARGET_OS2DEF> INITINSTANCE TERMINSTANCE > <TARGET_BASE>.def && echo DESCRIPTION \\\"@\#${VENDOR_BLDLevel}:${VERSION_BLDLevel}\#@${bldLevelInfo}::::${PATCH_BLDLevel}::@@<TARGET_NAME>\\\" >> <TARGET_BASE>.def && echo DATA MULTIPLE NONSHARED >> <TARGET_BASE>.def && echo EXPORTS >> <TARGET_BASE>.def && emxexp <OBJECTS> >> <TARGET_BASE>.def && <CMAKE_CXX_COMPILER> <LANGUAGE_COMPILE_FLAGS> <CMAKE_SHARED_LIBRARY_CXX_FLAGS> <LINK_FLAGS> <CMAKE_SHARED_LIBRARY_CREATE_CXX_FLAGS> -o <TARGET> ${CMAKE_GNULD_IMAGE_VERSION} <OBJECTS> <LINK_LIBRARIES> <TARGET_BASE>.def && emximp -o <TARGET_IMPLIB> <TARGET_BASE>.def")
+  "echo LIBRARY <OS2_DEF_TARGET> INITINSTANCE TERMINSTANCE > <TARGET_BASE>.def && echo DESCRIPTION \\\"@\#<OS2_DEF_VENDOR>:<OS2_DEF_VERSION>\#@${bldLevelInfo}::::<OS2_DEF_PATCH>::@@<TARGET_NAME>\\\" >> <TARGET_BASE>.def && echo DATA MULTIPLE NONSHARED >> <TARGET_BASE>.def && echo EXPORTS >> <TARGET_BASE>.def && emxexp <OBJECTS> >> <TARGET_BASE>.def && <CMAKE_CXX_COMPILER> <LANGUAGE_COMPILE_FLAGS> <CMAKE_SHARED_LIBRARY_CXX_FLAGS> <LINK_FLAGS> <CMAKE_SHARED_LIBRARY_CREATE_CXX_FLAGS> -o <TARGET> ${CMAKE_GNULD_IMAGE_VERSION} <OBJECTS> <LINK_LIBRARIES> <TARGET_BASE>.def && emximp -o <TARGET_IMPLIB> <TARGET_BASE>.def")
 
 SET(CMAKE_C_LINK_EXECUTABLE
-  "<CMAKE_C_COMPILER> <FLAGS> <CMAKE_C_LINK_FLAGS> <LINK_FLAGS> <OBJECTS> -o <TARGET> ${CMAKE_GNULD_IMAGE_VERSION} <LINK_LIBRARIES>")
+  "echo NAME <TARGET_NAME> <OS2_DEF_EXEType> > <TARGET_BASE>.def && echo DESCRIPTION \\\"@\#<OS2_DEF_VENDOR>:<OS2_DEF_VERSION>\#@${bldLevelInfo}::::<OS2_DEF_PATCH>::@@<TARGET_NAME>\\\" >> <TARGET_BASE>.def && echo <OS2_DEF_EXEStack> >> <TARGET_BASE>.def && <CMAKE_C_COMPILER> <FLAGS> <CMAKE_C_LINK_FLAGS> <LINK_FLAGS> <OBJECTS> -o <TARGET> ${CMAKE_GNULD_IMAGE_VERSION} <LINK_LIBRARIES> <TARGET_BASE>.def")
 SET(CMAKE_CXX_LINK_EXECUTABLE
-  "<CMAKE_CXX_COMPILER> <FLAGS> <CMAKE_CXX_LINK_FLAGS> <LINK_FLAGS> <OBJECTS> -o <TARGET> ${CMAKE_GNULD_IMAGE_VERSION} <LINK_LIBRARIES>")
-
+  "echo NAME <TARGET_NAME> <OS2_DEF_EXEType> > <TARGET_BASE>.def && echo DESCRIPTION \\\"@\#<OS2_DEF_VENDOR>:<OS2_DEF_VERSION>\#@${bldLevelInfo}::::<OS2_DEF_PATCH>::@@<TARGET_NAME>\\\" >> <TARGET_BASE>.def && echo <OS2_DEF_EXEStack> >> <TARGET_BASE>.def && <CMAKE_CXX_COMPILER> <FLAGS> <CMAKE_CXX_LINK_FLAGS> <LINK_FLAGS> <OBJECTS> -o <TARGET> ${CMAKE_GNULD_IMAGE_VERSION} <LINK_LIBRARIES> <TARGET_BASE>.def")
 
 # Initialize C link type selection flags.  These flags are used when
 # building a shared library, shared module, or executable that links

@@ -784,6 +784,13 @@ add_executable(cmake cmakemain.cxx cmcmd.cxx cmcmd.h ${MANIFEST_FILE})
 list(APPEND _tools cmake)
 target_link_libraries(cmake CMakeLib)
 
+if(OS2)
+  set_target_properties(cmake PROPERTIES
+   OS2_DEF_VENDOR "$ENV{VENDOR}"
+   OS2_DEF_PATCH "${CMake_VERSION_PATCH}"
+   OS2_DEF_VERSION "${CMake_VERSION}")
+endif(OS2)
+
 if(CMake_ENABLE_SERVER_MODE)
   add_library(CMakeServerLib
     cmFileMonitor.cxx cmFileMonitor.h
@@ -802,10 +809,24 @@ add_executable(ctest ctest.cxx ${MANIFEST_FILE})
 list(APPEND _tools ctest)
 target_link_libraries(ctest CTestLib)
 
+if(OS2)
+  set_target_properties(ctest PROPERTIES
+   OS2_DEF_VENDOR "$ENV{VENDOR}"
+   OS2_DEF_PATCH "${CMake_VERSION_PATCH}"
+   OS2_DEF_VERSION "${CMake_VERSION}")
+endif(OS2)
+
 # Build CPack executable
 add_executable(cpack CPack/cpack.cxx ${MANIFEST_FILE})
 list(APPEND _tools cpack)
 target_link_libraries(cpack CPackLib)
+
+if(OS2)
+  set_target_properties(cpack PROPERTIES
+   OS2_DEF_VENDOR "$ENV{VENDOR}"
+   OS2_DEF_PATCH "${CMake_VERSION_PATCH}"
+   OS2_DEF_VERSION "${CMake_VERSION}")
+endif(OS2)
 
 # Curses GUI
 if(BUILD_CursesDialog)

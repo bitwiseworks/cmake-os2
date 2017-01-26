@@ -647,7 +647,7 @@ std::string cmLocalGenerator::ExpandRuleVariable(
 // give back the name of the target without extension and any leading path
 // this is needed to have the def files created right
     if (replaceValues.Target) {
-      if (variable == "TARGET_OS2DEF") {
+      if (variable == "OS2_DEF_TARGET") {
         std::string targetName;
         std::string targetBase;
         std::string::size_type pos;
@@ -704,6 +704,32 @@ std::string cmLocalGenerator::ExpandRuleVariable(
     if (variable == "TARGET_TYPE") {
       return cmState::GetTargetTypeName(replaceValues.CMTarget->GetType());
     }
+#ifdef __OS2__
+    if (variable == "OS2_DEF_VERSION" || variable == "OS2_DEF_PATCH" ||
+        variable == "OS2_DEF_VENDOR" || variable == "OS2_DEF_EXEType" ||
+        variable == "OS2_DEF_EXEStack") {
+
+      const char *prop = replaceValues.CMTarget->GetProperty(variable);
+      if (prop && strlen(prop) > 0)
+        return prop;
+
+// no target property was found: set the defaults
+      if (variable == "OS2_DEF_VERSION") {
+        prop = replaceValues.CMTarget->GetProperty("VERSION");
+        if (prop)
+          return prop;
+        return "0.0";
+      }
+
+      if (variable == "OS2_DEF_PATCH")
+        return "0";
+      if (variable == "OS2_DEF_VENDOR")
+        return "cmake build system";
+
+// for all others the default is blank
+      return "";
+    }
+#endif
   }
   if (replaceValues.Output) {
     if (variable == "OUTPUT") {

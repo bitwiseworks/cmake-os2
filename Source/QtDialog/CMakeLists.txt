@@ -160,6 +160,14 @@ set(CMAKE_INCLUDE_CURRENT_DIR ON)
 add_executable(cmake-gui WIN32 MACOSX_BUNDLE ${SRCS} ${MANIFEST_FILE})
 target_link_libraries(cmake-gui CMakeLib ${QT_QTMAIN_LIBRARY} ${CMake_QT_LIBRARIES})
 
+if(OS2)
+  set_target_properties(cmake-gui PROPERTIES
+   OS2_DEF_VENDOR "$ENV{VENDOR}"
+   OS2_DEF_PATCH "${CMake_VERSION_PATCH}"
+   OS2_DEF_VERSION "${CMake_VERSION}"
+   OS2_DEF_EXEType "WINDOWAPI")
+endif(OS2)
+
 if(APPLE)
   file(STRINGS "${CMake_SOURCE_DIR}/Copyright.txt" copyright_line
     LIMIT_COUNT 1 REGEX "^Copyright 2000-20[0-9][0-9] Kitware")
