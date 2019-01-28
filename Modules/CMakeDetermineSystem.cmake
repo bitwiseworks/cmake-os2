@@ -77,6 +77,15 @@ else()
   endif()
   if(CMAKE_HOST_OS2)
     set (CMAKE_HOST_SYSTEM_NAME "OS2")
+    find_program(CMAKE_UNAME uname /@unixroot/usr/bin /@unixroot/usr/local/bin )
+    if(CMAKE_UNAME)
+      exec_program(uname ARGS -m OUTPUT_VARIABLE CMAKE_HOST_SYSTEM_PROCESSOR
+        RETURN_VALUE val)
+      # check the return of the last uname -m or -p
+      if("${val}" GREATER 0)
+          set(CMAKE_HOST_SYSTEM_PROCESSOR "unknown")
+      endif()
+    endif()
   endif()
 endif()
 
