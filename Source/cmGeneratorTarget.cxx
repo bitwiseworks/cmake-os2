@@ -366,8 +366,13 @@ const char* cmGeneratorTarget::GetOutputTargetType(bool implib) const
           // A DLL import library is treated as an archive target.
           return "ARCHIVE";
         }
+#ifdef __OS2__
+        // A DLL shared library is treated as a library target.
+        return "LIBRARY";
+#else
         // A DLL shared library is treated as a runtime target.
         return "RUNTIME";
+#endif
       } else {
         // For non-DLL platforms shared libraries are treated as
         // library targets.

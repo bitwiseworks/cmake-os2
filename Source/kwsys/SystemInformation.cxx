@@ -3713,7 +3713,7 @@ SystemInformationImplementation::GetProcessId()
 {
 #if defined(_WIN32)
   return GetCurrentProcessId();
-#elif defined(__linux) || defined(__APPLE__)
+#elif defined(__linux) || defined(__APPLE__) || defined(__OS2__)
   return getpid();
 #else
   return -1;

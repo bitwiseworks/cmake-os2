@@ -274,8 +274,12 @@ static const char kwsys_shared_forward_path_slash[2] = {KWSYS_SHARED_FORWARD_PAT
 # define KWSYS_SHARED_FORWARD_LDPATH "PATH"
 
 /* Windows */
-#elif defined(_WIN32) || defined(__OS2__)
+#elif defined(_WIN32)
 # define KWSYS_SHARED_FORWARD_LDPATH "PATH"
+
+/* OS/2 */
+#elif defined(__OS2__)
+# define KWSYS_SHARED_FORWARD_LDPATH "BEGINLIBPATH"
 
 /* Guess on this unknown system.  */
 #else
