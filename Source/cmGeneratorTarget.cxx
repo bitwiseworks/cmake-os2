@@ -433,6 +433,14 @@ std::string cmGeneratorTarget::GetOutputName(const std::string& config,
       // <CONFIG>_OUTPUT_NAME
       props.push_back(configUpper + "_OUTPUT_NAME");
     }
+
+#ifdef __OS2__
+    // short name for os/2 to overcome the 8.3 dll name scheme
+    // not needed for importlibs
+    if (!implib)
+      props.push_back("TARGET_SHORT");
+#endif
+
     // OUTPUT_NAME
     props.push_back("OUTPUT_NAME");
 
