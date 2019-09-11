@@ -3,11 +3,10 @@
 #ifndef cmWIXRichTextFormatWriter_h
 #define cmWIXRichTextFormatWriter_h
 
-#include <cmConfigure.h>
+#include "cmConfigure.h" // IWYU pragma: keep
 
-#include "cmStandardIncludes.h"
-
-#include <cmsys/FStream.hxx>
+#include "cmsys/FStream.hxx"
+#include <string>
 
 /** \class cmWIXRichtTextFormatWriter
  * \brief Helper class to generate Rich Text Format (RTF) documents

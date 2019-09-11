@@ -11,28 +11,38 @@
 # ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 #
 # CMake
-# can generate graphviz files, showing the dependencies between the
+# can generate `graphviz <http://www.graphviz.org/>`_ files, showing the dependencies between the
 # targets in a project and also external libraries which are linked
-# against.  When CMake is run with the --graphviz=foo option, it will
-# produce
+# against.  When CMake is run with the ``--graphviz=foo.dot`` option, it will
+# produce:
 #
-# * a foo.dot file showing all dependencies in the project
-# * a foo.dot.<target> file for each target, file showing on which other targets the respective target depends
-# * a foo.dot.<target>.dependers file, showing which other targets depend on the respective target
+# * a ``foo.dot`` file showing all dependencies in the project
+# * a ``foo.dot.<target>`` file for each target, file showing on which other targets the respective target depends
+# * a ``foo.dot.<target>.dependers`` file, showing which other targets depend on the respective target
+#
+# The different dependency types ``PUBLIC``, ``PRIVATE`` and ``INTERFACE``
+# are represented as solid, dashed and dotted edges.
 #
 # This can result in huge graphs.  Using the file
-# CMakeGraphVizOptions.cmake the look and content of the generated
+# ``CMakeGraphVizOptions.cmake`` the look and content of the generated
 # graphs can be influenced.  This file is searched first in
-# ${CMAKE_BINARY_DIR} and then in ${CMAKE_SOURCE_DIR}.  If found, it is
+# :variable:`CMAKE_BINARY_DIR` and then in :variable:`CMAKE_SOURCE_DIR`.  If found, it is
 # read and the variables set in it are used to adjust options for the
 # generated graphviz files.
 #
 # .. variable:: GRAPHVIZ_GRAPH_TYPE
 #
-#  The graph type
+#  The graph type.
 #
 #  * Mandatory : NO
 #  * Default   : "digraph"
+#
+#  Valid graph types are:
+#
+#  * "graph" : Nodes are joined with lines
+#  * "digraph" : Nodes are joined with arrows showing direction
+#  * "strict graph" : Like "graph" but max one line between each node
+#  * "strict digraph" : Like "graph" but max one line between each node in each direction
 #
 # .. variable:: GRAPHVIZ_GRAPH_NAME
 #

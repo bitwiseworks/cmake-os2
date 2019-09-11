@@ -2,6 +2,9 @@
    file Copyright.txt or https://cmake.org/licensing for details.  */
 #include "cmCTestUploadCommand.h"
 
+#include <sstream>
+#include <vector>
+
 #include "cmCTest.h"
 #include "cmCTestGenericHandler.h"
 #include "cmCTestUploadHandler.h"
@@ -9,15 +12,13 @@
 #include "cmSystemTools.h"
 #include "cmake.h"
 
-#include <sstream>
-
 cmCTestGenericHandler* cmCTestUploadCommand::InitializeHandler()
 {
   cmCTestGenericHandler* handler =
     this->CTest->GetInitializedHandler("upload");
   if (!handler) {
     this->SetError("internal CTest error. Cannot instantiate upload handler");
-    return CM_NULLPTR;
+    return nullptr;
   }
   static_cast<cmCTestUploadHandler*>(handler)->SetFiles(this->Files);
 

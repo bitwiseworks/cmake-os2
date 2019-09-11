@@ -3,7 +3,7 @@
 #include "cmCursesOptionsWidget.h"
 
 #include "cmCursesWidget.h"
-#include "cmState.h"
+#include "cmStateTypes.h"
 
 #define ctrl(z) ((z)&037)
 
@@ -11,7 +11,7 @@ cmCursesOptionsWidget::cmCursesOptionsWidget(int width, int height, int left,
                                              int top)
   : cmCursesWidget(width, height, left, top)
 {
-  this->Type = cmState::BOOL; // this is a bit of a hack
+  this->Type = cmStateEnums::BOOL; // this is a bit of a hack
   // there is no option type, and string type causes ccmake to cast
   // the widget into a string widget at some point.  BOOL is safe for
   // now.
@@ -75,9 +75,8 @@ void cmCursesOptionsWidget::SetOption(const std::string& value)
   this->CurrentOption = 0; // default to 0 index
   this->SetValue(value);
   int index = 0;
-  for (std::vector<std::string>::iterator i = this->Options.begin();
-       i != this->Options.end(); ++i) {
-    if (*i == value) {
+  for (auto const& opt : this->Options) {
+    if (opt == value) {
       this->CurrentOption = index;
     }
     index++;

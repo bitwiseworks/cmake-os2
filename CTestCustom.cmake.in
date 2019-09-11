@@ -17,7 +17,6 @@ list(APPEND CTEST_CUSTOM_WARNING_EXCEPTION
   "Utilities.cmbzip2."
   "Source.CTest.Curl"
   "Source.CursesDialog.form"
-  "Source.cm_sha2.*warning.*cast increases required alignment of target type"
   "Utilities.cmcurl"
   "Utilities.cmexpat."
   "Utilities.cmlibarchive"
@@ -45,6 +44,8 @@ list(APPEND CTEST_CUSTOM_WARNING_EXCEPTION
   "Warning: LINN32: Last line.*is less.*"
   "Warning: Olimit was exceeded on function.*"
   "Warning: To override Olimit for all functions in file.*"
+  "Warning: Function .* can throw only the exceptions thrown by the function .* it overrides\\."
+  "WarningMessagesDialog\\.cxx"
   "warning.*directory name.*CMake-Xcode.*/bin/.*does not exist.*"
   "stl_deque.h:1051"
   "(Lexer|Parser).*warning.*conversion.*may (alter its value|change the sign)"
@@ -69,11 +70,11 @@ list(APPEND CTEST_CUSTOM_WARNING_EXCEPTION
   "cm(StringCommand|CTestTestHandler)\\.cxx.*warning.*srand.*seed choices are.*poor" # we do not do crypto
   "IPA warning: function.*multiply defined in"
 
-  # Ignore clang's summary warning, assuming prior text has matched some
+  # Ignore compiler summary warning, assuming prior text has matched some
   # other warning expression:
-  "[0-9,]+ warnings? generated."
-  # similarly for PGI
-  "compilation completed with warnings"
+  "[0-9,]+ warnings? generated." # Clang
+  "compilation completed with warnings" # PGI
+  "[0-9]+ Warning\\(s\\) detected" # SunPro
 
 # scanbuild exceptions
   "char_traits.h:.*: warning: Null pointer argument in call to string length function"
@@ -84,7 +85,10 @@ list(APPEND CTEST_CUSTOM_WARNING_EXCEPTION
   "warning: Value stored to 'yytoken' is never read"
   "index_encoder.c.241.2. warning: Value stored to .out_start. is never read"
   "index.c.*warning: Access to field.*results in a dereference of a null pointer.*loaded from variable.*"
-  "cm_sha2.*warning: Value stored to.*is never read"
+  "cmCommandArgumentLexer.cxx:[0-9]+:[0-9]+: warning: Call to 'realloc' has an allocation size of 0 bytes"
+  "cmDependsJavaLexer.cxx:[0-9]+:[0-9]+: warning: Call to 'realloc' has an allocation size of 0 bytes"
+  "cmExprLexer.cxx:[0-9]+:[0-9]+: warning: Call to 'realloc' has an allocation size of 0 bytes"
+  "cmListFileLexer.c:[0-9]+:[0-9]+: warning: Call to 'realloc' has an allocation size of 0 bytes"
   "cmFortranLexer.cxx:[0-9]+:[0-9]+: warning: Call to 'realloc' has an allocation size of 0 bytes"
   "testProcess.*warning: Dereference of null pointer .loaded from variable .invalidAddress.."
   "liblzma/simple/x86.c:[0-9]+:[0-9]+: warning: The result of the '<<' expression is undefined"

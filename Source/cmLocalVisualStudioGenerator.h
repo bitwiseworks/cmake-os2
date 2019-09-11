@@ -3,16 +3,21 @@
 #ifndef cmLocalVisualStudioGenerator_h
 #define cmLocalVisualStudioGenerator_h
 
-#include "cmLocalGenerator.h"
+#include "cmConfigure.h" // IWYU pragma: keep
+
+#include <map>
+#include <memory> // IWYU pragma: keep
+#include <string>
 
 #include "cmGlobalVisualStudioGenerator.h"
+#include "cmLocalGenerator.h"
 
-#include <cm_auto_ptr.hxx>
-
-class cmSourceFile;
-class cmSourceGroup;
 class cmCustomCommand;
 class cmCustomCommandGenerator;
+class cmGeneratorTarget;
+class cmGlobalGenerator;
+class cmMakefile;
+class cmSourceFile;
 
 /** \class cmLocalVisualStudioGenerator
  * \brief Base class for Visual Studio generators.
@@ -50,9 +55,8 @@ protected:
   virtual bool CustomCommandUseLocal() const { return false; }
 
   /** Construct a custom command to make exe import lib dir.  */
-  CM_AUTO_PTR<cmCustomCommand> MaybeCreateImplibDir(cmGeneratorTarget* target,
-                                                    const std::string& config,
-                                                    bool isFortran);
+  std::unique_ptr<cmCustomCommand> MaybeCreateImplibDir(
+    cmGeneratorTarget* target, const std::string& config, bool isFortran);
 };
 
 #endif

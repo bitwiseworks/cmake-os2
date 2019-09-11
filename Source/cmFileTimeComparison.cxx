@@ -2,26 +2,17 @@
    file Copyright.txt or https://cmake.org/licensing for details.  */
 #include "cmFileTimeComparison.h"
 
-#include <cmConfigure.h>
 #include <string>
 #include <time.h>
-#include <utility>
-
-// Use a hash table to avoid duplicate file time checks from disk.
-#if defined(CMAKE_BUILD_WITH_CMAKE)
-#ifdef CMake_HAVE_CXX_UNORDERED_MAP
 #include <unordered_map>
-#else
-#include <cmsys/hash_map.hxx>
-#endif
-#endif
+#include <utility>
 
 // Use a platform-specific API to get file times efficiently.
 #if !defined(_WIN32) || defined(__CYGWIN__)
-#include <sys/stat.h>
+#include "cm_sys_stat.h"
 #define cmFileTimeComparison_Type struct stat
 #else
-#include <cmsys/Encoding.hxx>
+#include "cmsys/Encoding.hxx"
 #include <windows.h>
 #define cmFileTimeComparison_Type FILETIME
 #endif
@@ -35,27 +26,9 @@ public:
   bool FileTimesDiffer(const char* f1, const char* f2);
 
 private:
-#if defined(CMAKE_BUILD_WITH_CMAKE)
-  // Use a hash table to efficiently map from file name to modification time.
-  class HashString
-  {
-  public:
-    size_t operator()(const std::string& s) const { return h(s.c_str()); }
-#ifdef CMake_HAVE_CXX_UNORDERED_MAP
-    std::hash<const char*> h;
-#else
-    cmsys::hash<const char*> h;
-#endif
-  };
-#ifdef CMake_HAVE_CXX_UNORDERED_MAP
-  typedef std::unordered_map<std::string,
-#else
-  typedef cmsys::hash_map<std::string,
-#endif
-                             cmFileTimeComparison_Type, HashString>
+  typedef std::unordered_map<std::string, cmFileTimeComparison_Type>
     FileStatsMap;
   FileStatsMap Files;
-#endif
 
   // Internal methods to lookup and compare modification times.
   inline bool Stat(const char* fname, cmFileTimeComparison_Type* st);
@@ -68,7 +41,6 @@ private:
 bool cmFileTimeComparisonInternal::Stat(const char* fname,
                                         cmFileTimeComparison_Type* st)
 {
-#if defined(CMAKE_BUILD_WITH_CMAKE)
   // Use the stored time if available.
   cmFileTimeComparisonInternal::FileStatsMap::iterator fit =
     this->Files.find(fname);
@@ -76,7 +48,6 @@ bool cmFileTimeComparisonInternal::Stat(const char* fname,
     *st = fit->second;
     return true;
   }
-#endif
 
 #if !defined(_WIN32) || defined(__CYGWIN__)
   // POSIX version.  Use the stat function.
@@ -97,11 +68,8 @@ bool cmFileTimeComparisonInternal::Stat(const char* fname,
   *st = fdata.ftLastWriteTime;
 #endif
 
-#if defined(CMAKE_BUILD_WITH_CMAKE)
   // Store the time for future use.
   this->Files[fname] = *st;
-#endif
-
   return true;
 }
 
@@ -148,18 +116,22 @@ int cmFileTimeComparisonInternal::Compare(cmFileTimeComparison_Type* s1,
   // Compare using nanosecond resolution.
   if (s1->st_mtimespec.tv_sec < s2->st_mtimespec.tv_sec) {
     return -1;
-  } else if (s1->st_mtimespec.tv_sec > s2->st_mtimespec.tv_sec) {
+  }
+  if (s1->st_mtimespec.tv_sec > s2->st_mtimespec.tv_sec) {
     return 1;
-  } else if (s1->st_mtimespec.tv_nsec < s2->st_mtimespec.tv_nsec) {
+  }
+  if (s1->st_mtimespec.tv_nsec < s2->st_mtimespec.tv_nsec) {
     return -1;
-  } else if (s1->st_mtimespec.tv_nsec > s2->st_mtimespec.tv_nsec) {
+  }
+  if (s1->st_mtimespec.tv_nsec > s2->st_mtimespec.tv_nsec) {
     return 1;
   }
 #else
   // Compare using 1 second resolution.
   if (s1->st_mtime < s2->st_mtime) {
     return -1;
-  } else if (s1->st_mtime > s2->st_mtime) {
+  }
+  if (s1->st_mtime > s2->st_mtime) {
     return 1;
   }
 #endif
@@ -194,20 +166,20 @@ bool cmFileTimeComparisonInternal::TimesDiffer(cmFileTimeComparison_Type* s1,
   long long t2 = s2->st_mtimespec.tv_sec * bil + s2->st_mtimespec.tv_nsec;
   if (t1 < t2) {
     return (t2 - t1) >= bil;
-  } else if (t2 < t1) {
-    return (t1 - t2) >= bil;
-  } else {
-    return false;
   }
+  if (t2 < t1) {
+    return (t1 - t2) >= bil;
+  }
+  return false;
 #else
   // Times are integers in units of 1s.
   if (s1->st_mtime < s2->st_mtime) {
     return (s2->st_mtime - s1->st_mtime) >= 1;
-  } else if (s1->st_mtime > s2->st_mtime) {
-    return (s1->st_mtime - s2->st_mtime) >= 1;
-  } else {
-    return false;
   }
+  if (s1->st_mtime > s2->st_mtime) {
+    return (s1->st_mtime - s2->st_mtime) >= 1;
+  }
+  return false;
 #endif
 #else
   // Times are integers in units of 100ns.

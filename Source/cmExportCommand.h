@@ -3,9 +3,15 @@
 #ifndef cmExportCommand_h
 #define cmExportCommand_h
 
-#include "cmCommand.h"
+#include "cmConfigure.h" // IWYU pragma: keep
 
-class cmExportBuildFileGenerator;
+#include <string>
+#include <vector>
+
+#include "cmCommand.h"
+#include "cmCommandArgumentsHelper.h"
+
+class cmExecutionStatus;
 class cmExportSet;
 
 /** \class cmExportLibraryDependenciesCommand
@@ -21,23 +27,17 @@ public:
   /**
    * This is a virtual constructor for the command.
    */
-  cmCommand* Clone() CM_OVERRIDE { return new cmExportCommand; }
+  cmCommand* Clone() override { return new cmExportCommand; }
 
   /**
    * This is called when the command is first encountered in
    * the CMakeLists.txt file.
    */
   bool InitialPass(std::vector<std::string> const& args,
-                   cmExecutionStatus& status) CM_OVERRIDE;
-
-  /**
-   * The name of the command as specified in CMakeList.txt.
-   */
-  std::string GetName() const CM_OVERRIDE { return "export"; }
-
-  cmTypeMacro(cmExportCommand, cmCommand);
+                   cmExecutionStatus& status) override;
 
 private:
+  cmCommandArgumentsHelper Helper;
   cmCommandArgumentGroup ArgumentGroup;
   cmCAStringVector Targets;
   cmCAEnabler Append;

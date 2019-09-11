@@ -3,21 +3,21 @@
 #ifndef cmCPackIFWInstaller_h
 #define cmCPackIFWInstaller_h
 
-#include <cmConfigure.h> // IWYU pragma: keep
+#include "cmConfigure.h" // IWYU pragma: keep
+
+#include "cmCPackIFWCommon.h"
 
 #include <map>
 #include <string>
 #include <vector>
 
-class cmCPackIFWGenerator;
 class cmCPackIFWPackage;
 class cmCPackIFWRepository;
-class cmXMLWriter;
 
 /** \class cmCPackIFWInstaller
  * \brief A binary installer to be created CPack IFW generator
  */
-class cmCPackIFWInstaller
+class cmCPackIFWInstaller : public cmCPackIFWCommon
 {
 public:
   // Types
@@ -60,6 +60,27 @@ public:
   /// Filename for a logo
   std::string Logo;
 
+  /// Filename for a watermark
+  std::string Watermark;
+
+  /// Filename for a banner
+  std::string Banner;
+
+  /// Filename for a background
+  std::string Background;
+
+  /// Wizard style name
+  std::string WizardStyle;
+
+  /// Wizard width
+  std::string WizardDefaultWidth;
+
+  /// Wizard height
+  std::string WizardDefaultHeight;
+
+  /// Title color
+  std::string TitleColor;
+
   /// Name of the default program group in the Windows Start menu
   std::string StartMenuDir;
 
@@ -90,26 +111,19 @@ public:
 public:
   // Internal implementation
 
-  const char* GetOption(const std::string& op) const;
-  bool IsOn(const std::string& op) const;
-
-  bool IsVersionLess(const char* version);
-  bool IsVersionGreater(const char* version);
-  bool IsVersionEqual(const char* version);
-
   void ConfigureFromOptions();
 
   void GenerateInstallerFile();
 
   void GeneratePackageFiles();
 
-  cmCPackIFWGenerator* Generator;
   PackagesMap Packages;
   RepositoriesVector RemoteRepositories;
   std::string Directory;
 
 protected:
-  void WriteGeneratedByToStrim(cmXMLWriter& xout);
+  void printSkippedOptionWarning(const std::string& optionName,
+                                 const std::string& optionValue);
 };
 
 #endif // cmCPackIFWInstaller_h

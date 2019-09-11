@@ -95,6 +95,27 @@
 #    and it is up to the packager to set the variables in a manner that will
 #    prevent such errors.
 #
+# .. variable:: CPACK_RPM_MAIN_COMPONENT
+#
+#  Main component that is packaged without component suffix.
+#
+#  * Mandatory : NO
+#  * Default   : -
+#
+#  This variable can be set to any component or group name so that component or
+#  group rpm package is generated without component suffix in filename and
+#  package name.
+#
+# .. variable:: CPACK_RPM_PACKAGE_EPOCH
+#
+#  The RPM package epoch
+#
+#  * Mandatory : No
+#  * Default   : -
+#
+#  Optional number that should be incremented when changing versioning schemas
+#  or fixing mistakes in the version numbers of older packages.
+#
 # .. variable:: CPACK_RPM_PACKAGE_VERSION
 #
 #  The RPM package version.
@@ -496,10 +517,12 @@
 #
 #  May be used to explicitly specify ``%(<directive>)`` file line
 #  in the spec file. Like ``%config(noreplace)`` or any other directive
-#  that be found in the ``%files`` section. Since CPackRPM is generating
-#  the list of files (and directories) the user specified files of
-#  the ``CPACK_RPM_<COMPONENT>_USER_FILELIST`` list will be removed from
-#  the generated list.
+#  that be found in the ``%files`` section. You can have multiple directives
+#  per line, as in ``%attr(600,root,root) %config(noreplace)``. Since
+#  CPackRPM is generating the list of files (and directories) the user
+#  specified files of the ``CPACK_RPM_<COMPONENT>_USER_FILELIST`` list will
+#  be removed from the generated list. If referring to directories do
+#  not add a trailing slash.
 #
 # .. variable:: CPACK_RPM_CHANGELOG_FILE
 #
@@ -517,7 +540,9 @@
 #  list of path to be excluded.
 #
 #  * Mandatory : NO
-#  * Default   : /etc /etc/init.d /usr /usr/share /usr/share/doc /usr/bin /usr/lib /usr/lib64 /usr/include
+#  * Default   : /etc /etc/init.d /usr /usr/bin /usr/include /usr/lib
+#                /usr/libx32 /usr/lib64 /usr/share /usr/share/aclocal
+#                /usr/share/doc
 #
 #  May be used to exclude path (directories or files) from the auto-generated
 #  list of paths discovered by CPack RPM. The defaut value contains a
@@ -708,14 +733,6 @@
 # Debuginfo packages contain debug symbols and sources for debugging packaged
 # binaries.
 #
-# .. note::
-#
-#  Currently multiple debuginfo packages are generated if component based
-#  packaging is used - one debuginfo package per component. This duplicates
-#  sources if multiple binaries are using them. This is a side effect of
-#  how CPackRPM currently generates component packages and will be addressed
-#  in later versions of the generator.
-#
 # Debuginfo RPM packaging has it's own set of variables:
 #
 # .. variable:: CPACK_RPM_DEBUGINFO_PACKAGE
@@ -792,6 +809,50 @@
 #  * Mandatory : NO
 #  * Default   : -
 #
+# .. variable:: CPACK_RPM_DEBUGINFO_SINGLE_PACKAGE
+#
+#  Create a single debuginfo package even if components packaging is set.
+#
+#  * Mandatory : NO
+#  * Default   : OFF
+#
+#  When this variable is enabled it produces a single debuginfo package even if
+#  component packaging is enabled.
+#
+#  When using this feature in combination with components packaging and there is
+#  more than one component this variable requires :variable:`CPACK_RPM_MAIN_COMPONENT`
+#  to be set.
+#
+# .. note::
+#
+#  If none of the :variable:`CPACK_RPM_<component>_DEBUGINFO_PACKAGE` variables
+#  is set then :variable:`CPACK_RPM_DEBUGINFO_PACKAGE` is automatically set to
+#  ``ON`` when :variable:`CPACK_RPM_DEBUGINFO_SINGLE_PACKAGE` is set.
+#
+# .. variable:: CPACK_RPM_DEBUGINFO_FILE_NAME
+#               CPACK_RPM_<component>_DEBUGINFO_FILE_NAME
+#
+#  Debuginfo package file name.
+#
+#  * Mandatory : NO
+#  * Default   : rpmbuild tool generated package file name
+#
+#  Alternatively provided debuginfo package file name must end with ``.rpm``
+#  suffix and should differ from file names of other generated packages.
+#
+#  Variable may contain ``@cpack_component@`` placeholder which will be
+#  replaced by component name if component packaging is enabled otherwise it
+#  deletes the placeholder.
+#
+#  Setting the variable to ``RPM-DEFAULT`` may be used to explicitly set
+#  filename generation to default.
+#
+# .. note::
+#
+#  :variable:`CPACK_RPM_FILE_NAME` also supports rpmbuild tool generated package
+#  file name - disabled by default but can be enabled by setting the variable to
+#  ``RPM-DEFAULT``.
+#
 # Packaging of sources (SRPM)
 # ^^^^^^^^^^^^^^^^^^^^^^^^^^^
 #
@@ -862,6 +923,19 @@
 #
 #  * Mandatory : YES
 #  * Default   : "/"
+#
+# .. VARIABLE:: CPACK_RPM_BUILDREQUIRES
+#
+#  List of source rpm build dependencies.
+#
+#  * Mandatory : NO
+#  * Default   : -
+#
+#  May be used to set source RPM build dependencies (BuildRequires). Note that
+#  you must enclose the complete build requirements string between quotes, for
+#  example::
+#
+#   set(CPACK_RPM_BUILDREQUIRES "python >= 2.5.0, cmake >= 2.8")
 
 # Author: Eric Noulard with the help of Alexander Neundorf.
 
@@ -925,9 +999,19 @@ function(cpack_rpm_prepare_relocation_paths)
   foreach(RELOCATION_PATH ${RPM_RELOCATION_PATHS})
     if(IS_ABSOLUTE "${RELOCATION_PATH}")
       set(PREPARED_RELOCATION_PATH "${RELOCATION_PATH}")
+    elseif(PATH_PREFIX STREQUAL "/")
+      # don't prefix path with a second slash as "//" is treated as network path
+      # by get_filename_component() so it remains in path even inside rpm
+      # package where it may cause problems with relocation
+      set(PREPARED_RELOCATION_PATH "/${RELOCATION_PATH}")
     else()
       set(PREPARED_RELOCATION_PATH "${PATH_PREFIX}/${RELOCATION_PATH}")
     endif()
+
+    # handle cases where path contains extra slashes (e.g. /a//b/ instead of
+    # /a/b)
+    get_filename_component(PREPARED_RELOCATION_PATH
+      "${PREPARED_RELOCATION_PATH}" ABSOLUTE)
 
     if(EXISTS "${WDIR}/${PREPARED_RELOCATION_PATH}")
       string(APPEND TMP_RPM_PREFIXES "Prefix: ${PREPARED_RELOCATION_PATH}\n")
@@ -1011,7 +1095,9 @@ function(cpack_rpm_prepare_content_list)
   endif()
 
   if(NOT DEFINED CPACK_RPM_EXCLUDE_FROM_AUTO_FILELIST)
-    set(CPACK_RPM_EXCLUDE_FROM_AUTO_FILELIST /etc /etc/init.d /usr /usr/share /usr/share/doc /usr/bin /usr/lib /usr/lib64 /usr/include)
+    set(CPACK_RPM_EXCLUDE_FROM_AUTO_FILELIST /etc /etc/init.d /usr /usr/bin
+        /usr/include /usr/lib /usr/libx32 /usr/lib64
+        /usr/share /usr/share/aclocal /usr/share/doc )
     if(CPACK_RPM_EXCLUDE_FROM_AUTO_FILELIST_ADDITION)
       if(CPACK_RPM_PACKAGE_DEBUG)
         message("CPackRPM:Debug: Adding ${CPACK_RPM_EXCLUDE_FROM_AUTO_FILELIST_ADDITION} to builtin omit list.")
@@ -1439,8 +1525,8 @@ function(cpack_rpm_debugsymbol_check INSTALL_FILES WORKING_DIR)
           string(LENGTH "${CPACK_RPM_BUILD_SOURCE_DIRS_PREFIX}/src_${index_}" debuginfo_dir_len)
           if(source_dir_len_ LESS debuginfo_dir_len)
             message(FATAL_ERROR "CPackRPM: source dir path '${source_dir_}' is"
-              " longer than debuginfo sources dir path '${CPACK_RPM_BUILD_SOURCE_DIRS_PREFIX}/src_${index_}'!"
-              " Source dir path must be shorter than debuginfo sources dir path."
+              " shorter than debuginfo sources dir path '${CPACK_RPM_BUILD_SOURCE_DIRS_PREFIX}/src_${index_}'!"
+              " Source dir path must be longer than debuginfo sources dir path."
               " Set CPACK_RPM_BUILD_SOURCE_DIRS_PREFIX variable to a shorter value"
               " or make source dir path longer."
               " Required for debuginfo packaging. See documentation of"
@@ -1649,10 +1735,16 @@ function(cpack_rpm_generate_package)
   endif()
 
   if(CPACK_RPM_PACKAGE_COMPONENT)
-    string(APPEND CPACK_RPM_PACKAGE_NAME "-${CPACK_RPM_PACKAGE_COMPONENT}")
-    cpack_rpm_variable_fallback("CPACK_RPM_PACKAGE_NAME"
-      "CPACK_RPM_${CPACK_RPM_PACKAGE_COMPONENT}_PACKAGE_NAME"
-      "CPACK_RPM_${CPACK_RPM_PACKAGE_COMPONENT_UPPER}_PACKAGE_NAME")
+    string(TOUPPER "${CPACK_RPM_MAIN_COMPONENT}"
+      CPACK_RPM_MAIN_COMPONENT_UPPER)
+
+    if(NOT CPACK_RPM_MAIN_COMPONENT_UPPER STREQUAL CPACK_RPM_PACKAGE_COMPONENT_UPPER)
+      string(APPEND CPACK_RPM_PACKAGE_NAME "-${CPACK_RPM_PACKAGE_COMPONENT}")
+
+      cpack_rpm_variable_fallback("CPACK_RPM_PACKAGE_NAME"
+        "CPACK_RPM_${CPACK_RPM_PACKAGE_COMPONENT}_PACKAGE_NAME"
+        "CPACK_RPM_${CPACK_RPM_PACKAGE_COMPONENT_UPPER}_PACKAGE_NAME")
+    endif()
   endif()
 
   # CPACK_RPM_PACKAGE_VERSION (mandatory)
@@ -1807,14 +1899,26 @@ function(cpack_rpm_generate_package)
     set(CPACK_RPM_PACKAGE_RELOCATABLE FALSE) # disable relocatable option if building source RPM
   endif()
 
+  execute_process(
+    COMMAND "${RPMBUILD_EXECUTABLE}" --querytags
+    OUTPUT_VARIABLE RPMBUILD_TAG_LIST
+    OUTPUT_STRIP_TRAILING_WHITESPACE)
+  string(REPLACE "\n" ";" RPMBUILD_TAG_LIST "${RPMBUILD_TAG_LIST}")
+
+  if(CPACK_RPM_PACKAGE_EPOCH)
+    set(TMP_RPM_EPOCH "Epoch: ${CPACK_RPM_PACKAGE_EPOCH}")
+  endif()
+
   # Check if additional fields for RPM spec header are given
   # There may be some COMPONENT specific variables as well
   # If component specific var is not provided we use the global one
   # for each component
   foreach(_RPM_SPEC_HEADER URL REQUIRES SUGGESTS PROVIDES OBSOLETES PREFIX CONFLICTS AUTOPROV AUTOREQ AUTOREQPROV REQUIRES_PRE REQUIRES_POST REQUIRES_PREUN REQUIRES_POSTUN)
+
     if(CPACK_RPM_PACKAGE_DEBUG)
       message("CPackRPM:Debug: processing ${_RPM_SPEC_HEADER}")
     endif()
+
     if(CPACK_RPM_PACKAGE_COMPONENT)
       cpack_rpm_variable_fallback("CPACK_RPM_PACKAGE_${_RPM_SPEC_HEADER}"
         "CPACK_RPM_${CPACK_RPM_PACKAGE_COMPONENT}_PACKAGE_${_RPM_SPEC_HEADER}"
@@ -1822,9 +1926,24 @@ function(cpack_rpm_generate_package)
     endif()
 
     if(DEFINED CPACK_RPM_PACKAGE_${_RPM_SPEC_HEADER})
+      cmake_policy(PUSH)
+        cmake_policy(SET CMP0057 NEW)
+        # Prefix can be replaced by Prefixes but the old version stil works so we'll ignore it for now
+        # Requires* is a special case because it gets transformed to Requires(pre/post/preun/postun)
+        # Auto* is a special case because the tags can not be queried by querytags rpmbuild flag
+        set(special_case_tags_ PREFIX REQUIRES_PRE REQUIRES_POST REQUIRES_PREUN REQUIRES_POSTUN AUTOPROV AUTOREQ AUTOREQPROV)
+        if(NOT _RPM_SPEC_HEADER IN_LIST RPMBUILD_TAG_LIST AND NOT _RPM_SPEC_HEADER IN_LIST special_case_tags_)
+          cmake_policy(POP)
+          message(AUTHOR_WARNING "CPackRPM:Warning: ${_RPM_SPEC_HEADER} not "
+              "supported in provided rpmbuild. Tag will not be used.")
+          continue()
+        endif()
+      cmake_policy(POP)
+
       if(CPACK_RPM_PACKAGE_DEBUG)
         message("CPackRPM:Debug: using CPACK_RPM_PACKAGE_${_RPM_SPEC_HEADER}")
       endif()
+
       set(CPACK_RPM_PACKAGE_${_RPM_SPEC_HEADER}_TMP ${CPACK_RPM_PACKAGE_${_RPM_SPEC_HEADER}})
     endif()
 
@@ -1996,7 +2115,8 @@ function(cpack_rpm_generate_package)
     set(CPACK_RPM_USER_INSTALL_FILES "")
     foreach(F IN LISTS CPACK_RPM_USER_FILELIST_INTERNAL)
       string(REGEX REPLACE "%[A-Za-z]+(\\([^()]*\\))? " "" F_PATH ${F})
-      string(REGEX MATCH "%[A-Za-z]+(\\([^()]*\\))?" F_PREFIX ${F})
+      string(REGEX MATCH "(%[A-Za-z]+(\\([^()]*\\))? )*" F_PREFIX ${F})
+      string(STRIP ${F_PREFIX} F_PREFIX)
 
       if(CPACK_RPM_PACKAGE_DEBUG)
         message("CPackRPM:Debug: F_PREFIX=<${F_PREFIX}>, F_PATH=<${F_PATH}>")
@@ -2059,7 +2179,7 @@ function(cpack_rpm_generate_package)
     "CPACK_RPM_${CPACK_RPM_PACKAGE_COMPONENT}_DEBUGINFO_PACKAGE"
     "CPACK_RPM_${CPACK_RPM_PACKAGE_COMPONENT_UPPER}_DEBUGINFO_PACKAGE"
     "CPACK_RPM_DEBUGINFO_PACKAGE")
-  if(CPACK_RPM_DEBUGINFO_PACKAGE)
+  if(CPACK_RPM_DEBUGINFO_PACKAGE OR (CPACK_RPM_DEBUGINFO_SINGLE_PACKAGE AND NOT GENERATE_SPEC_PARTS))
     cpack_rpm_variable_fallback("CPACK_RPM_BUILD_SOURCE_DIRS_PREFIX"
       "CPACK_RPM_${CPACK_RPM_PACKAGE_COMPONENT}_BUILD_SOURCE_DIRS_PREFIX"
       "CPACK_RPM_${CPACK_RPM_PACKAGE_COMPONENT_UPPER}_BUILD_SOURCE_DIRS_PREFIX"
@@ -2067,9 +2187,92 @@ function(cpack_rpm_generate_package)
     if(NOT CPACK_RPM_BUILD_SOURCE_DIRS_PREFIX)
       set(CPACK_RPM_BUILD_SOURCE_DIRS_PREFIX "/usr/src/debug/${CPACK_PACKAGE_FILE_NAME}${CPACK_RPM_PACKAGE_COMPONENT_PART_PATH}")
     endif()
-    cpack_rpm_debugsymbol_check("${CPACK_RPM_INSTALL_FILES}" "${WDIR}")
 
-    set(TMP_RPM_DEBUGINFO "
+    # handle cases where path contains extra slashes (e.g. /a//b/ instead of
+    # /a/b)
+    get_filename_component(CPACK_RPM_BUILD_SOURCE_DIRS_PREFIX
+      "${CPACK_RPM_BUILD_SOURCE_DIRS_PREFIX}" ABSOLUTE)
+
+    if(CPACK_RPM_DEBUGINFO_SINGLE_PACKAGE AND GENERATE_SPEC_PARTS)
+      file(WRITE "${CPACK_RPM_ROOTDIR}/SPECS/${CPACK_RPM_PACKAGE_COMPONENT}.files"
+        "${CPACK_RPM_INSTALL_FILES}")
+    else()
+      if(CPACK_RPM_DEBUGINFO_SINGLE_PACKAGE AND CPACK_RPM_PACKAGE_COMPONENT)
+        # this part is only required by components packaging - with monolithic
+        # packages we can be certain that there are no other components present
+        # so CPACK_RPM_DEBUGINFO_SINGLE_PACKAGE is a noop
+        if(CPACK_RPM_DEBUGINFO_PACKAGE)
+          # only add current package files to debuginfo list if debuginfo
+          # generation is enabled for current package
+          string(STRIP "${CPACK_RPM_INSTALL_FILES}" install_files_)
+          string(REPLACE "\n" ";" install_files_ "${install_files_}")
+          string(REPLACE "\"" "" install_files_ "${install_files_}")
+        else()
+          unset(install_files_)
+        endif()
+
+        file(GLOB files_ "${CPACK_RPM_DIRECTORY}/SPECS/*.files")
+
+        foreach(f_ IN LISTS files_)
+          file(READ "${f_}" tmp_)
+          string(APPEND install_files_ ";${tmp_}")
+        endforeach()
+
+        # if there were other components/groups so we need to move files from them
+        # to current component otherwise those files won't be found
+        file(GLOB components_ LIST_DIRECTORIES true RELATIVE
+          "${CPACK_TOPLEVEL_DIRECTORY}/${CPACK_PACKAGE_FILE_NAME}"
+          "${CPACK_TOPLEVEL_DIRECTORY}/${CPACK_PACKAGE_FILE_NAME}/*")
+        foreach(component_ IN LISTS components_)
+          string(TOUPPER "${component_}" component_dir_upper_)
+          if(component_dir_upper_ STREQUAL CPACK_RPM_PACKAGE_COMPONENT_UPPER)
+            # skip current component
+            continue()
+          endif()
+
+          cmake_policy(PUSH)
+            cmake_policy(SET CMP0009 NEW)
+            file(GLOB_RECURSE files_for_move_ LIST_DIRECTORIES false RELATIVE
+              "${CPACK_TOPLEVEL_DIRECTORY}/${CPACK_PACKAGE_FILE_NAME}/${component_}"
+              "${CPACK_TOPLEVEL_DIRECTORY}/${CPACK_PACKAGE_FILE_NAME}/${component_}/*")
+          cmake_policy(POP)
+
+          foreach(f_ IN LISTS files_for_move_)
+            get_filename_component(dir_path_ "${f_}" DIRECTORY)
+            set(src_file_
+              "${CPACK_TOPLEVEL_DIRECTORY}/${CPACK_PACKAGE_FILE_NAME}/${component_}/${f_}")
+
+            # check that we are not overriding an existing file that doesn't
+            # match the file that we want to copy
+            if(EXISTS "${src_file_}" AND EXISTS "${WDIR}/${f_}")
+              execute_process(
+                  COMMAND ${CMAKE_COMMAND} -E compare_files "${src_file_}" "${WDIR}/${f_}"
+                  RESULT_VARIABLE res_
+                )
+              if(res_)
+                message(FATAL_ERROR "CPackRPM:Error: File on path '${WDIR}/${f_}'"
+                  " already exists but is a different than the one in component"
+                  " '${component_}'! Packages will not be generated.")
+              endif()
+            endif()
+
+            file(MAKE_DIRECTORY "${WDIR}/${dir_path_}")
+            file(RENAME "${src_file_}"
+              "${WDIR}/${f_}")
+          endforeach()
+        endforeach()
+
+        cpack_rpm_debugsymbol_check("${install_files_}" "${WDIR}")
+      else()
+        string(STRIP "${CPACK_RPM_INSTALL_FILES}" install_files_)
+        string(REPLACE "\n" ";" install_files_ "${install_files_}")
+        string(REPLACE "\"" "" install_files_ "${install_files_}")
+
+        cpack_rpm_debugsymbol_check("${install_files_}" "${WDIR}")
+      endif()
+
+      if(TMP_DEBUGINFO_ADDITIONAL_SOURCES)
+        set(TMP_RPM_DEBUGINFO "
 # Modified version of %%debug_package macro
 # defined in /usr/lib/rpm/macros as that one
 # can't handle injection of extra source files.
@@ -2088,6 +2291,15 @@ package or when debugging this package.
 ${TMP_DEBUGINFO_ADDITIONAL_SOURCES}
 %endif
 ")
+      elseif(CPACK_RPM_DEBUGINFO_SINGLE_PACKAGE)
+        message(AUTHOR_WARNING "CPackRPM:Warning: debuginfo package was requested"
+          " but will not be generated as no source files were found!")
+      else()
+        message(AUTHOR_WARNING "CPackRPM:Warning: debuginfo package was requested"
+          " but will not be generated as no source files were found! Component: '"
+          "${CPACK_RPM_PACKAGE_COMPONENT}'.")
+      endif()
+    endif()
   endif()
 
   # Prepare install files
@@ -2164,12 +2376,25 @@ ${TMP_DEBUGINFO_ADDITIONAL_SOURCES}
       cmake_policy(POP)
     else()
       # old file name format for back compatibility
-      set(CPACK_RPM_FILE_NAME "${CPACK_OUTPUT_FILE_NAME}")
+      string(TOUPPER "${CPACK_RPM_MAIN_COMPONENT}"
+        CPACK_RPM_MAIN_COMPONENT_UPPER)
+
+      if(CPACK_RPM_MAIN_COMPONENT_UPPER STREQUAL CPACK_RPM_PACKAGE_COMPONENT_UPPER)
+        # this is the main component so ignore the component filename part
+        set(CPACK_RPM_FILE_NAME "${CPACK_PACKAGE_FILE_NAME}.rpm")
+      else()
+        set(CPACK_RPM_FILE_NAME "${CPACK_OUTPUT_FILE_NAME}")
+      endif()
     endif()
     # else example:
     #set(CPACK_RPM_FILE_NAME "${CPACK_RPM_PACKAGE_NAME}-${CPACK_RPM_PACKAGE_VERSION}-${CPACK_RPM_PACKAGE_RELEASE}-${CPACK_RPM_PACKAGE_ARCHITECTURE}.rpm")
 
-    if(NOT CPACK_RPM_DEBUGINFO_PACKAGE)
+    if(CPACK_RPM_DEBUGINFO_SINGLE_PACKAGE AND GENERATE_SPEC_PARTS)
+      string(TOLOWER "${CPACK_RPM_PACKAGE_NAME}-${CPACK_PACKAGE_VERSION}.*\\.rpm" expected_filename_)
+
+      file(WRITE "${CPACK_RPM_ROOTDIR}/SPECS/${CPACK_RPM_PACKAGE_COMPONENT}.rpm_name"
+        "${expected_filename_};${CPACK_RPM_FILE_NAME}")
+    elseif(NOT CPACK_RPM_DEBUGINFO_PACKAGE)
       set(FILE_NAME_DEFINE "%define _rpmfilename ${CPACK_RPM_FILE_NAME}")
     endif()
   endif()
@@ -2216,7 +2441,11 @@ mv *.rpm %_rpmdir"
     set(RPMBUILD_FLAGS "-bs")
 
      file(WRITE ${CPACK_RPM_BINARY_SPECFILE}.in
-      "# -*- rpm-spec -*-
+      "# Restore old style debuginfo creation for rpm >= 4.14.
+%undefine _debugsource_packages
+%undefine _debuginfo_subpackages
+
+# -*- rpm-spec -*-
 BuildRoot:      %_topdir/\@CPACK_PACKAGE_FILE_NAME\@
 Summary:        \@CPACK_RPM_PACKAGE_SUMMARY\@
 Name:           \@CPACK_RPM_PACKAGE_NAME\@
@@ -2264,16 +2493,69 @@ Vendor:         \@CPACK_RPM_PACKAGE_VENDOR\@
 \@CPACK_RPM_SPEC_CHANGELOG\@
 "
     )
+
+  elseif(GENERATE_SPEC_PARTS) # binary rpm with single debuginfo package
+    file(WRITE ${CPACK_RPM_BINARY_SPECFILE}.in
+        "# -*- rpm-spec -*-
+%package -n \@CPACK_RPM_PACKAGE_NAME\@
+Summary:        \@CPACK_RPM_PACKAGE_SUMMARY\@
+Version:        \@CPACK_RPM_PACKAGE_VERSION\@
+Release:        \@CPACK_RPM_PACKAGE_RELEASE\@
+License:        \@CPACK_RPM_PACKAGE_LICENSE\@
+Group:          \@CPACK_RPM_PACKAGE_GROUP\@
+Vendor:         \@CPACK_RPM_PACKAGE_VENDOR\@
+
+\@TMP_RPM_URL\@
+\@TMP_RPM_REQUIRES\@
+\@TMP_RPM_REQUIRES_PRE\@
+\@TMP_RPM_REQUIRES_POST\@
+\@TMP_RPM_REQUIRES_PREUN\@
+\@TMP_RPM_REQUIRES_POSTUN\@
+\@TMP_RPM_PROVIDES\@
+\@TMP_RPM_OBSOLETES\@
+\@TMP_RPM_CONFLICTS\@
+\@TMP_RPM_SUGGESTS\@
+\@TMP_RPM_AUTOPROV\@
+\@TMP_RPM_AUTOREQ\@
+\@TMP_RPM_AUTOREQPROV\@
+\@TMP_RPM_BUILDARCH\@
+\@TMP_RPM_PREFIXES\@
+\@TMP_RPM_EPOCH\@
+
+%description -n \@CPACK_RPM_PACKAGE_NAME\@
+\@CPACK_RPM_PACKAGE_DESCRIPTION\@
+
+%files -n \@CPACK_RPM_PACKAGE_NAME\@
+%defattr(\@TMP_DEFAULT_FILE_PERMISSIONS\@,\@TMP_DEFAULT_USER\@,\@TMP_DEFAULT_GROUP\@,\@TMP_DEFAULT_DIR_PERMISSIONS\@)
+\@CPACK_RPM_INSTALL_FILES\@
+\@CPACK_RPM_ABSOLUTE_INSTALL_FILES\@
+\@CPACK_RPM_USER_INSTALL_FILES\@
+"
+    )
+
   else()  # binary rpm
+    if(CPACK_RPM_DEBUGINFO_SINGLE_PACKAGE)
+      # find generated spec file and take its name
+      file(GLOB spec_files_ "${CPACK_RPM_DIRECTORY}/SPECS/*.spec")
+
+      foreach(f_ IN LISTS spec_files_)
+        file(READ "${f_}" tmp_)
+        string(APPEND TMP_OTHER_COMPONENTS "\n${tmp_}\n")
+      endforeach()
+    endif()
 
     # We should generate a USER spec file template:
     #  - either because the user asked for it : CPACK_RPM_GENERATE_USER_BINARY_SPECFILE_TEMPLATE
     #  - or the user did not provide one : NOT CPACK_RPM_USER_BINARY_SPECFILE
+    set(RPMBUILD_FLAGS "-bb")
     if(CPACK_RPM_GENERATE_USER_BINARY_SPECFILE_TEMPLATE OR NOT CPACK_RPM_USER_BINARY_SPECFILE)
-      set(RPMBUILD_FLAGS "-bb")
 
       file(WRITE ${CPACK_RPM_BINARY_SPECFILE}.in
-        "# -*- rpm-spec -*-
+        "# Restore old style debuginfo creation for rpm >= 4.14.
+%undefine _debugsource_packages
+%undefine _debuginfo_subpackages
+
+# -*- rpm-spec -*-
 BuildRoot:      %_topdir/\@CPACK_PACKAGE_FILE_NAME\@\@CPACK_RPM_PACKAGE_COMPONENT_PART_PATH\@
 Summary:        \@CPACK_RPM_PACKAGE_SUMMARY\@
 Name:           \@CPACK_RPM_PACKAGE_NAME\@
@@ -2292,11 +2574,13 @@ Vendor:         \@CPACK_RPM_PACKAGE_VENDOR\@
 \@TMP_RPM_PROVIDES\@
 \@TMP_RPM_OBSOLETES\@
 \@TMP_RPM_CONFLICTS\@
+\@TMP_RPM_SUGGESTS\@
 \@TMP_RPM_AUTOPROV\@
 \@TMP_RPM_AUTOREQ\@
 \@TMP_RPM_AUTOREQPROV\@
 \@TMP_RPM_BUILDARCH\@
 \@TMP_RPM_PREFIXES\@
+\@TMP_RPM_EPOCH\@
 
 \@TMP_RPM_DEBUGINFO\@
 
@@ -2350,6 +2634,8 @@ mv %_topdir/tmpBBroot $RPM_BUILD_ROOT
 
 %changelog
 \@CPACK_RPM_SPEC_CHANGELOG\@
+
+\@TMP_OTHER_COMPONENTS\@
 "
       )
     endif()
@@ -2376,60 +2662,106 @@ mv %_topdir/tmpBBroot $RPM_BUILD_ROOT
     configure_file(${CPACK_RPM_BINARY_SPECFILE}.in ${CPACK_RPM_BINARY_SPECFILE} @ONLY)
   endif()
 
-  if(RPMBUILD_EXECUTABLE)
-    # Now call rpmbuild using the SPECFILE
-    execute_process(
-      COMMAND "${RPMBUILD_EXECUTABLE}" ${RPMBUILD_FLAGS}
-              --define "_topdir ${CPACK_RPM_DIRECTORY}"
-              --buildroot "%_topdir/${CPACK_PACKAGE_FILE_NAME}${CPACK_RPM_PACKAGE_COMPONENT_PART_PATH}"
-              --target "${CPACK_RPM_PACKAGE_ARCHITECTURE}"
-              "${CPACK_RPM_BINARY_SPECFILE}"
-      WORKING_DIRECTORY "${CPACK_TOPLEVEL_DIRECTORY}/${CPACK_PACKAGE_FILE_NAME}${CPACK_RPM_PACKAGE_COMPONENT_PART_PATH}"
-      RESULT_VARIABLE CPACK_RPMBUILD_EXEC_RESULT
-      ERROR_FILE "${CPACK_TOPLEVEL_DIRECTORY}/rpmbuild${CPACK_RPM_PACKAGE_NAME}.err"
-      OUTPUT_FILE "${CPACK_TOPLEVEL_DIRECTORY}/rpmbuild${CPACK_RPM_PACKAGE_NAME}.out")
-    if(CPACK_RPM_PACKAGE_DEBUG OR CPACK_RPMBUILD_EXEC_RESULT)
-      file(READ ${CPACK_TOPLEVEL_DIRECTORY}/rpmbuild${CPACK_RPM_PACKAGE_NAME}.err RPMBUILDERR)
-      file(READ ${CPACK_TOPLEVEL_DIRECTORY}/rpmbuild${CPACK_RPM_PACKAGE_NAME}.out RPMBUILDOUT)
-      message("CPackRPM:Debug: You may consult rpmbuild logs in: ")
-      message("CPackRPM:Debug:    - ${CPACK_TOPLEVEL_DIRECTORY}/rpmbuild${CPACK_RPM_PACKAGE_NAME}.err")
-      message("CPackRPM:Debug: *** ${RPMBUILDERR} ***")
-      message("CPackRPM:Debug:    - ${CPACK_TOPLEVEL_DIRECTORY}/rpmbuild${CPACK_RPM_PACKAGE_NAME}.out")
-      message("CPackRPM:Debug: *** ${RPMBUILDOUT} ***")
-    endif()
-  else()
-    if(ALIEN_EXECUTABLE)
-      message(FATAL_ERROR "RPM packaging through alien not done (yet)")
-    endif()
-  endif()
-
-  # find generated rpm files and take their names
-  cmake_policy(PUSH)
-    # Tell file(GLOB_RECURSE) not to follow directory symlinks
-    # even if the project does not set this policy to NEW.
-    cmake_policy(SET CMP0009 NEW)
-    file(GLOB_RECURSE GENERATED_FILES "${CPACK_RPM_DIRECTORY}/RPMS/*.rpm"
-      "${CPACK_RPM_DIRECTORY}/SRPMS/*.rpm")
-  cmake_policy(POP)
-
-  if(NOT GENERATED_FILES)
-    message(FATAL_ERROR "RPM package was not generated! ${CPACK_RPM_DIRECTORY}")
-  endif()
-
-  if(CPACK_RPM_DEBUGINFO_PACKAGE AND NOT CPACK_RPM_FILE_NAME STREQUAL "RPM-DEFAULT")
-    string(TOLOWER "${CPACK_RPM_PACKAGE_NAME}-${CPACK_PACKAGE_VERSION}.*\\.rpm" EXPECTED_FILENAME)
-
-    foreach(F IN LISTS GENERATED_FILES)
-      if(F MATCHES ".*/${EXPECTED_FILENAME}")
-        get_filename_component(FILE_PATH "${F}" DIRECTORY)
-        file(RENAME "${F}" "${FILE_PATH}/${CPACK_RPM_FILE_NAME}")
-        list(APPEND new_files_list_ "${FILE_PATH}/${CPACK_RPM_FILE_NAME}")
-      else()
-        list(APPEND new_files_list_ "${F}")
+  if(NOT GENERATE_SPEC_PARTS) # generate package
+    if(RPMBUILD_EXECUTABLE)
+      # Now call rpmbuild using the SPECFILE
+      execute_process(
+        COMMAND "${RPMBUILD_EXECUTABLE}" ${RPMBUILD_FLAGS}
+                --define "_topdir ${CPACK_RPM_DIRECTORY}"
+                --buildroot "%_topdir/${CPACK_PACKAGE_FILE_NAME}${CPACK_RPM_PACKAGE_COMPONENT_PART_PATH}"
+                --target "${CPACK_RPM_PACKAGE_ARCHITECTURE}"
+                "${CPACK_RPM_BINARY_SPECFILE}"
+        WORKING_DIRECTORY "${CPACK_TOPLEVEL_DIRECTORY}/${CPACK_PACKAGE_FILE_NAME}${CPACK_RPM_PACKAGE_COMPONENT_PART_PATH}"
+        RESULT_VARIABLE CPACK_RPMBUILD_EXEC_RESULT
+        ERROR_FILE "${CPACK_TOPLEVEL_DIRECTORY}/rpmbuild${CPACK_RPM_PACKAGE_NAME}.err"
+        OUTPUT_FILE "${CPACK_TOPLEVEL_DIRECTORY}/rpmbuild${CPACK_RPM_PACKAGE_NAME}.out")
+      if(CPACK_RPM_PACKAGE_DEBUG OR CPACK_RPMBUILD_EXEC_RESULT)
+        file(READ ${CPACK_TOPLEVEL_DIRECTORY}/rpmbuild${CPACK_RPM_PACKAGE_NAME}.err RPMBUILDERR)
+        file(READ ${CPACK_TOPLEVEL_DIRECTORY}/rpmbuild${CPACK_RPM_PACKAGE_NAME}.out RPMBUILDOUT)
+        message("CPackRPM:Debug: You may consult rpmbuild logs in: ")
+        message("CPackRPM:Debug:    - ${CPACK_TOPLEVEL_DIRECTORY}/rpmbuild${CPACK_RPM_PACKAGE_NAME}.err")
+        message("CPackRPM:Debug: *** ${RPMBUILDERR} ***")
+        message("CPackRPM:Debug:    - ${CPACK_TOPLEVEL_DIRECTORY}/rpmbuild${CPACK_RPM_PACKAGE_NAME}.out")
+        message("CPackRPM:Debug: *** ${RPMBUILDOUT} ***")
       endif()
-    endforeach()
+    else()
+      if(ALIEN_EXECUTABLE)
+        message(FATAL_ERROR "RPM packaging through alien not done (yet)")
+      endif()
+    endif()
 
-    set(GENERATED_FILES "${new_files_list_}")
+    # find generated rpm files and take their names
+    cmake_policy(PUSH)
+      # Tell file(GLOB_RECURSE) not to follow directory symlinks
+      # even if the project does not set this policy to NEW.
+      cmake_policy(SET CMP0009 NEW)
+      file(GLOB_RECURSE GENERATED_FILES "${CPACK_RPM_DIRECTORY}/RPMS/*.rpm"
+        "${CPACK_RPM_DIRECTORY}/SRPMS/*.rpm")
+    cmake_policy(POP)
+
+    if(NOT GENERATED_FILES)
+      message(FATAL_ERROR "RPM package was not generated! ${CPACK_RPM_DIRECTORY}")
+    endif()
+
+    unset(expected_filenames_)
+    unset(filenames_)
+    if(CPACK_RPM_DEBUGINFO_PACKAGE AND NOT CPACK_RPM_FILE_NAME STREQUAL "RPM-DEFAULT")
+      list(APPEND expected_filenames_
+        "${CPACK_RPM_PACKAGE_NAME}-${CPACK_PACKAGE_VERSION}.*\\.rpm")
+      list(APPEND filenames_ "${CPACK_RPM_FILE_NAME}")
+    endif()
+
+    if(CPACK_RPM_DEBUGINFO_PACKAGE)
+      cpack_rpm_variable_fallback("CPACK_RPM_DEBUGINFO_FILE_NAME"
+        "CPACK_RPM_${CPACK_RPM_PACKAGE_COMPONENT}_DEBUGINFO_FILE_NAME"
+        "CPACK_RPM_${CPACK_RPM_PACKAGE_COMPONENT_UPPER}_DEBUGINFO_FILE_NAME"
+        "CPACK_RPM_DEBUGINFO_FILE_NAME")
+
+      if(CPACK_RPM_DEBUGINFO_FILE_NAME AND
+        NOT CPACK_RPM_DEBUGINFO_FILE_NAME STREQUAL "RPM-DEFAULT")
+        list(APPEND expected_filenames_
+          "${CPACK_RPM_PACKAGE_NAME}-debuginfo-${CPACK_PACKAGE_VERSION}.*\\.rpm")
+        string(REPLACE "@cpack_component@" "${CPACK_RPM_PACKAGE_COMPONENT}"
+          CPACK_RPM_DEBUGINFO_FILE_NAME "${CPACK_RPM_DEBUGINFO_FILE_NAME}")
+        list(APPEND filenames_ "${CPACK_RPM_DEBUGINFO_FILE_NAME}")
+      endif()
+    endif()
+
+    # check if other files have to be renamed
+    file(GLOB rename_files_ "${CPACK_RPM_DIRECTORY}/SPECS/*.rpm_name")
+    if(rename_files_)
+      foreach(f_ IN LISTS rename_files_)
+        file(READ "${f_}" tmp_)
+        list(GET tmp_ 0 efn_)
+        list(APPEND expected_filenames_ "${efn_}")
+        list(GET tmp_ 1 fn_)
+        list(APPEND filenames_ "${fn_}")
+      endforeach()
+    endif()
+
+    if(expected_filenames_)
+      foreach(F IN LISTS GENERATED_FILES)
+        unset(matched_)
+        foreach(expected_ IN LISTS expected_filenames_)
+          if(F MATCHES ".*/${expected_}")
+            list(FIND expected_filenames_ "${expected_}" idx_)
+            list(GET filenames_ ${idx_} filename_)
+            get_filename_component(FILE_PATH "${F}" DIRECTORY)
+            file(RENAME "${F}" "${FILE_PATH}/${filename_}")
+            list(APPEND new_files_list_ "${FILE_PATH}/${filename_}")
+            set(matched_ "YES")
+
+            break()
+          endif()
+        endforeach()
+
+        if(NOT matched_)
+          list(APPEND new_files_list_ "${F}")
+        endif()
+      endforeach()
+
+      set(GENERATED_FILES "${new_files_list_}")
+    endif()
   endif()
 
   set(GEN_CPACK_OUTPUT_FILES "${GENERATED_FILES}" PARENT_SCOPE)

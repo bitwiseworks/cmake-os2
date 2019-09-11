@@ -2,7 +2,13 @@
    file Copyright.txt or https://cmake.org/licensing for details.  */
 #include "cmSiteNameCommand.h"
 
-#include <cmsys/RegularExpression.hxx>
+#include "cmsys/RegularExpression.hxx"
+
+#include "cmMakefile.h"
+#include "cmStateTypes.h"
+#include "cmSystemTools.h"
+
+class cmExecutionStatus;
 
 // cmSiteNameCommand
 bool cmSiteNameCommand::InitialPass(std::vector<std::string> const& args,
@@ -46,8 +52,8 @@ bool cmSiteNameCommand::InitialPass(std::vector<std::string> const& args,
   // try to find the hostname for this computer
   if (!cmSystemTools::IsOff(hostname_cmd.c_str())) {
     std::string host;
-    cmSystemTools::RunSingleCommand(hostname_cmd.c_str(), &host, CM_NULLPTR,
-                                    CM_NULLPTR, CM_NULLPTR,
+    cmSystemTools::RunSingleCommand(hostname_cmd.c_str(), &host, nullptr,
+                                    nullptr, nullptr,
                                     cmSystemTools::OUTPUT_NONE);
 
     // got the hostname
@@ -68,7 +74,8 @@ bool cmSiteNameCommand::InitialPass(std::vector<std::string> const& args,
 #endif
   this->Makefile->AddCacheDefinition(
     args[0], siteName.c_str(),
-    "Name of the computer/site where compile is being run", cmState::STRING);
+    "Name of the computer/site where compile is being run",
+    cmStateEnums::STRING);
 
   return true;
 }

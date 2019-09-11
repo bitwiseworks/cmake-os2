@@ -2,17 +2,17 @@
    file Copyright.txt or https://cmake.org/licensing for details.  */
 #include "cmMakefileUtilityTargetGenerator.h"
 
+#include <ostream>
+#include <string>
+#include <vector>
+
 #include "cmGeneratedFileStream.h"
 #include "cmGeneratorTarget.h"
 #include "cmGlobalUnixMakefileGenerator3.h"
 #include "cmLocalUnixMakefileGenerator3.h"
 #include "cmMakefile.h"
 #include "cmOSXBundleGenerator.h"
-#include "cmOutputConverter.h"
-
-#include <ostream>
-#include <string>
-#include <vector>
+#include "cmSystemTools.h"
 
 cmMakefileUtilityTargetGenerator::cmMakefileUtilityTargetGenerator(
   cmGeneratorTarget* target)
@@ -46,7 +46,7 @@ void cmMakefileUtilityTargetGenerator::WriteRuleFiles()
       << this->GlobalGenerator->IncludeDirective << " " << root
       << cmSystemTools::ConvertToOutputPath(
            this->LocalGenerator
-             ->ConvertToRelativePath(
+             ->MaybeConvertToRelativePath(
                this->LocalGenerator->GetBinaryDirectory(),
                this->ProgressFileNameFull)
              .c_str())
@@ -95,7 +95,7 @@ void cmMakefileUtilityTargetGenerator::WriteRuleFiles()
   }
 
   // Write the rule.
-  this->LocalGenerator->WriteMakeRule(*this->BuildFileStream, CM_NULLPTR,
+  this->LocalGenerator->WriteMakeRule(*this->BuildFileStream, nullptr,
                                       this->GeneratorTarget->GetName(),
                                       depends, commands, true);
 

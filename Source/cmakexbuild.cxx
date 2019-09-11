@@ -1,9 +1,14 @@
 /* Distributed under the OSI-approved BSD 3-Clause License.  See accompanying
    file Copyright.txt or https://cmake.org/licensing for details.  */
-#include "cmStandardIncludes.h"
+
+#include "cmConfigure.h" // IWYU pragma: keep
+
+#include "cmsys/Process.h"
+#include <iostream>
+#include <string>
+#include <vector>
 
 #include "cmSystemTools.h"
-#include <cmsys/Process.h>
 
 // This is a wrapper program for xcodebuild
 // it calls xcodebuild, and does two things
@@ -24,7 +29,8 @@ int RunXCode(std::vector<const char*>& argv, bool& hitbug)
   std::string line;
   int pipe = cmSystemTools::WaitForLine(cp, line, 100.0, out, err);
   while (pipe != cmsysProcess_Pipe_None) {
-    if (line.find("/bin/sh: bad interpreter: Text file busy") != line.npos) {
+    if (line.find("/bin/sh: bad interpreter: Text file busy") !=
+        std::string::npos) {
       hitbug = true;
       std::cerr << "Hit xcodebuild bug : " << line << "\n";
     }
@@ -32,7 +38,7 @@ int RunXCode(std::vector<const char*>& argv, bool& hitbug)
     // because it may contain bogus errors
     // also remove all output with setenv in it to tone down
     // the verbosity of xcodebuild
-    if (!hitbug && (line.find("setenv") == line.npos)) {
+    if (!hitbug && (line.find("setenv") == std::string::npos)) {
       if (pipe == cmsysProcess_Pipe_STDERR) {
         std::cerr << line << "\n";
       } else if (pipe == cmsysProcess_Pipe_STDOUT) {
@@ -41,7 +47,7 @@ int RunXCode(std::vector<const char*>& argv, bool& hitbug)
     }
     pipe = cmSystemTools::WaitForLine(cp, line, 100, out, err);
   }
-  cmsysProcess_WaitForExit(cp, 0);
+  cmsysProcess_WaitForExit(cp, nullptr);
   if (cmsysProcess_GetState(cp) == cmsysProcess_State_Exited) {
     return cmsysProcess_GetExitValue(cp);
   }
@@ -58,7 +64,7 @@ int main(int ac, char* av[])
   for (int i = 1; i < ac; i++) {
     argv.push_back(av[i]);
   }
-  argv.push_back(0);
+  argv.push_back(nullptr);
   bool hitbug = true;
   int ret = 0;
   while (hitbug) {

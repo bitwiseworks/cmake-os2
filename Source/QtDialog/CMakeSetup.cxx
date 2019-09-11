@@ -5,8 +5,12 @@
 #include "CMakeSetupDialog.h"
 #include "cmAlgorithms.h"
 #include "cmDocumentation.h"
+#include "cmDocumentationEntry.h"
 #include "cmVersion.h"
 #include "cmake.h"
+#include "cmsys/CommandLineArguments.hxx"
+#include "cmsys/Encoding.hxx"
+#include "cmsys/SystemTools.hxx"
 #include <QApplication>
 #include <QDir>
 #include <QLocale>
@@ -14,25 +18,22 @@
 #include <QTextCodec>
 #include <QTranslator>
 #include <QtPlugin>
-#include <cmsys/CommandLineArguments.hxx>
-#include <cmsys/Encoding.hxx>
-#include <cmsys/SystemTools.hxx>
+#include <iostream>
 
 #include "cmSystemTools.h" // IWYU pragma: keep
 
-static const char* cmDocumentationName[][2] = { { CM_NULLPTR,
+static const char* cmDocumentationName[][2] = { { nullptr,
                                                   "  cmake-gui - CMake GUI." },
-                                                { CM_NULLPTR, CM_NULLPTR } };
+                                                { nullptr, nullptr } };
 
 static const char* cmDocumentationUsage[][2] = {
-  { CM_NULLPTR, "  cmake-gui [options]\n"
-                "  cmake-gui [options] <path-to-source>\n"
-                "  cmake-gui [options] <path-to-existing-build>" },
-  { CM_NULLPTR, CM_NULLPTR }
+  { nullptr, "  cmake-gui [options]\n"
+             "  cmake-gui [options] <path-to-source>\n"
+             "  cmake-gui [options] <path-to-existing-build>" },
+  { nullptr, nullptr }
 };
 
-static const char* cmDocumentationOptions[]
-                                         [2] = { { CM_NULLPTR, CM_NULLPTR } };
+static const char* cmDocumentationOptions[][2] = { { nullptr, nullptr } };
 
 #if defined(Q_OS_MAC)
 static int cmOSXInstall(std::string dir);
@@ -41,6 +42,10 @@ static void cmAddPluginPath();
 
 #if defined(USE_QXcbIntegrationPlugin)
 Q_IMPORT_PLUGIN(QXcbIntegrationPlugin);
+#endif
+
+#if defined(USE_QWindowsIntegrationPlugin)
+Q_IMPORT_PLUGIN(QWindowsIntegrationPlugin);
 #endif
 
 int main(int argc, char** argv)
@@ -57,7 +62,7 @@ int main(int argc, char** argv)
   doc.addCMakeStandardDocSections();
   if (argc2 > 1 && doc.CheckOptions(argc2, argv2)) {
     // Construct and print requested documentation.
-    cmake hcm;
+    cmake hcm(cmake::RoleInternal);
     hcm.SetHomeDirectory("");
     hcm.SetHomeOutputDirectory("");
     hcm.AddCMakePaths();
@@ -91,14 +96,16 @@ int main(int argc, char** argv)
   cmAddPluginPath();
 #endif
 
+#if QT_VERSION >= 0x050600
+  QGuiApplication::setAttribute(Qt::AA_EnableHighDpiScaling);
+#endif
+
   QApplication app(argc, argv);
 
   setlocale(LC_NUMERIC, "C");
 
-#if defined(CMAKE_ENCODING_UTF8)
   QTextCodec* utf8_codec = QTextCodec::codecForName("UTF-8");
   QTextCodec::setCodecForLocale(utf8_codec);
-#endif
 
 #if QT_VERSION < 0x050000
   // clean out standard Qt paths for plugins, which we don't use anyway
@@ -184,9 +191,9 @@ int main(int argc, char** argv)
 }
 
 #if defined(Q_OS_MAC)
+#include "cm_sys_stat.h"
 #include <errno.h>
 #include <string.h>
-#include <sys/stat.h>
 #include <unistd.h>
 static bool cmOSXInstall(std::string const& dir, std::string const& tool)
 {

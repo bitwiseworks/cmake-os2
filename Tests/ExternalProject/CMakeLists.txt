@@ -90,6 +90,16 @@ ExternalProject_Add(${proj}
 )
 set_property(TARGET ${proj} PROPERTY FOLDER "")
 
+set(proj NoExtractLogDownload)
+ExternalProject_Add(${proj}
+  URL ${CMAKE_CURRENT_SOURCE_DIR}/gitrepo.tgz
+  DOWNLOAD_NO_EXTRACT 1
+  LOG_DOWNLOAD 1
+  BUILD_COMMAND ""
+  CONFIGURE_COMMAND ""
+  INSTALL_COMMAND ""
+)
+
 
 # CVS-based tests:
 #
@@ -362,6 +372,23 @@ if(do_git_tests)
     LOG_UPDATE 1
   )
   set_property(TARGET ${proj} PROPERTY FOLDER "GIT")
+
+  # Live git / master (no GIT_TAG), but git config flags
+  #
+  # The `git clone --config` parameter has been introduced in Git 1.7.7
+  if(NOT git_version VERSION_LESS 1.7.7)
+    set(proj TutorialStep1-GIT-config)
+    ExternalProject_Add(${proj}
+      GIT_REPOSITORY "${local_git_repo}"
+      GIT_CONFIG core.eol=lf core.autocrlf=input
+      CMAKE_GENERATOR "${CMAKE_GENERATOR}"
+      CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:PATH=<INSTALL_DIR>
+      INSTALL_COMMAND ""
+      DEPENDS "SetupLocalGITRepository"
+      LOG_UPDATE 1
+    )
+    set_property(TARGET ${proj} PROPERTY FOLDER "GIT")
+  endif()
 
   # git by explicit branch/tag with empty submodule list
   #

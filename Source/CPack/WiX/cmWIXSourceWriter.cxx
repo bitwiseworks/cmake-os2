@@ -2,9 +2,9 @@
    file Copyright.txt or https://cmake.org/licensing for details.  */
 #include "cmWIXSourceWriter.h"
 
-#include <CPack/cmCPackGenerator.h>
+#include "cmCPackGenerator.h"
 
-#include <cmUuid.h>
+#include "cmUuid.h"
 
 #include <windows.h>
 
@@ -117,9 +117,7 @@ void cmWIXSourceWriter::AddProcessingInstruction(std::string const& target,
 void cmWIXSourceWriter::AddAttribute(std::string const& key,
                                      std::string const& value)
 {
-  std::string utf8 = CMakeEncodingToUtf8(value);
-
-  File << " " << key << "=\"" << EscapeAttributeValue(utf8) << '"';
+  File << " " << key << "=\"" << EscapeAttributeValue(value) << '"';
 }
 
 void cmWIXSourceWriter::AddAttributeUnlessEmpty(std::string const& key,
@@ -128,43 +126,6 @@ void cmWIXSourceWriter::AddAttributeUnlessEmpty(std::string const& key,
   if (!value.empty()) {
     AddAttribute(key, value);
   }
-}
-
-std::string cmWIXSourceWriter::CMakeEncodingToUtf8(std::string const& value)
-{
-#ifdef CMAKE_ENCODING_UTF8
-  return value;
-#else
-  if (value.empty()) {
-    return std::string();
-  }
-
-  int characterCount = MultiByteToWideChar(
-    CP_ACP, 0, value.c_str(), static_cast<int>(value.size()), 0, 0);
-
-  if (characterCount == 0) {
-    return std::string();
-  }
-
-  std::vector<wchar_t> utf16(characterCount);
-
-  MultiByteToWideChar(CP_ACP, 0, value.c_str(), static_cast<int>(value.size()),
-                      &utf16[0], static_cast<int>(utf16.size()));
-
-  int utf8ByteCount = WideCharToMultiByte(
-    CP_UTF8, 0, &utf16[0], static_cast<int>(utf16.size()), 0, 0, 0, 0);
-
-  if (utf8ByteCount == 0) {
-    return std::string();
-  }
-
-  std::vector<char> utf8(utf8ByteCount);
-
-  WideCharToMultiByte(CP_UTF8, 0, &utf16[0], static_cast<int>(utf16.size()),
-                      &utf8[0], static_cast<int>(utf8.size()), 0, 0);
-
-  return std::string(&utf8[0], utf8.size());
-#endif
 }
 
 std::string cmWIXSourceWriter::CreateGuidFromComponentId(
@@ -197,9 +158,7 @@ std::string cmWIXSourceWriter::EscapeAttributeValue(std::string const& value)
   std::string result;
   result.reserve(value.size());
 
-  char c = 0;
-  for (size_t i = 0; i < value.size(); ++i) {
-    c = value[i];
+  for (char c : value) {
     switch (c) {
       case '<':
         result += "&lt;";

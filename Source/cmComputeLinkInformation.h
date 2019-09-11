@@ -3,9 +3,9 @@
 #ifndef cmComputeLinkInformation_h
 #define cmComputeLinkInformation_h
 
-#include <cmConfigure.h> // IWYU pragma: keep
+#include "cmConfigure.h" // IWYU pragma: keep
 
-#include <cmsys/RegularExpression.hxx>
+#include "cmsys/RegularExpression.hxx"
 #include <iosfwd>
 #include <set>
 #include <string>
@@ -33,17 +33,11 @@ public:
     Item()
       : Value()
       , IsPath(true)
-      , Target(CM_NULLPTR)
-    {
-    }
-    Item(Item const& item)
-      : Value(item.Value)
-      , IsPath(item.IsPath)
-      , Target(item.Target)
+      , Target(nullptr)
     {
     }
     Item(std::string const& v, bool p,
-         cmGeneratorTarget const* target = CM_NULLPTR)
+         cmGeneratorTarget const* target = nullptr)
       : Value(v)
       , IsPath(p)
       , Target(target)
@@ -70,6 +64,7 @@ public:
   std::string const& GetRPathLinkFlag() const { return this->RPathLinkFlag; }
   std::string GetRPathLinkString();
 
+  std::string GetConfig() const { return this->Config; }
 private:
   void AddItem(std::string const& item, const cmGeneratorTarget* tgt);
   void AddSharedDepItem(std::string const& item, cmGeneratorTarget const* tgt);

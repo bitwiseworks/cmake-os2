@@ -42,16 +42,16 @@
 
 # Use the executable's path as a hint
 set(_Python_LIBRARY_PATH_HINT)
-if(PYTHON_EXECUTABLE)
+if(IS_ABSOLUTE "${PYTHON_EXECUTABLE}")
   if(WIN32)
-    get_filename_component(_Python_PREFIX ${PYTHON_EXECUTABLE} PATH)
+    get_filename_component(_Python_PREFIX "${PYTHON_EXECUTABLE}" PATH)
     if(_Python_PREFIX)
       set(_Python_LIBRARY_PATH_HINT ${_Python_PREFIX}/libs)
     endif()
     unset(_Python_PREFIX)
   else()
-    get_filename_component(_Python_PREFIX ${PYTHON_EXECUTABLE} PATH)
-    get_filename_component(_Python_PREFIX ${_Python_PREFIX} PATH)
+    get_filename_component(_Python_PREFIX "${PYTHON_EXECUTABLE}" PATH)
+    get_filename_component(_Python_PREFIX "${_Python_PREFIX}" PATH)
     if(_Python_PREFIX)
       set(_Python_LIBRARY_PATH_HINT ${_Python_PREFIX}/lib)
     endif()
@@ -168,12 +168,19 @@ foreach(_CURRENT_VERSION ${_Python_VERSIONS})
 
     # Use the library's install prefix as a hint
     set(_Python_INCLUDE_PATH_HINT)
-    get_filename_component(_Python_PREFIX ${PYTHON_LIBRARY} PATH)
-    get_filename_component(_Python_PREFIX ${_Python_PREFIX} PATH)
-    if(_Python_PREFIX)
-      set(_Python_INCLUDE_PATH_HINT ${_Python_PREFIX}/include)
-    endif()
-    unset(_Python_PREFIX)
+    # PYTHON_LIBRARY may contain a list because of SelectLibraryConfigurations
+    # which may have been run previously. If it is the case, the list can be:
+    #   optimized;<FILEPATH_TO_RELEASE_LIBRARY>;debug;<FILEPATH_TO_DEBUG_LIBRARY>
+    foreach(lib ${PYTHON_LIBRARY} ${PYTHON_DEBUG_LIBRARY})
+      if(IS_ABSOLUTE "${lib}")
+        get_filename_component(_Python_PREFIX "${lib}" PATH)
+        get_filename_component(_Python_PREFIX "${_Python_PREFIX}" PATH)
+        if(_Python_PREFIX)
+          list(APPEND _Python_INCLUDE_PATH_HINT ${_Python_PREFIX}/include)
+        endif()
+        unset(_Python_PREFIX)
+      endif()
+    endforeach()
 
     # Add framework directories to the search paths
     set(PYTHON_FRAMEWORK_INCLUDES)

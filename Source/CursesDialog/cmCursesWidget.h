@@ -3,10 +3,10 @@
 #ifndef cmCursesWidget_h
 #define cmCursesWidget_h
 
-#include <cmConfigure.h> // IWYU pragma: keep
+#include "cmConfigure.h" // IWYU pragma: keep
 
 #include "cmCursesStandardIncludes.h"
-#include "cmState.h"
+#include "cmStateTypes.h"
 
 #include <string>
 
@@ -14,6 +14,8 @@ class cmCursesMainForm;
 
 class cmCursesWidget
 {
+  CM_DISABLE_COPY(cmCursesWidget)
+
 public:
   cmCursesWidget(int width, int height, int left, int top);
   virtual ~cmCursesWidget();
@@ -41,7 +43,7 @@ public:
   /**
    * Get the type of the widget (STRING, PATH etc...)
    */
-  cmState::CacheEntryType GetType() { return this->Type; }
+  cmStateEnums::CacheEntryType GetType() { return this->Type; }
 
   /**
    * If there are any, print the widget specific commands
@@ -59,10 +61,7 @@ public:
   friend class cmCursesMainForm;
 
 protected:
-  cmCursesWidget(const cmCursesWidget& from);
-  void operator=(const cmCursesWidget&);
-
-  cmState::CacheEntryType Type;
+  cmStateEnums::CacheEntryType Type;
   std::string Value;
   FIELD* Field;
   // The page in the main form this widget is in

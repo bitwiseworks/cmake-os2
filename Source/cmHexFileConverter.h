@@ -3,9 +3,7 @@
 #ifndef cmHexFileConverter_h
 #define cmHexFileConverter_h
 
-#include <cmConfigure.h>
-
-#include "cmStandardIncludes.h"
+#include "cmConfigure.h" // IWYU pragma: keep
 
 /** \class cmHexFileConverter
  * \brief Can detects Intel Hex and Motorola S-record files and convert them

@@ -2,19 +2,26 @@
    file Copyright.txt or https://cmake.org/licensing for details.  */
 #include "cmExportBuildAndroidMKGenerator.h"
 
-#include "cmExportSet.h"
+#include <algorithm>
+#include <memory> // IWYU pragma: keep
+#include <sstream>
+#include <utility>
+
+#include "cmGeneratorExpression.h"
 #include "cmGeneratorTarget.h"
-#include "cmGlobalGenerator.h"
+#include "cmLinkItem.h"
 #include "cmLocalGenerator.h"
 #include "cmMakefile.h"
-#include "cmTargetExport.h"
-
-#include <algorithm>
+#include "cmPolicies.h"
+#include "cmStateTypes.h"
+#include "cmSystemTools.h"
+#include "cmTarget.h"
+#include "cmake.h"
 
 cmExportBuildAndroidMKGenerator::cmExportBuildAndroidMKGenerator()
 {
-  this->LG = CM_NULLPTR;
-  this->ExportSet = CM_NULLPTR;
+  this->LG = nullptr;
+  this->ExportSet = nullptr;
 }
 
 void cmExportBuildAndroidMKGenerator::GenerateImportHeaderCode(
@@ -61,7 +68,7 @@ void cmExportBuildAndroidMKGenerator::GenerateInterfaceProperties(
   const cmGeneratorTarget* target, std::ostream& os,
   const ImportPropertyMap& properties)
 {
-  std::string config = "";
+  std::string config;
   if (!this->Configurations.empty()) {
     config = this->Configurations[0];
   }
@@ -90,43 +97,41 @@ void cmExportBuildAndroidMKGenerator::GenerateInterfaceProperties(
   }
   if (!properties.empty()) {
     os << "LOCAL_CPP_FEATURES := rtti exceptions\n";
-    for (ImportPropertyMap::const_iterator pi = properties.begin();
-         pi != properties.end(); ++pi) {
-      if (pi->first == "INTERFACE_COMPILE_OPTIONS") {
+    for (auto const& property : properties) {
+      if (property.first == "INTERFACE_COMPILE_OPTIONS") {
         os << "LOCAL_CPP_FEATURES += ";
-        os << (pi->second) << "\n";
-      } else if (pi->first == "INTERFACE_LINK_LIBRARIES") {
+        os << (property.second) << "\n";
+      } else if (property.first == "INTERFACE_LINK_LIBRARIES") {
         // need to look at list in pi->second and see if static or shared
         // FindTargetToLink
         // target->GetLocalGenerator()->FindGeneratorTargetToUse()
         // then add to LOCAL_CPPFLAGS
         std::vector<std::string> libraries;
-        cmSystemTools::ExpandListArgument(pi->second, libraries);
+        cmSystemTools::ExpandListArgument(property.second, libraries);
         std::string staticLibs;
         std::string sharedLibs;
         std::string ldlibs;
-        for (std::vector<std::string>::iterator i = libraries.begin();
-             i != libraries.end(); ++i) {
+        for (std::string const& lib : libraries) {
           cmGeneratorTarget* gt =
-            target->GetLocalGenerator()->FindGeneratorTargetToUse(*i);
+            target->GetLocalGenerator()->FindGeneratorTargetToUse(lib);
           if (gt) {
 
-            if (gt->GetType() == cmState::SHARED_LIBRARY ||
-                gt->GetType() == cmState::MODULE_LIBRARY) {
-              sharedLibs += " " + *i;
+            if (gt->GetType() == cmStateEnums::SHARED_LIBRARY ||
+                gt->GetType() == cmStateEnums::MODULE_LIBRARY) {
+              sharedLibs += " " + lib;
             } else {
-              staticLibs += " " + *i;
+              staticLibs += " " + lib;
             }
           } else {
             // evaluate any generator expressions with the current
             // build type of the makefile
             cmGeneratorExpression ge;
-            CM_AUTO_PTR<cmCompiledGeneratorExpression> cge = ge.Parse(*i);
+            std::unique_ptr<cmCompiledGeneratorExpression> cge = ge.Parse(lib);
             std::string evaluated =
               cge->Evaluate(target->GetLocalGenerator(), config);
             bool relpath = false;
             if (type == cmExportBuildAndroidMKGenerator::INSTALL) {
-              relpath = i->substr(0, 3) == "../";
+              relpath = lib.substr(0, 3) == "../";
             }
             // check for full path or if it already has a -l, or
             // in the case of an install check for relative paths
@@ -149,26 +154,25 @@ void cmExportBuildAndroidMKGenerator::GenerateInterfaceProperties(
         if (!ldlibs.empty()) {
           os << "LOCAL_EXPORT_LDLIBS :=" << ldlibs << "\n";
         }
-      } else if (pi->first == "INTERFACE_INCLUDE_DIRECTORIES") {
-        std::string includes = pi->second;
+      } else if (property.first == "INTERFACE_INCLUDE_DIRECTORIES") {
+        std::string includes = property.second;
         std::vector<std::string> includeList;
         cmSystemTools::ExpandListArgument(includes, includeList);
         os << "LOCAL_EXPORT_C_INCLUDES := ";
         std::string end;
-        for (std::vector<std::string>::iterator i = includeList.begin();
-             i != includeList.end(); ++i) {
-          os << end << *i;
+        for (std::string const& i : includeList) {
+          os << end << i;
           end = "\\\n";
         }
         os << "\n";
       } else {
-        os << "# " << pi->first << " " << (pi->second) << "\n";
+        os << "# " << property.first << " " << (property.second) << "\n";
       }
     }
   }
 
   // Tell the NDK build system if prebuilt static libraries use C++.
-  if (target->GetType() == cmState::STATIC_LIBRARY) {
+  if (target->GetType() == cmStateEnums::STATIC_LIBRARY) {
     cmLinkImplementation const* li = target->GetLinkImplementation(config);
     if (std::find(li->Languages.begin(), li->Languages.end(), "CXX") !=
         li->Languages.end()) {
@@ -177,19 +181,19 @@ void cmExportBuildAndroidMKGenerator::GenerateInterfaceProperties(
   }
 
   switch (target->GetType()) {
-    case cmState::SHARED_LIBRARY:
-    case cmState::MODULE_LIBRARY:
+    case cmStateEnums::SHARED_LIBRARY:
+    case cmStateEnums::MODULE_LIBRARY:
       os << "include $(PREBUILT_SHARED_LIBRARY)\n";
       break;
-    case cmState::STATIC_LIBRARY:
+    case cmStateEnums::STATIC_LIBRARY:
       os << "include $(PREBUILT_STATIC_LIBRARY)\n";
       break;
-    case cmState::EXECUTABLE:
-    case cmState::UTILITY:
-    case cmState::OBJECT_LIBRARY:
-    case cmState::GLOBAL_TARGET:
-    case cmState::INTERFACE_LIBRARY:
-    case cmState::UNKNOWN_LIBRARY:
+    case cmStateEnums::EXECUTABLE:
+    case cmStateEnums::UTILITY:
+    case cmStateEnums::OBJECT_LIBRARY:
+    case cmStateEnums::GLOBAL_TARGET:
+    case cmStateEnums::INTERFACE_LIBRARY:
+    case cmStateEnums::UNKNOWN_LIBRARY:
       break;
   }
   os << "\n";

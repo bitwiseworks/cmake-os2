@@ -3,7 +3,18 @@
 #ifndef cmGlobalVisualStudio11Generator_h
 #define cmGlobalVisualStudio11Generator_h
 
+#include "cmConfigure.h" // IWYU pragma: keep
+
+#include <iosfwd>
+#include <set>
+#include <string>
+
 #include "cmGlobalVisualStudio10Generator.h"
+#include "cmStateTypes.h"
+
+class cmGlobalGeneratorFactory;
+class cmMakefile;
+class cmake;
 
 /** \class cmGlobalVisualStudio11Generator  */
 class cmGlobalVisualStudio11Generator : public cmGlobalVisualStudio10Generator
@@ -37,7 +48,7 @@ protected:
   static std::set<std::string> GetInstalledWindowsCESDKs();
 
   /** Return true if the configuration needs to be deployed */
-  virtual bool NeedsDeploy(cmState::TargetType type) const;
+  virtual bool NeedsDeploy(cmStateEnums::TargetType type) const;
 
 private:
   class Factory;

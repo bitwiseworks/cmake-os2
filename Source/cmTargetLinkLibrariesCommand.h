@@ -3,7 +3,16 @@
 #ifndef cmTargetLinkLibrariesCommand_h
 #define cmTargetLinkLibrariesCommand_h
 
+#include "cmConfigure.h" // IWYU pragma: keep
+
+#include <string>
+#include <vector>
+
 #include "cmCommand.h"
+#include "cmTargetLinkLibraryType.h"
+
+class cmExecutionStatus;
+class cmTarget;
 
 /** \class cmTargetLinkLibrariesCommand
  * \brief Specify a list of libraries to link into executables.
@@ -18,21 +27,14 @@ public:
   /**
    * This is a virtual constructor for the command.
    */
-  cmCommand* Clone() CM_OVERRIDE { return new cmTargetLinkLibrariesCommand; }
+  cmCommand* Clone() override { return new cmTargetLinkLibrariesCommand; }
 
   /**
    * This is called when the command is first encountered in
    * the CMakeLists.txt file.
    */
   bool InitialPass(std::vector<std::string> const& args,
-                   cmExecutionStatus& status) CM_OVERRIDE;
-
-  /**
-   * The name of the command as specified in CMakeList.txt.
-   */
-  std::string GetName() const CM_OVERRIDE { return "target_link_libraries"; }
-
-  cmTypeMacro(cmTargetLinkLibrariesCommand, cmCommand);
+                   cmExecutionStatus& status) override;
 
 private:
   void LinkLibraryTypeSpecifierWarning(int left, int right);

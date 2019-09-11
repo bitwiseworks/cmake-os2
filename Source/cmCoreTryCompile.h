@@ -3,7 +3,13 @@
 #ifndef cmCoreTryCompile_h
 #define cmCoreTryCompile_h
 
+#include "cmConfigure.h" // IWYU pragma: keep
+
+#include <string>
+#include <vector>
+
 #include "cmCommand.h"
+#include "cmStateTypes.h"
 
 /** \class cmCoreTryCompile
  * \brief Base class for cmTryCompileCommand and cmTryRunCommand
@@ -35,14 +41,16 @@ protected:
   the error message is stored in FindErrorMessage.
    */
   void FindOutputFile(const std::string& targetName,
-                      cmState::TargetType targetType);
-
-  cmTypeMacro(cmCoreTryCompile, cmCommand);
+                      cmStateEnums::TargetType targetType);
 
   std::string BinaryDirectory;
   std::string OutputFile;
   std::string FindErrorMessage;
   bool SrcFileSignature;
+
+private:
+  std::vector<std::string> WarnCMP0067;
+  std::string LookupStdVar(std::string const& var, bool warnCMP0067);
 };
 
 #endif

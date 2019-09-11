@@ -3,11 +3,10 @@
 #ifndef cmCPackTXZGenerator_h
 #define cmCPackTXZGenerator_h
 
-#include <cmConfigure.h>
+#include "cmConfigure.h" // IWYU pragma: keep
 
 #include "cmCPackArchiveGenerator.h"
 #include "cmCPackGenerator.h"
-#include "cmTypeMacro.h"
 
 /** \class cmCPackTXZGenerator
  * \brief A generator for TXZ files
@@ -21,10 +20,10 @@ public:
    * Construct generator
    */
   cmCPackTXZGenerator();
-  ~cmCPackTXZGenerator() CM_OVERRIDE;
+  ~cmCPackTXZGenerator() override;
 
 protected:
-  const char* GetOutputExtension() CM_OVERRIDE { return ".tar.xz"; }
+  const char* GetOutputExtension() override { return ".tar.xz"; }
 };
 
 #endif

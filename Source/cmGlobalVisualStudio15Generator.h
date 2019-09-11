@@ -3,7 +3,16 @@
 #ifndef cmGlobalVisualStudio15Generator_h
 #define cmGlobalVisualStudio15Generator_h
 
+#include "cmConfigure.h" // IWYU pragma: keep
+
+#include <iosfwd>
+#include <string>
+
 #include "cmGlobalVisualStudio14Generator.h"
+#include "cmVSSetupHelper.h"
+
+class cmGlobalGeneratorFactory;
+class cmake;
 
 /** \class cmGlobalVisualStudio15Generator  */
 class cmGlobalVisualStudio15Generator : public cmGlobalVisualStudio14Generator
@@ -19,6 +28,7 @@ public:
 
   virtual const char* GetToolsVersion() { return "15.0"; }
 protected:
+  bool InitializeWindows(cmMakefile* mf) override;
   virtual bool SelectWindowsStoreToolset(std::string& toolset) const;
 
   virtual const char* GetIDEVersion() { return "15.0"; }
@@ -31,7 +41,14 @@ protected:
   // of the toolset is installed
   bool IsWindowsStoreToolsetInstalled() const;
 
+  // Check for a Win 8 SDK known to the registry or VS installer tool.
+  bool IsWin81SDKInstalled() const;
+
+  std::string FindMSBuildCommand() override;
+  std::string FindDevEnvCommand() override;
+
 private:
   class Factory;
+  mutable cmVSSetupAPIHelper vsSetupAPIHelper;
 };
 #endif

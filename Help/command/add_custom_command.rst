@@ -21,7 +21,8 @@ The first signature is for adding a custom command to produce an output::
                      [WORKING_DIRECTORY dir]
                      [COMMENT comment]
                      [DEPFILE depfile]
-                     [VERBATIM] [APPEND] [USES_TERMINAL])
+                     [VERBATIM] [APPEND] [USES_TERMINAL]
+                     [COMMAND_EXPAND_LISTS])
 
 This defines a command to generate specified ``OUTPUT`` file(s).
 A target created in the same directory (``CMakeLists.txt`` file)
@@ -122,6 +123,14 @@ The options are:
   Arguments to ``DEPENDS`` may use
   :manual:`generator expressions <cmake-generator-expressions(7)>`.
 
+``COMMAND_EXPAND_LISTS``
+  Lists in ``COMMAND`` arguments will be expanded, including those
+  created with
+  :manual:`generator expressions <cmake-generator-expressions(7)>`,
+  allowing ``COMMAND`` arguments such as
+  ``${CC} "-I$<JOIN:$<TARGET_PROPERTY:foo,INCLUDE_DIRECTORIES>,;-I>" foo.cc``
+  to be properly expanded.
+
 ``IMPLICIT_DEPENDS``
   Request scanning of implicit dependencies of an input file.
   The language given specifies the programming language whose
@@ -206,7 +215,7 @@ of the following is specified:
 
 ``PRE_BUILD``
   Run before any other rules are executed within the target.
-  This is supported only on Visual Studio 7 or later.
+  This is supported only on Visual Studio 8 or later.
   For all other generators ``PRE_BUILD`` will be treated as
   ``PRE_LINK``.
 ``PRE_LINK``
@@ -216,3 +225,13 @@ of the following is specified:
   :command:`add_custom_target` command.
 ``POST_BUILD``
   Run after all other rules within the target have been executed.
+
+.. note::
+  Because generator expressions can be used in custom commands,
+  it is possible to define ``COMMAND`` lines or whole custom commands
+  which evaluate to empty strings for certain configurations.
+  For **Visual Studio 2010 (and newer)** generators these command
+  lines or custom commands will be omitted for the specific
+  configuration and no "empty-string-command" will be added.
+
+  This allows to add individual build events for every configuration.

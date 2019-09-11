@@ -2,16 +2,17 @@
    file Copyright.txt or https://cmake.org/licensing for details.  */
 #include "cmExportInstallAndroidMKGenerator.h"
 
-#include "cmAlgorithms.h"
+#include <ostream>
+#include <stddef.h>
+
 #include "cmExportBuildAndroidMKGenerator.h"
 #include "cmExportSet.h"
-#include "cmExportSetMap.h"
-#include "cmGeneratedFileStream.h"
 #include "cmGeneratorTarget.h"
-#include "cmGlobalGenerator.h"
 #include "cmInstallExportGenerator.h"
 #include "cmInstallTargetGenerator.h"
-#include "cmLocalGenerator.h"
+#include "cmStateTypes.h"
+#include "cmSystemTools.h"
+#include "cmTarget.h"
 #include "cmTargetExport.h"
 
 cmExportInstallAndroidMKGenerator::cmExportInstallAndroidMKGenerator(
@@ -26,19 +27,16 @@ void cmExportInstallAndroidMKGenerator::GenerateImportHeaderCode(
   std::string installDir = this->IEGen->GetDestination();
   os << "LOCAL_PATH := $(call my-dir)\n";
   size_t numDotDot = cmSystemTools::CountChar(installDir.c_str(), '/');
-  numDotDot += (installDir.size() > 0) ? 1 : 0;
+  numDotDot += installDir.empty() ? 0 : 1;
   std::string path;
   for (size_t n = 0; n < numDotDot; n++) {
     path += "/..";
   }
   os << "_IMPORT_PREFIX := "
      << "$(LOCAL_PATH)" << path << "\n\n";
-  for (std::vector<cmTargetExport*>::const_iterator tei =
-         this->IEGen->GetExportSet()->GetTargetExports()->begin();
-       tei != this->IEGen->GetExportSet()->GetTargetExports()->end(); ++tei) {
+  for (cmTargetExport* te : *this->IEGen->GetExportSet()->GetTargetExports()) {
     // Collect import properties for this target.
-    cmTargetExport const* te = *tei;
-    if (te->Target->GetType() == cmState::INTERFACE_LIBRARY) {
+    if (te->Target->GetType() == cmStateEnums::INTERFACE_LIBRARY) {
       continue;
     }
     std::string dest;
@@ -66,7 +64,7 @@ void cmExportInstallAndroidMKGenerator::GenerateImportTargetCode(
   os << targetName << "\n";
   os << "LOCAL_SRC_FILES := $(_IMPORT_PREFIX)/";
   os << target->Target->GetProperty("__dest") << "/";
-  std::string config = "";
+  std::string config;
   if (!this->Configurations.empty()) {
     config = this->Configurations[0];
   }
@@ -93,7 +91,7 @@ void cmExportInstallAndroidMKGenerator::GenerateInterfaceProperties(
   cmGeneratorTarget const* target, std::ostream& os,
   const ImportPropertyMap& properties)
 {
-  std::string config = "";
+  std::string config;
   if (!this->Configurations.empty()) {
     config = this->Configurations[0];
   }

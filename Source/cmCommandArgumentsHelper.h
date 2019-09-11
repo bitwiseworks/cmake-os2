@@ -3,12 +3,14 @@
 #ifndef cmCommandArgumentsHelper_h
 #define cmCommandArgumentsHelper_h
 
-#include <cmConfigure.h>
+#include "cmConfigure.h" // IWYU pragma: keep
 
-#include "cmStandardIncludes.h"
+#include <set>
+#include <string>
+#include <vector>
 
-class cmCommandArgumentsHelper;
 class cmCommandArgumentGroup;
+class cmCommandArgumentsHelper;
 
 /* cmCommandArgumentsHelper, cmCommandArgumentGroup and cmCommandArgument (i.e.
 its derived classes cmCAXXX can be used to simplify the processing of
@@ -36,7 +38,7 @@ class cmCommandArgument
 {
 public:
   cmCommandArgument(cmCommandArgumentsHelper* args, const char* key,
-                    cmCommandArgumentGroup* group = CM_NULLPTR);
+                    cmCommandArgumentGroup* group = nullptr);
   virtual ~cmCommandArgument() {}
 
   /// this argument may follow after arg. 0 means it comes first.
@@ -88,7 +90,7 @@ class cmCAStringVector : public cmCommandArgument
 {
 public:
   cmCAStringVector(cmCommandArgumentsHelper* args, const char* key,
-                   cmCommandArgumentGroup* group = CM_NULLPTR);
+                   cmCommandArgumentGroup* group = nullptr);
 
   /// Return the vector of strings
   const std::vector<std::string>& GetVector() const { return this->Vector; }
@@ -101,8 +103,8 @@ private:
   unsigned int DataStart;
   const char* Ignore;
   cmCAStringVector();
-  bool DoConsume(const std::string& arg, unsigned int index) CM_OVERRIDE;
-  void DoReset() CM_OVERRIDE;
+  bool DoConsume(const std::string& arg, unsigned int index) override;
+  void DoReset() override;
 };
 
 /** cmCAString is to be used for arguments which consist of one value,
@@ -111,7 +113,7 @@ class cmCAString : public cmCommandArgument
 {
 public:
   cmCAString(cmCommandArgumentsHelper* args, const char* key,
-             cmCommandArgumentGroup* group = CM_NULLPTR);
+             cmCommandArgumentGroup* group = nullptr);
 
   /// Return the string
   const std::string& GetString() const { return this->String; }
@@ -119,8 +121,8 @@ public:
 private:
   std::string String;
   unsigned int DataStart;
-  bool DoConsume(const std::string& arg, unsigned int index) CM_OVERRIDE;
-  void DoReset() CM_OVERRIDE;
+  bool DoConsume(const std::string& arg, unsigned int index) override;
+  void DoReset() override;
   cmCAString();
 };
 
@@ -130,14 +132,14 @@ class cmCAEnabler : public cmCommandArgument
 {
 public:
   cmCAEnabler(cmCommandArgumentsHelper* args, const char* key,
-              cmCommandArgumentGroup* group = CM_NULLPTR);
+              cmCommandArgumentGroup* group = nullptr);
 
   /// Has it been enabled ?
   bool IsEnabled() const { return this->Enabled; }
 private:
   bool Enabled;
-  bool DoConsume(const std::string& arg, unsigned int index) CM_OVERRIDE;
-  void DoReset() CM_OVERRIDE;
+  bool DoConsume(const std::string& arg, unsigned int index) override;
+  void DoReset() override;
   cmCAEnabler();
 };
 
@@ -147,14 +149,14 @@ class cmCADisabler : public cmCommandArgument
 {
 public:
   cmCADisabler(cmCommandArgumentsHelper* args, const char* key,
-               cmCommandArgumentGroup* group = CM_NULLPTR);
+               cmCommandArgumentGroup* group = nullptr);
 
   /// Is it still enabled ?
   bool IsEnabled() const { return this->Enabled; }
 private:
   bool Enabled;
-  bool DoConsume(const std::string& arg, unsigned int index) CM_OVERRIDE;
-  void DoReset() CM_OVERRIDE;
+  bool DoConsume(const std::string& arg, unsigned int index) override;
+  void DoReset() override;
   cmCADisabler();
 };
 

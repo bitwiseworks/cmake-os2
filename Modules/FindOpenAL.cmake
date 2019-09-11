@@ -79,7 +79,7 @@ find_library(OPENAL_LIBRARY
   NAMES OpenAL al openal OpenAL32
   HINTS
     ENV OPENALDIR
-  PATH_SUFFIXES lib64 lib libs64 libs ${_OpenAL_ARCH_DIR}
+  PATH_SUFFIXES libx32 lib64 lib libs64 libs ${_OpenAL_ARCH_DIR}
   PATHS
   ~/Library/Frameworks
   /Library/Frameworks
@@ -92,8 +92,6 @@ find_library(OPENAL_LIBRARY
 
 unset(_OpenAL_ARCH_DIR)
 
-# handle the QUIETLY and REQUIRED arguments and set OPENAL_FOUND to TRUE if
-# all listed variables are TRUE
 include(${CMAKE_CURRENT_LIST_DIR}/FindPackageHandleStandardArgs.cmake)
 FIND_PACKAGE_HANDLE_STANDARD_ARGS(OpenAL  DEFAULT_MSG  OPENAL_LIBRARY OPENAL_INCLUDE_DIR)
 

@@ -25,9 +25,6 @@ endif()
 if("${CMAKE_GENERATOR}" MATCHES "Watcom WMake")
   set(PP_WATCOM 1)
 endif()
-if("${CMAKE_GENERATOR}" MATCHES "Visual Studio 7$")
-  set(PP_VS70 1)
-endif()
 if("${CMAKE_GENERATOR}" MATCHES "Visual Studio")
   set(PP_VS 1)
 endif()
@@ -46,14 +43,11 @@ endif()
 # must not have it escaped inside the configured header.
 set(STRING_EXTRA "")
 
-if(NOT BORLAND AND NOT PP_VS70)
-  # Borland, VS70 IDE: ;
+if(NOT BORLAND)
+  # Borland: ;
   # The Borland compiler will simply not accept a non-escaped semicolon
   # on the command line.  If it is escaped \; then the escape character
   # shows up in the preprocessing output too.
-  #
-  # The VS 7.0 IDE separates definitions on semicolons and commas with
-  # no regard for quotes.  Fortunately VS 7.1 and above are okay.
   set(SEMICOLON "\;")
 endif()
 
@@ -214,18 +208,24 @@ set(FILE_PATH "${Preprocess_SOURCE_DIR}/file_def.h")
 set(TARGET_PATH "${Preprocess_SOURCE_DIR}/target_def.h")
 
 # Set some definition properties.
-foreach(c "" "_DEBUG" "_RELEASE")
+foreach(c "" "_DEBUG" "_RELEASE" "_RELWITHDEBINFO" "_MINSIZEREL")
+  set(FLAVOR "${c}")
+  # Treat RelWithDebInfo and MinSizeRel as Release to avoid having
+  # an exponentional matrix of inclusions and exclusions of defines
+  if("${c}" STREQUAL "_RELWITHDEBINFO" OR "${c}" STREQUAL "_MINSIZEREL")
+    set(FLAVOR "_RELEASE")
+  endif()
   set_property(
     DIRECTORY .
-    APPEND PROPERTY COMPILE_DEFINITIONS${c} "DIRECTORY_DEF${c}"
+    APPEND PROPERTY COMPILE_DEFINITIONS${c} "DIRECTORY_DEF${FLAVOR}"
     )
   set_property(
     TARGET Preprocess
-    PROPERTY COMPILE_DEFINITIONS${c} "TARGET_DEF${c}"
+    PROPERTY COMPILE_DEFINITIONS${c} "TARGET_DEF${FLAVOR}"
     )
   set_property(
     SOURCE preprocess.c preprocess.cxx
-    PROPERTY COMPILE_DEFINITIONS${c} "FILE_DEF${c}"
+    PROPERTY COMPILE_DEFINITIONS${c} "FILE_DEF${FLAVOR}"
     )
 endforeach()
 

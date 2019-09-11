@@ -3,10 +3,9 @@
 #ifndef cmCTestRunScriptCommand_h
 #define cmCTestRunScriptCommand_h
 
-#include <cmConfigure.h>
+#include "cmConfigure.h" // IWYU pragma: keep
 
 #include "cmCTestCommand.h"
-#include "cmTypeMacro.h"
 
 #include <string>
 #include <vector>
@@ -28,7 +27,7 @@ public:
   /**
    * This is a virtual constructor for the command.
    */
-  cmCommand* Clone() CM_OVERRIDE
+  cmCommand* Clone() override
   {
     cmCTestRunScriptCommand* ni = new cmCTestRunScriptCommand;
     ni->CTest = this->CTest;
@@ -41,14 +40,7 @@ public:
    * the CMakeLists.txt file.
    */
   bool InitialPass(std::vector<std::string> const& args,
-                   cmExecutionStatus& status) CM_OVERRIDE;
-
-  /**
-   * The name of the command as specified in CMakeList.txt.
-   */
-  std::string GetName() const CM_OVERRIDE { return "ctest_run_script"; }
-
-  cmTypeMacro(cmCTestRunScriptCommand, cmCTestCommand);
+                   cmExecutionStatus& status) override;
 };
 
 #endif

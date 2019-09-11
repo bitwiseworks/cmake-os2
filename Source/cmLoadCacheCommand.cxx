@@ -2,8 +2,14 @@
    file Copyright.txt or https://cmake.org/licensing for details.  */
 #include "cmLoadCacheCommand.h"
 
-#include <cmsys/FStream.hxx>
-#include <cmsys/RegularExpression.hxx>
+#include "cmsys/FStream.hxx"
+
+#include "cmMakefile.h"
+#include "cmStateTypes.h"
+#include "cmSystemTools.h"
+#include "cmake.h"
+
+class cmExecutionStatus;
 
 // cmLoadCacheCommand
 bool cmLoadCacheCommand::InitialPass(std::vector<std::string> const& args,
@@ -21,17 +27,16 @@ bool cmLoadCacheCommand::InitialPass(std::vector<std::string> const& args,
   // If this set is empty, all cache entries are brought in
   // and they can not be overridden.
   bool excludeFiles = false;
-  unsigned int i;
   std::set<std::string> excludes;
 
-  for (i = 0; i < args.size(); i++) {
+  for (std::string const& arg : args) {
     if (excludeFiles) {
-      excludes.insert(args[i]);
+      excludes.insert(arg);
     }
-    if (args[i] == "EXCLUDE") {
+    if (arg == "EXCLUDE") {
       excludeFiles = true;
     }
-    if (excludeFiles && (args[i] == "INCLUDE_INTERNALS")) {
+    if (excludeFiles && (arg == "INCLUDE_INTERNALS")) {
       break;
     }
   }
@@ -42,25 +47,25 @@ bool cmLoadCacheCommand::InitialPass(std::vector<std::string> const& args,
   bool includeFiles = false;
   std::set<std::string> includes;
 
-  for (i = 0; i < args.size(); i++) {
+  for (std::string const& arg : args) {
     if (includeFiles) {
-      includes.insert(args[i]);
+      includes.insert(arg);
     }
-    if (args[i] == "INCLUDE_INTERNALS") {
+    if (arg == "INCLUDE_INTERNALS") {
       includeFiles = true;
     }
-    if (includeFiles && (args[i] == "EXCLUDE")) {
+    if (includeFiles && (arg == "EXCLUDE")) {
       break;
     }
   }
 
   // Loop over each build directory listed in the arguments.  Each
   // directory has a cache file.
-  for (i = 0; i < args.size(); i++) {
-    if ((args[i] == "EXCLUDE") || (args[i] == "INCLUDE_INTERNALS")) {
+  for (std::string const& arg : args) {
+    if ((arg == "EXCLUDE") || (arg == "INCLUDE_INTERNALS")) {
       break;
     }
-    this->Makefile->GetCMakeInstance()->LoadCache(args[i], false, excludes,
+    this->Makefile->GetCMakeInstance()->LoadCache(arg, false, excludes,
                                                   includes);
   }
 
@@ -119,7 +124,7 @@ bool cmLoadCacheCommand::ReadWithPrefix(std::vector<std::string> const& args)
         if (i != end) {
           // Completed a line.
           this->CheckLine(line.c_str());
-          line = "";
+          line.clear();
 
           // Skip the newline character.
           ++i;
@@ -140,7 +145,7 @@ void cmLoadCacheCommand::CheckLine(const char* line)
   // Check one line of the cache file.
   std::string var;
   std::string value;
-  cmState::CacheEntryType type = cmState::UNINITIALIZED;
+  cmStateEnums::CacheEntryType type = cmStateEnums::UNINITIALIZED;
   if (cmake::ParseCacheEntry(line, var, value, type)) {
     // Found a real entry.  See if this one was requested.
     if (this->VariablesToRead.find(var) != this->VariablesToRead.end()) {

@@ -3,9 +3,9 @@
 #ifndef cmOrderDirectories_h
 #define cmOrderDirectories_h
 
-#include <cmConfigure.h>
+#include "cmConfigure.h" // IWYU pragma: keep
 
-#include <cmsys/RegularExpression.hxx>
+#include "cmsys/RegularExpression.hxx"
 #include <map>
 #include <set>
 #include <string>
@@ -26,7 +26,7 @@ public:
                      const char* purpose);
   ~cmOrderDirectories();
   void AddRuntimeLibrary(std::string const& fullPath,
-                         const char* soname = CM_NULLPTR);
+                         const char* soname = nullptr);
   void AddLinkLibrary(std::string const& fullPath);
   void AddUserDirectories(std::vector<std::string> const& extra);
   void AddLanguageDirectories(std::vector<std::string> const& dirs);
@@ -81,6 +81,8 @@ private:
 
   // Compare directories after resolving symlinks.
   bool IsSameDirectory(std::string const& l, std::string const& r);
+
+  bool IsImplicitDirectory(std::string const& dir);
 
   std::string const& GetRealPath(std::string const& dir);
   std::map<std::string, std::string> RealPaths;

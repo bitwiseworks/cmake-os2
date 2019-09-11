@@ -3,11 +3,21 @@
 #ifndef cmNinjaTypes_h
 #define cmNinjaTypes_h
 
-#include <cmConfigure.h>
+#include "cmConfigure.h" // IWYU pragma: keep
 
-#include "cmStandardIncludes.h"
+#include <map>
+#include <set>
+#include <string>
+#include <vector>
+
+enum cmNinjaTargetDepends
+{
+  DependOnTargetArtifact,
+  DependOnTargetOrdering
+};
 
 typedef std::vector<std::string> cmNinjaDeps;
+typedef std::set<std::string> cmNinjaOuts;
 typedef std::map<std::string, std::string> cmNinjaVars;
 
 #endif // ! cmNinjaTypes_h

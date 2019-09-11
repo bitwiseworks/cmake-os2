@@ -5,6 +5,7 @@
 #include "cmGeneratedFileStream.h"
 #include "cmGeneratorTarget.h"
 #include "cmGlobalGhsMultiGenerator.h"
+#include "cmLinkLineComputer.h"
 #include "cmLocalGhsMultiGenerator.h"
 #include "cmMakefile.h"
 #include "cmSourceFile.h"
@@ -43,9 +44,7 @@ cmGhsMultiTargetGenerator::~cmGhsMultiTargetGenerator()
 std::string cmGhsMultiTargetGenerator::GetRelBuildFilePath(
   const cmGeneratorTarget* target)
 {
-  std::string output;
-  char const* folderProp = target->GetProperty("FOLDER");
-  output = NULL == folderProp ? "" : folderProp;
+  std::string output = target->GetEffectiveFolderName();
   cmSystemTools::ConvertToUnixSlashes(output);
   if (!output.empty()) {
     output += "/";
@@ -131,7 +130,7 @@ void cmGhsMultiTargetGenerator::Generate()
     this->WriteCompilerFlags(config, language);
     this->WriteCompilerDefinitions(config, language);
     this->WriteIncludes(config, language);
-    if (this->GeneratorTarget->GetType() == cmState::EXECUTABLE) {
+    if (this->GeneratorTarget->GetType() == cmStateEnums::EXECUTABLE) {
       this->WriteTargetLinkLibraries(config, language);
     }
     this->WriteCustomCommands();
@@ -175,7 +174,7 @@ GhsMultiGpj::Types cmGhsMultiTargetGenerator::GetGpjTag(
   GhsMultiGpj::Types output;
   if (cmGhsMultiTargetGenerator::DetermineIfTargetGroup(target)) {
     output = GhsMultiGpj::INTERGRITY_APPLICATION;
-  } else if (target->GetType() == cmState::STATIC_LIBRARY) {
+  } else if (target->GetType() == cmStateEnums::STATIC_LIBRARY) {
     output = GhsMultiGpj::LIBRARY;
   } else {
     output = GhsMultiGpj::PROGRAM;
@@ -196,13 +195,13 @@ void cmGhsMultiTargetGenerator::WriteTypeSpecifics(const std::string& config,
   std::string outputDir(this->GetOutputDirectory(config));
   std::string outputFilename(this->GetOutputFilename(config));
 
-  if (this->GeneratorTarget->GetType() == cmState::STATIC_LIBRARY) {
+  if (this->GeneratorTarget->GetType() == cmStateEnums::STATIC_LIBRARY) {
     std::string const static_library_suffix =
       this->Makefile->GetSafeDefinition("CMAKE_STATIC_LIBRARY_SUFFIX");
     *this->GetFolderBuildStreams() << "    -o \"" << outputDir
                                    << outputFilename << static_library_suffix
                                    << "\"" << std::endl;
-  } else if (this->GeneratorTarget->GetType() == cmState::EXECUTABLE) {
+  } else if (this->GeneratorTarget->GetType() == cmStateEnums::EXECUTABLE) {
     if (notKernel && !this->IsTargetGroup()) {
       *this->GetFolderBuildStreams() << "    -relprog" << std::endl;
     }
@@ -233,10 +232,12 @@ void cmGhsMultiTargetGenerator::SetCompilerFlags(std::string const& config,
     const char* lang = language.c_str();
 
     if (notKernel) {
-      this->LocalGenerator->AddLanguageFlags(flags, lang, config);
+      this->LocalGenerator->AddLanguageFlags(flags, this->GeneratorTarget,
+                                             lang, config);
     } else {
-      this->LocalGenerator->AddLanguageFlags(
-        flags, lang + std::string("_GHS_KERNEL"), config);
+      this->LocalGenerator->AddLanguageFlags(flags, this->GeneratorTarget,
+                                             lang + std::string("_GHS_KERNEL"),
+                                             config);
     }
     this->LocalGenerator->AddCMP0018Flags(flags, this->GeneratorTarget, lang,
                                           config);
@@ -244,7 +245,7 @@ void cmGhsMultiTargetGenerator::SetCompilerFlags(std::string const& config,
       flags, this->GeneratorTarget, lang);
 
     // Append old-style preprocessor definition flags.
-    if (std::string(" ") != std::string(this->Makefile->GetDefineFlags())) {
+    if (this->Makefile->GetDefineFlags() != " ") {
       this->LocalGenerator->AppendFlags(flags,
                                         this->Makefile->GetDefineFlags());
     }
@@ -362,9 +363,15 @@ void cmGhsMultiTargetGenerator::WriteTargetLinkLibraries(
       this->GeneratorTarget->GetCreateRuleVariable(language, config);
     bool useWatcomQuote =
       this->Makefile->IsOn(createRule + "_USE_WATCOM_QUOTE");
+    std::unique_ptr<cmLinkLineComputer> linkLineComputer(
+      this->GetGlobalGenerator()->CreateLinkLineComputer(
+        this->LocalGenerator,
+        this->LocalGenerator->GetStateSnapshot().GetDirectory()));
+    linkLineComputer->SetUseWatcomQuote(useWatcomQuote);
+
     this->LocalGenerator->GetTargetFlags(
-      config, linkLibraries, flags, linkFlags, frameworkPath, linkPath,
-      this->GeneratorTarget, useWatcomQuote);
+      linkLineComputer.get(), config, linkLibraries, flags, linkFlags,
+      frameworkPath, linkPath, this->GeneratorTarget);
     linkFlags = cmSystemTools::TrimWhitespace(linkFlags);
 
     if (!linkPath.empty()) {
@@ -432,7 +439,7 @@ cmGhsMultiTargetGenerator::GetObjectNames(
   cmLocalGhsMultiGenerator* const localGhsMultiGenerator,
   cmGeneratorTarget* const generatorTarget)
 {
-  std::map<std::string, std::vector<cmSourceFile*> > filenameToSource;
+  std::map<std::string, std::vector<cmSourceFile*>> filenameToSource;
   std::map<cmSourceFile*, std::string> sourceToFilename;
   for (std::vector<cmSourceFile*>::const_iterator sf = objectSources->begin();
        sf != objectSources->end(); ++sf) {
@@ -444,7 +451,7 @@ cmGhsMultiTargetGenerator::GetObjectNames(
   }
 
   std::vector<cmSourceFile*> duplicateSources;
-  for (std::map<std::string, std::vector<cmSourceFile*> >::const_iterator
+  for (std::map<std::string, std::vector<cmSourceFile*>>::const_iterator
          msvSourceI = filenameToSource.begin();
        msvSourceI != filenameToSource.end(); ++msvSourceI) {
     if (msvSourceI->second.size() > 1) {

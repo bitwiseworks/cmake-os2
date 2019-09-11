@@ -2,7 +2,12 @@
    file Copyright.txt or https://cmake.org/licensing for details.  */
 #include "cmSetTargetPropertiesCommand.h"
 
-#include "cmGlobalGenerator.h"
+#include <iterator>
+
+#include "cmMakefile.h"
+#include "cmTarget.h"
+
+class cmExecutionStatus;
 
 // cmSetTargetPropertiesCommand
 bool cmSetTargetPropertiesCommand::InitialPass(
@@ -27,9 +32,8 @@ bool cmSetTargetPropertiesCommand::InitialPass(
       }
       propertyPairs.insert(propertyPairs.end(), j, args.end());
       break;
-    } else {
-      numFiles++;
     }
+    numFiles++;
   }
   if (propertyPairs.empty()) {
     this->SetError("called with illegal arguments, maybe missing "

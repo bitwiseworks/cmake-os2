@@ -2,8 +2,12 @@
    file Copyright.txt or https://cmake.org/licensing for details.  */
 #include "cmSetTestsPropertiesCommand.h"
 
+#include <iterator>
+
+#include "cmMakefile.h"
 #include "cmTest.h"
-#include "cmake.h"
+
+class cmExecutionStatus;
 
 // cmSetTestsPropertiesCommand
 bool cmSetTestsPropertiesCommand::InitialPass(
@@ -28,9 +32,8 @@ bool cmSetTestsPropertiesCommand::InitialPass(
       }
       propertyPairs.insert(propertyPairs.end(), j, args.end());
       break;
-    } else {
-      numFiles++;
     }
+    numFiles++;
   }
   if (propertyPairs.empty()) {
     this->SetError("called with illegal arguments, maybe "

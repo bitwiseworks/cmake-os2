@@ -2,6 +2,15 @@
    file Copyright.txt or https://cmake.org/licensing for details.  */
 #include "cmLinkDirectoriesCommand.h"
 
+#include <sstream>
+
+#include "cmMakefile.h"
+#include "cmPolicies.h"
+#include "cmSystemTools.h"
+#include "cmake.h"
+
+class cmExecutionStatus;
+
 // cmLinkDirectoriesCommand
 bool cmLinkDirectoriesCommand::InitialPass(
   std::vector<std::string> const& args, cmExecutionStatus&)
@@ -10,9 +19,8 @@ bool cmLinkDirectoriesCommand::InitialPass(
     return true;
   }
 
-  for (std::vector<std::string>::const_iterator i = args.begin();
-       i != args.end(); ++i) {
-    this->AddLinkDir(*i);
+  for (std::string const& i : args) {
+    this->AddLinkDir(i);
   }
   return true;
 }
@@ -40,6 +48,7 @@ void cmLinkDirectoriesCommand::AddLinkDir(std::string const& dir)
       case cmPolicies::REQUIRED_ALWAYS:
         e << cmPolicies::GetRequiredPolicyError(cmPolicies::CMP0015);
         this->Makefile->IssueMessage(cmake::FATAL_ERROR, e.str());
+        CM_FALLTHROUGH;
       case cmPolicies::NEW:
         // NEW behavior converts
         convertToAbsolute = true;

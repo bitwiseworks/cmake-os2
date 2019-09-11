@@ -2,7 +2,13 @@
    file Copyright.txt or https://cmake.org/licensing for details.  */
 #include "cmGetDirectoryPropertyCommand.h"
 
+#include "cmGlobalGenerator.h"
+#include "cmMakefile.h"
+#include "cmPolicies.h"
+#include "cmSystemTools.h"
 #include "cmake.h"
+
+class cmExecutionStatus;
 
 // cmGetDirectoryPropertyCommand
 bool cmGetDirectoryPropertyCommand::InitialPass(
@@ -14,7 +20,7 @@ bool cmGetDirectoryPropertyCommand::InitialPass(
   }
 
   std::vector<std::string>::const_iterator i = args.begin();
-  std::string variable = *i;
+  std::string const& variable = *i;
   ++i;
 
   // get the directory argument if there is one
@@ -64,7 +70,7 @@ bool cmGetDirectoryPropertyCommand::InitialPass(
     return true;
   }
 
-  const char* prop = CM_NULLPTR;
+  const char* prop = nullptr;
   if (!i->empty()) {
     if (*i == "DEFINITIONS") {
       switch (this->Makefile->GetPolicyStatus(cmPolicies::CMP0059)) {
@@ -72,6 +78,7 @@ bool cmGetDirectoryPropertyCommand::InitialPass(
           this->Makefile->IssueMessage(
             cmake::AUTHOR_WARNING,
             cmPolicies::GetPolicyWarning(cmPolicies::CMP0059));
+          CM_FALLTHROUGH;
         case cmPolicies::OLD:
           this->StoreResult(variable, this->Makefile->GetDefineFlagsCMP0059());
           return true;

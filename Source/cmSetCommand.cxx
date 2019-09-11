@@ -2,6 +2,16 @@
    file Copyright.txt or https://cmake.org/licensing for details.  */
 #include "cmSetCommand.h"
 
+#include <string.h>
+
+#include "cmAlgorithms.h"
+#include "cmMakefile.h"
+#include "cmState.h"
+#include "cmStateTypes.h"
+#include "cmSystemTools.h"
+
+class cmExecutionStatus;
+
 // cmSetCommand
 bool cmSetCommand::InitialPass(std::vector<std::string> const& args,
                                cmExecutionStatus&)
@@ -51,7 +61,7 @@ bool cmSetCommand::InitialPass(std::vector<std::string> const& args,
   // SET (VAR PARENT_SCOPE) // Removes the definition of VAR
   // in the parent scope.
   if (args.size() == 2 && args[args.size() - 1] == "PARENT_SCOPE") {
-    this->Makefile->RaiseScope(variable, CM_NULLPTR);
+    this->Makefile->RaiseScope(variable, nullptr);
     return true;
   }
 
@@ -64,8 +74,9 @@ bool cmSetCommand::InitialPass(std::vector<std::string> const& args,
   bool cache = false; // optional
   bool force = false; // optional
   bool parentScope = false;
-  cmState::CacheEntryType type = cmState::STRING; // required if cache
-  const char* docstring = CM_NULLPTR;             // required if cache
+  cmStateEnums::CacheEntryType type =
+    cmStateEnums::STRING;          // required if cache
+  const char* docstring = nullptr; // required if cache
 
   unsigned int ignoreLastArgs = 0;
   // look for PARENT_SCOPE argument
@@ -115,12 +126,12 @@ bool cmSetCommand::InitialPass(std::vector<std::string> const& args,
   cmState* state = this->Makefile->GetState();
   const char* existingValue = state->GetCacheEntryValue(variable);
   if (existingValue &&
-      (state->GetCacheEntryType(variable) != cmState::UNINITIALIZED)) {
+      (state->GetCacheEntryType(variable) != cmStateEnums::UNINITIALIZED)) {
     // if the set is trying to CACHE the value but the value
     // is already in the cache and the type is not internal
     // then leave now without setting any definitions in the cache
     // or the makefile
-    if (cache && type != cmState::INTERNAL && !force) {
+    if (cache && type != cmStateEnums::INTERNAL && !force) {
       return true;
     }
   }

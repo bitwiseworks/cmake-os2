@@ -2,6 +2,10 @@
    file Copyright.txt or https://cmake.org/licensing for details.  */
 #include "cmGeneratorExpression.h"
 
+#include "cmsys/RegularExpression.hxx"
+#include <memory> // IWYU pragma: keep
+#include <utility>
+
 #include "assert.h"
 #include "cmAlgorithms.h"
 #include "cmGeneratorExpressionContext.h"
@@ -10,23 +14,20 @@
 #include "cmGeneratorExpressionParser.h"
 #include "cmSystemTools.h"
 
-#include <cmsys/RegularExpression.hxx>
-#include <utility>
-
 cmGeneratorExpression::cmGeneratorExpression(
   const cmListFileBacktrace& backtrace)
   : Backtrace(backtrace)
 {
 }
 
-CM_AUTO_PTR<cmCompiledGeneratorExpression> cmGeneratorExpression::Parse(
+std::unique_ptr<cmCompiledGeneratorExpression> cmGeneratorExpression::Parse(
   std::string const& input)
 {
-  return CM_AUTO_PTR<cmCompiledGeneratorExpression>(
+  return std::unique_ptr<cmCompiledGeneratorExpression>(
     new cmCompiledGeneratorExpression(this->Backtrace, input));
 }
 
-CM_AUTO_PTR<cmCompiledGeneratorExpression> cmGeneratorExpression::Parse(
+std::unique_ptr<cmCompiledGeneratorExpression> cmGeneratorExpression::Parse(
   const char* input)
 {
   return this->Parse(std::string(input ? input : ""));
@@ -67,7 +68,7 @@ const char* cmCompiledGeneratorExpression::EvaluateWithContext(
     return this->Input.c_str();
   }
 
-  this->Output = "";
+  this->Output.clear();
 
   std::vector<cmGeneratorExpressionEvaluator*>::const_iterator it =
     this->Evaluators.begin();
@@ -80,7 +81,7 @@ const char* cmCompiledGeneratorExpression::EvaluateWithContext(
     this->SeenTargetProperties.insert(context.SeenTargetProperties.begin(),
                                       context.SeenTargetProperties.end());
     if (context.HadError) {
-      this->Output = "";
+      this->Output.clear();
       break;
     }
   }
@@ -125,7 +126,7 @@ cmCompiledGeneratorExpression::~cmCompiledGeneratorExpression()
 std::string cmGeneratorExpression::StripEmptyListElements(
   const std::string& input)
 {
-  if (input.find(';') == input.npos) {
+  if (input.find(';') == std::string::npos) {
     return input;
   }
   std::string result;
@@ -160,7 +161,7 @@ static std::string stripAllGeneratorExpressions(const std::string& input)
   std::string::size_type pos = 0;
   std::string::size_type lastPos = pos;
   int nestingLevel = 0;
-  while ((pos = input.find("$<", lastPos)) != input.npos) {
+  while ((pos = input.find("$<", lastPos)) != std::string::npos) {
     result += input.substr(lastPos, pos - lastPos);
     pos += 2;
     nestingLevel = 1;
@@ -198,15 +199,14 @@ static void prefixItems(const std::string& content, std::string& result,
   std::vector<std::string> entries;
   cmGeneratorExpression::Split(content, entries);
   const char* sep = "";
-  for (std::vector<std::string>::const_iterator ei = entries.begin();
-       ei != entries.end(); ++ei) {
+  for (std::string const& e : entries) {
     result += sep;
     sep = ";";
-    if (!cmSystemTools::FileIsFullPath(ei->c_str()) &&
-        cmGeneratorExpression::Find(*ei) != 0) {
+    if (!cmSystemTools::FileIsFullPath(e.c_str()) &&
+        cmGeneratorExpression::Find(e) != 0) {
       result += prefix;
     }
-    result += *ei;
+    result += e;
   }
 }
 
@@ -289,14 +289,14 @@ void cmGeneratorExpression::Split(const std::string& input,
 {
   std::string::size_type pos = 0;
   std::string::size_type lastPos = pos;
-  while ((pos = input.find("$<", lastPos)) != input.npos) {
+  while ((pos = input.find("$<", lastPos)) != std::string::npos) {
     std::string part = input.substr(lastPos, pos - lastPos);
     std::string preGenex;
     if (!part.empty()) {
       std::string::size_type startPos = input.rfind(';', pos);
       if (startPos == std::string::npos) {
         preGenex = part;
-        part = "";
+        part.clear();
       } else if (startPos != pos - 1 && startPos >= lastPos) {
         part = input.substr(lastPos, startPos - lastPos);
         preGenex = input.substr(startPos + 1, pos - startPos - 1);
@@ -350,7 +350,8 @@ std::string cmGeneratorExpression::Preprocess(const std::string& input,
     return stripExportInterface(input, context, resolveRelative);
   }
 
-  assert(0 && "cmGeneratorExpression::Preprocess called with invalid args");
+  assert(false &&
+         "cmGeneratorExpression::Preprocess called with invalid args");
   return std::string();
 }
 
@@ -377,7 +378,7 @@ void cmCompiledGeneratorExpression::GetMaxLanguageStandard(
   const cmGeneratorTarget* tgt, std::map<std::string, std::string>& mapping)
 {
   typedef std::map<cmGeneratorTarget const*,
-                   std::map<std::string, std::string> >
+                   std::map<std::string, std::string>>
     MapType;
   MapType::const_iterator it = this->MaxLanguageStandard.find(tgt);
   if (it != this->MaxLanguageStandard.end()) {

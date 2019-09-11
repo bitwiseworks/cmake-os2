@@ -2,6 +2,10 @@
    file Copyright.txt or https://cmake.org/licensing for details.  */
 #include "cmRemoveDefinitionsCommand.h"
 
+#include "cmMakefile.h"
+
+class cmExecutionStatus;
+
 // cmRemoveDefinitionsCommand
 bool cmRemoveDefinitionsCommand::InitialPass(
   std::vector<std::string> const& args, cmExecutionStatus&)
@@ -11,9 +15,8 @@ bool cmRemoveDefinitionsCommand::InitialPass(
     return true;
   }
 
-  for (std::vector<std::string>::const_iterator i = args.begin();
-       i != args.end(); ++i) {
-    this->Makefile->RemoveDefineFlag(i->c_str());
+  for (std::string const& i : args) {
+    this->Makefile->RemoveDefineFlag(i.c_str());
   }
   return true;
 }

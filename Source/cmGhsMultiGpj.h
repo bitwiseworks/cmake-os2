@@ -3,9 +3,7 @@
 #ifndef cmGhsMultiGpj_h
 #define cmGhsMultiGpj_h
 
-#include <cmConfigure.h>
-
-#include "cmStandardIncludes.h"
+#include "cmConfigure.h" // IWYU pragma: keep
 
 class cmGeneratedFileStream;
 

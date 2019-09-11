@@ -3,11 +3,10 @@
 #ifndef cmCPackTGZGenerator_h
 #define cmCPackTGZGenerator_h
 
-#include <cmConfigure.h>
+#include "cmConfigure.h" // IWYU pragma: keep
 
 #include "cmCPackArchiveGenerator.h"
 #include "cmCPackGenerator.h"
-#include "cmTypeMacro.h"
 
 /** \class cmCPackTGZGenerator
  * \brief A generator for TGZ files
@@ -21,10 +20,10 @@ public:
    * Construct generator
    */
   cmCPackTGZGenerator();
-  ~cmCPackTGZGenerator() CM_OVERRIDE;
+  ~cmCPackTGZGenerator() override;
 
 protected:
-  const char* GetOutputExtension() CM_OVERRIDE { return ".tar.gz"; }
+  const char* GetOutputExtension() override { return ".tar.gz"; }
 };
 
 #endif

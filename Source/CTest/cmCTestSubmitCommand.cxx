@@ -86,7 +86,7 @@ cmCTestGenericHandler* cmCTestSubmitCommand::InitializeHandler()
                          extraFiles.end());
     if (!this->CTest->SubmitExtraFiles(newExtraFiles)) {
       this->SetError("problem submitting extra files.");
-      return CM_NULLPTR;
+      return nullptr;
     }
   }
 
@@ -94,7 +94,7 @@ cmCTestGenericHandler* cmCTestSubmitCommand::InitializeHandler()
     this->CTest->GetInitializedHandler("submit");
   if (!handler) {
     this->SetError("internal CTest error. Cannot instantiate submit handler");
-    return CM_NULLPTR;
+    return nullptr;
   }
 
   // If no FILES or PARTS given, *all* PARTS are submitted by default.
@@ -129,6 +129,12 @@ cmCTestGenericHandler* cmCTestSubmitCommand::InitializeHandler()
     static_cast<cmCTestSubmitHandler*>(handler)->SelectParts(this->Parts);
   }
 
+  // Pass along any HTTPHEADER to the handler if this option was given.
+  if (!this->HttpHeaders.empty()) {
+    static_cast<cmCTestSubmitHandler*>(handler)->SetHttpHeaders(
+      this->HttpHeaders);
+  }
+
   static_cast<cmCTestSubmitHandler*>(handler)->SetOption(
     "RetryDelay", this->RetryDelay.c_str());
   static_cast<cmCTestSubmitHandler*>(handler)->SetOption(
@@ -157,6 +163,7 @@ bool cmCTestSubmitCommand::InitialPass(std::vector<std::string> const& args,
 bool cmCTestSubmitCommand::CheckArgumentKeyword(std::string const& arg)
 {
   if (this->CDashUpload) {
+    // Arguments specific to the CDASH_UPLOAD signature.
     if (arg == "CDASH_UPLOAD") {
       this->ArgumentDoing = ArgumentDoingCDashUpload;
       return true;
@@ -167,7 +174,7 @@ bool cmCTestSubmitCommand::CheckArgumentKeyword(std::string const& arg)
       return true;
     }
   } else {
-    // Look for arguments specific to this command.
+    // Arguments that cannot be used with CDASH_UPLOAD.
     if (arg == "PARTS") {
       this->ArgumentDoing = ArgumentDoingParts;
       this->PartsMentioned = true;
@@ -179,21 +186,26 @@ bool cmCTestSubmitCommand::CheckArgumentKeyword(std::string const& arg)
       this->FilesMentioned = true;
       return true;
     }
+  }
+  // Arguments used by both modes.
+  if (arg == "HTTPHEADER") {
+    this->ArgumentDoing = ArgumentDoingHttpHeader;
+    return true;
+  }
 
-    if (arg == "RETRY_COUNT") {
-      this->ArgumentDoing = ArgumentDoingRetryCount;
-      return true;
-    }
+  if (arg == "RETRY_COUNT") {
+    this->ArgumentDoing = ArgumentDoingRetryCount;
+    return true;
+  }
 
-    if (arg == "RETRY_DELAY") {
-      this->ArgumentDoing = ArgumentDoingRetryDelay;
-      return true;
-    }
+  if (arg == "RETRY_DELAY") {
+    this->ArgumentDoing = ArgumentDoingRetryDelay;
+    return true;
+  }
 
-    if (arg == "INTERNAL_TEST_CHECKSUM") {
-      this->InternalTest = true;
-      return true;
-    }
+  if (arg == "INTERNAL_TEST_CHECKSUM") {
+    this->InternalTest = true;
+    return true;
   }
 
   // Look for other arguments.
@@ -226,6 +238,11 @@ bool cmCTestSubmitCommand::CheckArgumentValue(std::string const& arg)
       this->Makefile->IssueMessage(cmake::FATAL_ERROR, e.str());
       this->ArgumentDoing = ArgumentDoingError;
     }
+    return true;
+  }
+
+  if (this->ArgumentDoing == ArgumentDoingHttpHeader) {
+    this->HttpHeaders.push_back(arg);
     return true;
   }
 

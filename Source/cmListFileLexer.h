@@ -32,6 +32,7 @@ struct cmListFileLexer_Token_s
 enum cmListFileLexer_BOM_e
 {
   cmListFileLexer_BOM_None,
+  cmListFileLexer_BOM_Broken,
   cmListFileLexer_BOM_UTF8,
   cmListFileLexer_BOM_UTF16BE,
   cmListFileLexer_BOM_UTF16LE,
@@ -46,7 +47,7 @@ typedef struct cmListFileLexer_s cmListFileLexer;
 extern "C" {
 #endif
 
-cmListFileLexer* cmListFileLexer_New();
+cmListFileLexer* cmListFileLexer_New(void);
 int cmListFileLexer_SetFileName(cmListFileLexer*, const char*,
                                 cmListFileLexer_BOM* bom);
 int cmListFileLexer_SetString(cmListFileLexer*, const char*);

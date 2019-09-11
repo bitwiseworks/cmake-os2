@@ -3,7 +3,8 @@
 #ifndef cmCustomCommandGenerator_h
 #define cmCustomCommandGenerator_h
 
-#include <cmConfigure.h> // IWYU pragma: keep
+#include "cmConfigure.h" // IWYU pragma: keep
+#include "cmCustomCommandLines.h"
 
 #include <string>
 #include <vector>
@@ -20,8 +21,11 @@ class cmCustomCommandGenerator
   bool OldStyle;
   bool MakeVars;
   cmGeneratorExpression* GE;
-  mutable bool DependsDone;
-  mutable std::vector<std::string> Depends;
+  cmCustomCommandLines CommandLines;
+  std::vector<std::string> Depends;
+
+  const char* GetCrossCompilingEmulator(unsigned int c) const;
+  const char* GetArgv0Location(unsigned int c) const;
 
 public:
   cmCustomCommandGenerator(cmCustomCommand const& cc,
@@ -30,13 +34,13 @@ public:
   cmCustomCommand const& GetCC() const { return this->CC; }
   unsigned int GetNumberOfCommands() const;
   std::string GetCommand(unsigned int c) const;
-  bool UseCrossCompilingEmulator(unsigned int c) const;
   void AppendArguments(unsigned int c, std::string& cmd) const;
   const char* GetComment() const;
   std::string GetWorkingDirectory() const;
   std::vector<std::string> const& GetOutputs() const;
   std::vector<std::string> const& GetByproducts() const;
   std::vector<std::string> const& GetDepends() const;
+  bool HasOnlyEmptyCommandLines() const;
 };
 
 #endif

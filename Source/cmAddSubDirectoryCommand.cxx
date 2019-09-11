@@ -2,6 +2,14 @@
    file Copyright.txt or https://cmake.org/licensing for details.  */
 #include "cmAddSubDirectoryCommand.h"
 
+#include <sstream>
+#include <string.h>
+
+#include "cmMakefile.h"
+#include "cmSystemTools.h"
+
+class cmExecutionStatus;
+
 // cmAddSubDirectoryCommand
 bool cmAddSubDirectoryCommand::InitialPass(
   std::vector<std::string> const& args, cmExecutionStatus&)
@@ -12,7 +20,7 @@ bool cmAddSubDirectoryCommand::InitialPass(
   }
 
   // store the binpath
-  std::string srcArg = args[0];
+  std::string const& srcArg = args[0];
   std::string binArg;
 
   bool excludeFromAll = false;
@@ -24,7 +32,8 @@ bool cmAddSubDirectoryCommand::InitialPass(
     if (*i == "EXCLUDE_FROM_ALL") {
       excludeFromAll = true;
       continue;
-    } else if (binArg.empty()) {
+    }
+    if (binArg.empty()) {
       binArg = *i;
     } else {
       this->SetError("called with incorrect number of arguments");

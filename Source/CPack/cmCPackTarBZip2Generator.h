@@ -3,11 +3,10 @@
 #ifndef cmCPackTarBZip2Generator_h
 #define cmCPackTarBZip2Generator_h
 
-#include <cmConfigure.h>
+#include "cmConfigure.h" // IWYU pragma: keep
 
 #include "cmCPackArchiveGenerator.h"
 #include "cmCPackGenerator.h"
-#include "cmTypeMacro.h"
 
 /** \class cmCPackTarBZip2Generator
  * \brief A generator for TarBZip2 files
@@ -20,10 +19,10 @@ public:
    * Construct generator
    */
   cmCPackTarBZip2Generator();
-  ~cmCPackTarBZip2Generator() CM_OVERRIDE;
+  ~cmCPackTarBZip2Generator() override;
 
 protected:
-  const char* GetOutputExtension() CM_OVERRIDE { return ".tar.bz2"; }
+  const char* GetOutputExtension() override { return ".tar.bz2"; }
 };
 
 #endif

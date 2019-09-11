@@ -27,6 +27,7 @@ All Modules
    /module/CheckFortranFunctionExists
    /module/CheckFortranSourceCompiles
    /module/CheckFunctionExists
+   /module/CheckIPOSupported
    /module/CheckIncludeFileCXX
    /module/CheckIncludeFile
    /module/CheckIncludeFiles
@@ -53,18 +54,22 @@ All Modules
    /module/CMakePrintSystemInformation
    /module/CMakePushCheckState
    /module/CMakeVerifyManifest
+   /module/CPackArchive
    /module/CPackBundle
    /module/CPackComponent
    /module/CPackCygwin
    /module/CPackDeb
    /module/CPackDMG
+   /module/CPackFreeBSD
    /module/CPackIFW
+   /module/CPackIFWConfigureFile
    /module/CPackNSIS
    /module/CPackPackageMaker
    /module/CPackProductBuild
    /module/CPackRPM
    /module/CPack
    /module/CPackWIX
+   /module/CSharpUtilities
    /module/CTest
    /module/CTestCoverageCollectGCOV
    /module/CTestScriptMode
@@ -148,6 +153,7 @@ All Modules
    /module/FindMPEG2
    /module/FindMPEG
    /module/FindMPI
+   /module/FindOpenACC
    /module/FindOpenAL
    /module/FindOpenCL
    /module/FindOpenGL
@@ -177,6 +183,7 @@ All Modules
    /module/FindosgWidget
    /module/FindPackageHandleStandardArgs
    /module/FindPackageMessage
+   /module/FindPatch
    /module/FindPerlLibs
    /module/FindPerl
    /module/FindPHP4
@@ -227,6 +234,7 @@ All Modules
    /module/GenerateExportHeader
    /module/GetPrerequisites
    /module/GNUInstallDirs
+   /module/GoogleTest
    /module/InstallRequiredSystemLibraries
    /module/MacroAddFileDependencies
    /module/ProcessorCount

@@ -2,7 +2,17 @@
    file Copyright.txt or https://cmake.org/licensing for details.  */
 #include "cmTargetIncludeDirectoriesCommand.h"
 
+#include <set>
+#include <sstream>
+
 #include "cmGeneratorExpression.h"
+#include "cmListFileCache.h"
+#include "cmMakefile.h"
+#include "cmSystemTools.h"
+#include "cmTarget.h"
+#include "cmake.h"
+
+class cmExecutionStatus;
 
 bool cmTargetIncludeDirectoriesCommand::InitialPass(
   std::vector<std::string> const& args, cmExecutionStatus&)
@@ -37,13 +47,12 @@ std::string cmTargetIncludeDirectoriesCommand::Join(
   std::string sep;
   std::string prefix =
     this->Makefile->GetCurrentSourceDirectory() + std::string("/");
-  for (std::vector<std::string>::const_iterator it = content.begin();
-       it != content.end(); ++it) {
-    if (cmSystemTools::FileIsFullPath(it->c_str()) ||
-        cmGeneratorExpression::Find(*it) == 0) {
-      dirs += sep + *it;
+  for (std::string const& it : content) {
+    if (cmSystemTools::FileIsFullPath(it.c_str()) ||
+        cmGeneratorExpression::Find(it) == 0) {
+      dirs += sep + it;
     } else {
-      dirs += sep + prefix + *it;
+      dirs += sep + prefix + it;
     }
     sep = ";";
   }
@@ -60,13 +69,12 @@ bool cmTargetIncludeDirectoriesCommand::HandleDirectContent(
     std::string prefix =
       this->Makefile->GetCurrentSourceDirectory() + std::string("/");
     std::set<std::string> sdirs;
-    for (std::vector<std::string>::const_iterator it = content.begin();
-         it != content.end(); ++it) {
-      if (cmSystemTools::FileIsFullPath(it->c_str()) ||
-          cmGeneratorExpression::Find(*it) == 0) {
-        sdirs.insert(*it);
+    for (std::string const& it : content) {
+      if (cmSystemTools::FileIsFullPath(it.c_str()) ||
+          cmGeneratorExpression::Find(it) == 0) {
+        sdirs.insert(it);
       } else {
-        sdirs.insert(prefix + *it);
+        sdirs.insert(prefix + it);
       }
     }
     tgt->AddSystemIncludeDirectories(sdirs);

@@ -2,8 +2,18 @@
    file Copyright.txt or https://cmake.org/licensing for details.  */
 #include "cmAddCustomTargetCommand.h"
 
+#include <sstream>
+
+#include "cmCustomCommandLines.h"
 #include "cmGeneratorExpression.h"
 #include "cmGlobalGenerator.h"
+#include "cmMakefile.h"
+#include "cmPolicies.h"
+#include "cmSystemTools.h"
+#include "cmTarget.h"
+#include "cmake.h"
+
+class cmExecutionStatus;
 
 // cmAddCustomTargetCommand
 bool cmAddCustomTargetCommand::InitialPass(
@@ -14,10 +24,10 @@ bool cmAddCustomTargetCommand::InitialPass(
     return false;
   }
 
-  std::string targetName = args[0];
+  std::string const& targetName = args[0];
 
   // Check the target name.
-  if (targetName.find_first_of("/\\") != targetName.npos) {
+  if (targetName.find_first_of("/\\") != std::string::npos) {
     std::ostringstream e;
     e << "called with invalid target name \"" << targetName
       << "\".  Target names may not contain a slash.  "
@@ -37,8 +47,9 @@ bool cmAddCustomTargetCommand::InitialPass(
   std::string working_directory;
   bool verbatim = false;
   bool uses_terminal = false;
+  bool command_expand_lists = false;
   std::string comment_buffer;
-  const char* comment = CM_NULLPTR;
+  const char* comment = nullptr;
   std::vector<std::string> sources;
 
   // Keep track of parser state.
@@ -80,6 +91,9 @@ bool cmAddCustomTargetCommand::InitialPass(
     } else if (copy == "USES_TERMINAL") {
       doing = doing_nothing;
       uses_terminal = true;
+    } else if (copy == "COMMAND_EXPAND_LISTS") {
+      doing = doing_nothing;
+      command_expand_lists = true;
     } else if (copy == "COMMENT") {
       doing = doing_comment;
     } else if (copy == "COMMAND") {
@@ -130,7 +144,7 @@ bool cmAddCustomTargetCommand::InitialPass(
   }
 
   std::string::size_type pos = targetName.find_first_of("#<>");
-  if (pos != targetName.npos) {
+  if (pos != std::string::npos) {
     std::ostringstream msg;
     msg << "called with target name containing a \"" << targetName[pos]
         << "\".  This character is not allowed.";
@@ -144,7 +158,7 @@ bool cmAddCustomTargetCommand::InitialPass(
   bool nameOk = cmGeneratorExpression::IsValidTargetName(targetName) &&
     !cmGlobalGenerator::IsReservedTarget(targetName);
   if (nameOk) {
-    nameOk = targetName.find(":") == std::string::npos;
+    nameOk = targetName.find(':') == std::string::npos;
   }
   if (!nameOk) {
     cmake::MessageType messageType = cmake::AUTHOR_WARNING;
@@ -211,12 +225,19 @@ bool cmAddCustomTargetCommand::InitialPass(
       "USES_TERMINAL may not be specified without any COMMAND");
     return true;
   }
+  if (commandLines.empty() && command_expand_lists) {
+    this->Makefile->IssueMessage(
+      cmake::FATAL_ERROR,
+      "COMMAND_EXPAND_LISTS may not be specified without any COMMAND");
+    return true;
+  }
 
   // Add the utility target to the makefile.
   bool escapeOldStyle = !verbatim;
   cmTarget* target = this->Makefile->AddUtilityCommand(
     targetName, excludeFromAll, working_directory.c_str(), byproducts, depends,
-    commandLines, escapeOldStyle, comment, uses_terminal);
+    commandLines, escapeOldStyle, comment, uses_terminal,
+    command_expand_lists);
 
   // Add additional user-specified source files to the target.
   target->AddSources(sources);

@@ -399,6 +399,11 @@ function(gp_resolve_item context item exepath dirs resolved_item_var)
     set(ri "ri-NOTFOUND")
     find_file(ri "${item}" ${exepath} ${dirs} NO_DEFAULT_PATH)
     find_file(ri "${item}" ${exepath} ${dirs} /usr/lib)
+
+    get_filename_component(basename_item "${item}" NAME)
+    find_file(ri "${basename_item}" PATHS ${exepath} ${dirs} NO_DEFAULT_PATH)
+    find_file(ri "${basename_item}" PATHS /usr/lib)
+
     if(ri)
       #message(STATUS "info: 'find_file' in exepath/dirs (${ri})")
       set(resolved 1)
@@ -430,8 +435,8 @@ function(gp_resolve_item context item exepath dirs resolved_item_var)
   if(WIN32 AND NOT UNIX)
   if(NOT resolved)
     set(ri "ri-NOTFOUND")
-    find_program(ri "${item}" PATHS "${exepath};${dirs}" NO_DEFAULT_PATH)
-    find_program(ri "${item}" PATHS "${exepath};${dirs}")
+    find_program(ri "${item}" PATHS ${exepath} ${dirs} NO_DEFAULT_PATH)
+    find_program(ri "${item}" PATHS ${exepath} ${dirs})
     if(ri)
       #message(STATUS "info: 'find_program' in exepath/dirs (${ri})")
       set(resolved 1)
@@ -516,7 +521,7 @@ function(gp_resolved_file_type original_file file exepath dirs type_var)
     string(TOLOWER "${resolved_file}" lower)
 
     if(UNIX)
-      if(resolved_file MATCHES "^(/lib/|/lib32/|/lib64/|/usr/lib/|/usr/lib32/|/usr/lib64/|/usr/X11R6/|/usr/bin/)")
+      if(resolved_file MATCHES "^(/lib/|/lib32/|/libx32/|/lib64/|/usr/lib/|/usr/lib32/|/usr/libx32/|/usr/lib64/|/usr/X11R6/|/usr/bin/)")
         set(is_system 1)
       endif()
     endif()
@@ -604,7 +609,7 @@ function(gp_resolved_file_type original_file file exepath dirs type_var)
 
   if(NOT is_embedded)
     if(NOT IS_ABSOLUTE "${resolved_file}")
-      if(lower MATCHES "^msvc[^/]+dll" AND is_system)
+      if(lower MATCHES "^(msvc|api-ms-win-)[^/]+dll" AND is_system)
         message(STATUS "info: non-absolute msvc file '${file}' returning type '${type}'")
       else()
         message(STATUS "warning: gp_resolved_file_type non-absolute file '${file}' returning type '${type}' -- possibly incorrect")
@@ -654,6 +659,7 @@ function(get_prerequisites target prerequisites_var exclude_system recurse exepa
 
   if(NOT EXISTS "${target}")
     message("warning: target '${target}' does not exist...")
+    return()
   endif()
 
   set(gp_cmd_paths ${gp_cmd_paths}
@@ -810,6 +816,20 @@ function(get_prerequisites target prerequisites_var exclude_system recurse exepa
     OUTPUT_VARIABLE gp_cmd_ov
     ERROR_VARIABLE gp_ev
     )
+
+  if(gp_tool STREQUAL "dumpbin")
+    # Exclude delay load dependencies under windows (they are listed in dumpbin output after the message below)
+    string(FIND "${gp_cmd_ov}" "Image has the following delay load dependencies" gp_delayload_pos)
+    if (${gp_delayload_pos} GREATER -1)
+      string(SUBSTRING "${gp_cmd_ov}" 0 ${gp_delayload_pos} gp_cmd_ov_no_delayload_deps)
+      string(SUBSTRING "${gp_cmd_ov}" ${gp_delayload_pos} -1 gp_cmd_ov_delayload_deps)
+      if (verbose)
+        message(STATUS "GetPrequisites(${target}) : ignoring the following delay load dependencies :\n ${gp_cmd_ov_delayload_deps}")
+      endif()
+      set(gp_cmd_ov ${gp_cmd_ov_no_delayload_deps})
+    endif()
+  endif()
+
   if(NOT gp_rv STREQUAL "0")
     if(gp_tool STREQUAL "dumpbin")
       # dumpbin error messages seem to go to stdout
@@ -922,7 +942,11 @@ function(get_prerequisites target prerequisites_var exclude_system recurse exepa
         #
         if(NOT list_length_before_append EQUAL list_length_after_append)
           gp_resolve_item("${target}" "${item}" "${exepath}" "${dirs}" resolved_item "${rpaths}")
-          set(unseen_prereqs ${unseen_prereqs} "${resolved_item}")
+          if(EXISTS "${resolved_item}")
+            # Recurse only if we could resolve the item.
+            # Otherwise the prerequisites_var list will be cleared
+            set(unseen_prereqs ${unseen_prereqs} "${resolved_item}")
+          endif()
         endif()
       endif()
     endif()

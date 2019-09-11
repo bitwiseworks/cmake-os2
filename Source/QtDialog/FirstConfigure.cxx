@@ -56,7 +56,7 @@ QFrame* StartCompilerSetup::CreateToolsetWidgets()
   QVBoxLayout* l = new QVBoxLayout(frame);
   l->setContentsMargins(0, 0, 0, 0);
 
-  ToolsetLabel = new QLabel(tr("Optional toolset to use (-T parameter)"));
+  ToolsetLabel = new QLabel(tr("Optional toolset to use (argument to -T)"));
   l->addWidget(ToolsetLabel);
 
   Toolset = new QLineEdit(frame);
@@ -130,7 +130,7 @@ bool StartCompilerSetup::crossCompilerSetup() const
 void StartCompilerSetup::onSelectionChanged(bool on)
 {
   if (on) {
-    selectionChanged();
+    emit selectionChanged();
   }
 }
 
@@ -301,7 +301,7 @@ QString CrossCompilerSetup::getFindRoot() const
 
 void CrossCompilerSetup::setFindRoot(const QString& t)
 {
-  return this->crossFindRoot->setText(t);
+  this->crossFindRoot->setText(t);
 }
 
 int CrossCompilerSetup::getProgramMode() const

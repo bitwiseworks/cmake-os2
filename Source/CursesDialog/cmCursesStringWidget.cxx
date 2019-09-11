@@ -6,7 +6,7 @@
 #include "cmCursesMainForm.h"
 #include "cmCursesStandardIncludes.h"
 #include "cmCursesWidget.h"
-#include "cmState.h"
+#include "cmStateTypes.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -21,7 +21,7 @@ cmCursesStringWidget::cmCursesStringWidget(int width, int height, int left,
   : cmCursesWidget(width, height, left, top)
 {
   this->InEdit = false;
-  this->Type = cmState::STRING;
+  this->Type = cmStateEnums::STRING;
   set_field_fore(this->Field, A_NORMAL);
   set_field_back(this->Field, A_STANDOUT);
   field_opts_off(this->Field, O_STATIC);
@@ -74,7 +74,7 @@ bool cmCursesStringWidget::HandleInput(int& key, cmCursesMainForm* fm,
     return false;
   }
 
-  this->OriginalString = CM_NULLPTR;
+  this->OriginalString = nullptr;
   this->Done = false;
 
   char debugMessage[128];
@@ -188,9 +188,7 @@ bool cmCursesStringWidget::PrintKeys()
     char fmt_s[] = "%s";
     char firstLine[512];
     // Clean the toolbar
-    for (int i = 0; i < 512; i++) {
-      firstLine[i] = ' ';
-    }
+    memset(firstLine, ' ', sizeof(firstLine));
     firstLine[511] = '\0';
     curses_move(y - 4, 0);
     printw(fmt_s, firstLine);
@@ -202,7 +200,9 @@ bool cmCursesStringWidget::PrintKeys()
     printw(fmt_s, firstLine);
 
     curses_move(y - 3, 0);
-    printw(fmt_s, "Editing option, press [enter] to leave edit.");
+    printw(fmt_s, "Editing option, press [enter] to confirm");
+    curses_move(y - 2, 0);
+    printw(fmt_s, "                press [esc] to cancel");
     return true;
   }
   return false;
