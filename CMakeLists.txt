@@ -533,9 +533,11 @@ macro (CMAKE_BUILD_UTILITIES)
     endif()
     set(CMAKE_LIBUV_LIBRARIES LibUV::LibUV)
   else()
+   if (NOT OS2)
     set(CMAKE_LIBUV_LIBRARIES cmlibuv)
     add_subdirectory(Utilities/cmlibuv)
     CMAKE_SET_TARGET_FOLDER(cmlibuv "Utilities/3rdParty")
+   endif()
   endif()
 
   #---------------------------------------------------------------------

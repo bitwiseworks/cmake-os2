@@ -16,8 +16,10 @@
 
 #if defined(CMAKE_BUILD_WITH_CMAKE)
 #include "cmDependsFortran.h" // For -E cmake_copy_f90_mod callback.
+#if !defined(__OS2__)
 #include "cmServer.h"
 #include "cmServerConnection.h"
+#endif
 #endif
 
 #if defined(CMAKE_BUILD_WITH_CMAKE) && defined(_WIN32)
@@ -1132,7 +1134,7 @@ int cmcmd::ExecuteCMakeCommand(std::vector<std::string>& args)
           return 1;
         }
       }
-#if defined(CMAKE_BUILD_WITH_CMAKE)
+#if defined(CMAKE_BUILD_WITH_CMAKE) && !defined(__OS2__)
       cmConnection* conn;
       if (isDebug) {
         conn = new cmServerStdIoConnection;

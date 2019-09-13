@@ -1025,6 +1025,7 @@ if(OS2)
    OS2_DEF_VERSION "${CMake_VERSION}")
 endif(OS2)
 
+if(NOT OS2)
 add_library(CMakeServerLib
   cmConnection.h cmConnection.cxx
   cmFileMonitor.cxx cmFileMonitor.h
@@ -1035,6 +1036,7 @@ add_library(CMakeServerLib
   )
 target_link_libraries(CMakeServerLib CMakeLib)
 target_link_libraries(cmake CMakeServerLib)
+endif()
 
 # Build CTest executable
 add_executable(ctest ctest.cxx ${MANIFEST_FILE})

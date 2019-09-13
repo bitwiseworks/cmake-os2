@@ -20,7 +20,9 @@
 #include <fcntl.h>  /* _O_TEXT */
 #include <stdlib.h> /* _set_fmode, _fmode */
 #endif
+#ifndef __OS2__
 #include "cm_uv.h"
+#endif
 
 #include "cmsys/Encoding.hxx"
 #if defined(_WIN32) && defined(CMAKE_BUILD_WITH_CMAKE)
@@ -194,7 +196,9 @@ int main(int ac, char const* const* av)
 #ifdef CMAKE_BUILD_WITH_CMAKE
   cmDynamicLoader::FlushCache();
 #endif
+#ifndef __OS2__
   uv_loop_close(uv_default_loop());
+#endif
   return ret;
 }
 

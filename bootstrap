@@ -521,6 +521,9 @@ if ${cmake_system_mingw}; then
     src/win/winsock.c \
     "
 else
+if ${cmake_system_os2}; then
+  LIBUV_C_SOURCES=""
+else
   LIBUV_C_SOURCES="\
     src/uv-common.c \
     src/unix/cmake-bootstrap.c \
@@ -538,6 +541,7 @@ else
     src/unix/stream.c \
     src/unix/timer.c \
     "
+fi
 fi
 
 # Display CMake bootstrap usage
