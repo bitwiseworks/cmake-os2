@@ -3,10 +3,7 @@
 #ifndef cmCPackGeneratorFactory_h
 #define cmCPackGeneratorFactory_h
 
-#include <cmConfigure.h>
-
-#include "cmObject.h"
-#include "cmTypeMacro.h"
+#include "cmConfigure.h" // IWYU pragma: keep
 
 #include <map>
 #include <string>
@@ -19,13 +16,11 @@ class cmCPackLog;
  * \brief A container for CPack generators
  *
  */
-class cmCPackGeneratorFactory : public cmObject
+class cmCPackGeneratorFactory
 {
 public:
-  cmTypeMacro(cmCPackGeneratorFactory, cmObject);
-
   cmCPackGeneratorFactory();
-  ~cmCPackGeneratorFactory() CM_OVERRIDE;
+  ~cmCPackGeneratorFactory();
 
   //! Get the generator
   cmCPackGenerator* NewGenerator(const std::string& name);

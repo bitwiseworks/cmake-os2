@@ -2,7 +2,14 @@
    file Copyright.txt or https://cmake.org/licensing for details.  */
 #include "cmTargetCompileFeaturesCommand.h"
 
+#include <sstream>
+
 #include "cmAlgorithms.h"
+#include "cmMakefile.h"
+#include "cmake.h"
+
+class cmExecutionStatus;
+class cmTarget;
 
 bool cmTargetCompileFeaturesCommand::InitialPass(
   std::vector<std::string> const& args, cmExecutionStatus&)
@@ -38,10 +45,9 @@ std::string cmTargetCompileFeaturesCommand::Join(
 bool cmTargetCompileFeaturesCommand::HandleDirectContent(
   cmTarget* tgt, const std::vector<std::string>& content, bool, bool)
 {
-  for (std::vector<std::string>::const_iterator it = content.begin();
-       it != content.end(); ++it) {
+  for (std::string const& it : content) {
     std::string error;
-    if (!this->Makefile->AddRequiredTargetFeature(tgt, *it, &error)) {
+    if (!this->Makefile->AddRequiredTargetFeature(tgt, it, &error)) {
       this->SetError(error);
       return false;
     }

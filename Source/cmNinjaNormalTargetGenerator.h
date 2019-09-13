@@ -3,7 +3,7 @@
 #ifndef cmNinjaNormalTargetGenerator_h
 #define cmNinjaNormalTargetGenerator_h
 
-#include <cmConfigure.h>
+#include "cmConfigure.h" // IWYU pragma: keep
 
 #include "cmNinjaTargetGenerator.h"
 
@@ -16,18 +16,27 @@ class cmNinjaNormalTargetGenerator : public cmNinjaTargetGenerator
 {
 public:
   cmNinjaNormalTargetGenerator(cmGeneratorTarget* target);
-  ~cmNinjaNormalTargetGenerator() CM_OVERRIDE;
+  ~cmNinjaNormalTargetGenerator() override;
 
-  void Generate() CM_OVERRIDE;
+  void Generate() override;
 
 private:
   std::string LanguageLinkerRule() const;
+  std::string LanguageLinkerDeviceRule() const;
+
   const char* GetVisibleTypeName() const;
   void WriteLanguagesRules();
+
   void WriteLinkRule(bool useResponseFile);
+  void WriteDeviceLinkRule(bool useResponseFile);
+
   void WriteLinkStatement();
+  void WriteDeviceLinkStatement();
+
   void WriteObjectLibStatement();
+
   std::vector<std::string> ComputeLinkCmd();
+  std::vector<std::string> ComputeDeviceLinkCmd();
 
 private:
   // Target name info.
@@ -37,6 +46,7 @@ private:
   std::string TargetNameImport;
   std::string TargetNamePDB;
   std::string TargetLinkLanguage;
+  std::string DeviceLinkObject;
 };
 
 #endif // ! cmNinjaNormalTargetGenerator_h

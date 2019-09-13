@@ -6,6 +6,7 @@ Perform the :ref:`CTest Submit Step` as a :ref:`Dashboard Client`.
 ::
 
   ctest_submit([PARTS <part>...] [FILES <file>...]
+               [HTTPHEADER <header>]
                [RETRY_COUNT <count>]
                [RETRY_DELAY <delay>]
                [RETURN_VALUE <result-var>]
@@ -36,6 +37,10 @@ The options are:
   Specify an explicit list of specific files to be submitted.
   Each individual file must exist at the time of the call.
 
+``HTTPHEADER <HTTP-header>``
+  Specify HTTP header to be included in the request to CDash during submission.
+  This suboption can be repeated several times.
+
 ``RETRY_COUNT <count>``
   Specify how many times to retry a timed-out submission.
 
@@ -56,10 +61,17 @@ Submit to CDash Upload API
 
 ::
 
-  ctest_submit(CDASH_UPLOAD <file> [CDASH_UPLOAD_TYPE <type>])
+  ctest_submit(CDASH_UPLOAD <file> [CDASH_UPLOAD_TYPE <type>]
+               [HTTPHEADER <header>]
+               [RETRY_COUNT <count>]
+               [RETRY_DELAY <delay>]
+               [QUIET])
 
 This second signature is used to upload files to CDash via the CDash
 file upload API. The api first sends a request to upload to CDash along
 with a content hash of the file. If CDash does not already have the file,
 then it is uploaded. Along with the file, a CDash type string is specified
 to tell CDash which handler to use to process the data.
+
+This signature accepts the ``HTTPHEADER``, ``RETRY_COUNT``, ``RETRY_DELAY``, and
+``QUIET`` options as described above.

@@ -3,11 +3,12 @@
 #ifndef cmVisualStudioSlnParser_h
 #define cmVisualStudioSlnParser_h
 
-#include <cmConfigure.h>
-
-#include "cmStandardIncludes.h"
+#include "cmConfigure.h" // IWYU pragma: keep
 
 #include <bitset>
+#include <iosfwd>
+#include <stddef.h>
+#include <string>
 
 class cmSlnData;
 
@@ -65,6 +66,7 @@ public:
 
 protected:
   class State;
+
   friend class State;
   class ParsedLine;
 

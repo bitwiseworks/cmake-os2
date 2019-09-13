@@ -2,18 +2,13 @@
    file Copyright.txt or https://cmake.org/licensing for details.  */
 #include "cmCPackPKGGenerator.h"
 
+#include <vector>
+
 #include "cmCPackComponentGroup.h"
+#include "cmCPackGenerator.h"
 #include "cmCPackLog.h"
-#include "cmGeneratedFileStream.h"
-#include "cmGlobalGenerator.h"
-#include "cmLocalGenerator.h"
-#include "cmMakefile.h"
 #include "cmSystemTools.h"
 #include "cmXMLWriter.h"
-#include "cmake.h"
-
-#include <cmsys/Glob.hxx>
-#include <cmsys/SystemTools.hxx>
 
 cmCPackPKGGenerator::cmCPackPKGGenerator()
 {
@@ -47,9 +42,9 @@ std::string cmCPackPKGGenerator::GetPackageName(
     out << cmSystemTools::GetFilenameWithoutLastExtension(packagesDir) << "-"
         << component.Name << ".pkg";
     return out.str();
-  } else {
-    return component.ArchiveFile + ".pkg";
   }
+
+  return component.ArchiveFile + ".pkg";
 }
 
 void cmCPackPKGGenerator::WriteDistributionFile(const char* metapackageFile)
@@ -75,7 +70,7 @@ void cmCPackPKGGenerator::WriteDistributionFile(const char* metapackageFile)
   std::map<std::string, cmCPackComponentGroup>::iterator groupIt;
   for (groupIt = this->ComponentGroups.begin();
        groupIt != this->ComponentGroups.end(); ++groupIt) {
-    if (groupIt->second.ParentGroup == 0) {
+    if (groupIt->second.ParentGroup == nullptr) {
       CreateChoiceOutline(groupIt->second, xout);
     }
   }
@@ -194,7 +189,7 @@ void cmCPackPKGGenerator::CreateChoice(const cmCPackComponent& component,
     // This way, selecting C will automatically select everything it depends
     // on (B and A), while selecting something that depends on C--either D
     // or E--will automatically cause C to get selected.
-    std::ostringstream selected("my.choice.selected");
+    std::ostringstream selected("my.choice.selected", std::ios_base::ate);
     std::set<const cmCPackComponent*> visited;
     AddDependencyAttributes(component, visited, selected);
     visited.clear();

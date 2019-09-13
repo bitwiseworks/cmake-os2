@@ -3,17 +3,23 @@
 #ifndef cmLocalVisualStudio7Generator_h
 #define cmLocalVisualStudio7Generator_h
 
-#include "cmLocalVisualStudioGenerator.h"
+#include "cmConfigure.h" // IWYU pragma: keep
 
+#include <iosfwd>
+#include <string>
+#include <vector>
+
+#include "cmLocalVisualStudioGenerator.h"
 #include "cmVisualStudioGeneratorOptions.h"
 
-class cmSourceFile;
 class cmCustomCommand;
-class cmSourceGroup;
-
-class cmLocalVisualStudio7GeneratorOptions;
+class cmGeneratorTarget;
+class cmGlobalGenerator;
 class cmLocalVisualStudio7GeneratorFCInfo;
 class cmLocalVisualStudio7GeneratorInternals;
+class cmMakefile;
+class cmSourceFile;
+class cmSourceGroup;
 
 /** \class cmLocalVisualStudio7Generator
  * \brief Write Visual Studio .NET project files.
@@ -113,15 +119,16 @@ private:
 
   bool WriteGroup(const cmSourceGroup* sg, cmGeneratorTarget* target,
                   std::ostream& fout, const std::string& libName,
-                  std::vector<std::string> const& configs);
+                  std::vector<std::string> const& configs,
+                  std::map<cmSourceFile const*, size_t> const& sourcesIndex);
 
   friend class cmLocalVisualStudio7GeneratorFCInfo;
   friend class cmLocalVisualStudio7GeneratorInternals;
 
   class EventWriter;
+
   friend class EventWriter;
 
-  std::string ModuleDefinitionFile;
   bool FortranProject;
   bool WindowsCEProject;
   cmLocalVisualStudio7GeneratorInternals* Internal;

@@ -3,16 +3,17 @@
 #ifndef cmake_h
 #define cmake_h
 
-#include <cmConfigure.h>
-
-#include "cmInstalledFile.h"
-#include "cmListFileCache.h"
-#include "cmState.h"
+#include "cmConfigure.h" // IWYU pragma: keep
 
 #include <map>
 #include <set>
 #include <string>
 #include <vector>
+
+#include "cmInstalledFile.h"
+#include "cmListFileCache.h"
+#include "cmStateSnapshot.h"
+#include "cmStateTypes.h"
 
 #if defined(CMAKE_BUILD_WITH_CMAKE)
 #include "cm_jsoncpp_value.h"
@@ -24,6 +25,7 @@ class cmGlobalGenerator;
 class cmGlobalGeneratorFactory;
 class cmMakefile;
 class cmMessenger;
+class cmState;
 class cmVariableWatch;
 struct cmDocumentationEntry;
 
@@ -53,7 +55,16 @@ struct cmDocumentationEntry;
 
 class cmake
 {
+  CM_DISABLE_COPY(cmake)
+
 public:
+  enum Role
+  {
+    RoleInternal, // no commands
+    RoleScript,   // script commands
+    RoleProject   // all commands
+  };
+
   enum MessageType
   {
     AUTHOR_WARNING,
@@ -108,7 +119,7 @@ public:
   typedef std::map<std::string, cmInstalledFile> InstalledFilesMap;
 
   /// Default constructor
-  cmake();
+  cmake(Role role);
   /// Destructor
   ~cmake();
 
@@ -161,7 +172,7 @@ public:
   ///! Break up a line like VAR:type="value" into var, type and value
   static bool ParseCacheEntry(const std::string& entry, std::string& var,
                               std::string& value,
-                              cmState::CacheEntryType& type);
+                              cmStateEnums::CacheEntryType& type);
 
   int LoadCache();
   bool LoadCache(const std::string& path);
@@ -198,22 +209,10 @@ public:
     this->GeneratorPlatform = ts;
   }
 
-  ///! Get the name of the selected generator-specific platform.
-  std::string const& GetGeneratorPlatform() const
-  {
-    return this->GeneratorPlatform;
-  }
-
   ///! Set the name of the selected generator-specific toolset.
   void SetGeneratorToolset(std::string const& ts)
   {
     this->GeneratorToolset = ts;
-  }
-
-  ///! Get the name of the selected generator-specific toolset.
-  std::string const& GetGeneratorToolset() const
-  {
-    return this->GeneratorToolset;
   }
 
   const std::vector<std::string>& GetSourceExtensions() const
@@ -257,8 +256,7 @@ public:
    *  number provided may be negative in cases where a message is
    *  to be displayed without any progress percentage.
    */
-  void SetProgressCallback(ProgressCallbackType f,
-                           void* clientData = CM_NULLPTR);
+  void SetProgressCallback(ProgressCallbackType f, void* clientData = nullptr);
 
   ///! this is called by generators to update the progress
   void UpdateProgress(const char* msg, float prog);
@@ -407,14 +405,11 @@ public:
   void WatchUnusedCli(const std::string& var);
 
   cmState* GetState() const { return this->State; }
-  void SetCurrentSnapshot(cmState::Snapshot snapshot)
+  void SetCurrentSnapshot(cmStateSnapshot const& snapshot)
   {
     this->CurrentSnapshot = snapshot;
   }
-  cmState::Snapshot GetCurrentSnapshot() const
-  {
-    return this->CurrentSnapshot;
-  }
+  cmStateSnapshot GetCurrentSnapshot() const { return this->CurrentSnapshot; }
 
 protected:
   void RunCheckForUnusedVariables();
@@ -426,7 +421,8 @@ protected:
   typedef std::vector<cmExternalMakefileProjectGeneratorFactory*>
     RegisteredExtraGeneratorsVector;
   RegisteredExtraGeneratorsVector ExtraGenerators;
-  void AddDefaultCommands();
+  void AddScriptingCommands();
+  void AddProjectCommands();
   void AddDefaultGenerators();
   void AddDefaultExtraGenerators();
 
@@ -460,8 +456,6 @@ protected:
   cmVariableWatch* VariableWatch;
 
 private:
-  cmake(const cmake&);          // Not implemented.
-  void operator=(const cmake&); // Not implemented.
   ProgressCallbackType ProgressCallback;
   void* ProgressCallbackClientData;
   bool InTryCompile;
@@ -490,7 +484,7 @@ private:
   InstalledFilesMap InstalledFiles;
 
   cmState* State;
-  cmState::Snapshot CurrentSnapshot;
+  cmStateSnapshot CurrentSnapshot;
   cmMessenger* Messenger;
 
   std::vector<std::string> TraceOnlyThisSources;
@@ -499,6 +493,8 @@ private:
 
   // Print a list of valid generators to stderr.
   void PrintGeneratorList();
+
+  void CreateDefaultGlobalGenerator();
 
   /**
    * Convert a message type between a warning and an error, based on the state
@@ -536,12 +532,19 @@ private:
   }
 
 #define FOR_EACH_C_FEATURE(F)                                                 \
+  F(c_std_90)                                                                 \
+  F(c_std_99)                                                                 \
+  F(c_std_11)                                                                 \
   F(c_function_prototypes)                                                    \
   F(c_restrict)                                                               \
   F(c_static_assert)                                                          \
   F(c_variadic_macros)
 
 #define FOR_EACH_CXX_FEATURE(F)                                               \
+  F(cxx_std_98)                                                               \
+  F(cxx_std_11)                                                               \
+  F(cxx_std_14)                                                               \
+  F(cxx_std_17)                                                               \
   F(cxx_aggregate_default_initializers)                                       \
   F(cxx_alias_templates)                                                      \
   F(cxx_alignas)                                                              \

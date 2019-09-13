@@ -2,12 +2,25 @@
    file Copyright.txt or https://cmake.org/licensing for details.  */
 #include "cmGetPropertyCommand.h"
 
+#include <sstream>
+
 #include "cmGlobalGenerator.h"
+#include "cmInstalledFile.h"
+#include "cmListFileCache.h"
+#include "cmMakefile.h"
+#include "cmPolicies.h"
+#include "cmProperty.h"
 #include "cmPropertyDefinition.h"
 #include "cmSourceFile.h"
 #include "cmState.h"
+#include "cmSystemTools.h"
+#include "cmTarget.h"
+#include "cmTargetPropertyComputer.h"
 #include "cmTest.h"
 #include "cmake.h"
+
+class cmExecutionStatus;
+class cmMessenger;
 
 cmGetPropertyCommand::cmGetPropertyCommand()
 {
@@ -219,6 +232,7 @@ bool cmGetPropertyCommand::HandleDirectoryMode()
       case cmPolicies::WARN:
         mf->IssueMessage(cmake::AUTHOR_WARNING,
                          cmPolicies::GetPolicyWarning(cmPolicies::CMP0059));
+        CM_FALLTHROUGH;
       case cmPolicies::OLD:
         return this->StoreResult(mf->GetDefineFlagsCMP0059());
       case cmPolicies::NEW:
@@ -244,10 +258,20 @@ bool cmGetPropertyCommand::HandleTargetMode()
       if (this->Makefile->IsAlias(this->Name)) {
         return this->StoreResult(target->GetName().c_str());
       }
-      return this->StoreResult(CM_NULLPTR);
+      return this->StoreResult(nullptr);
     }
-    return this->StoreResult(
-      target->GetProperty(this->PropertyName, this->Makefile));
+    const char* prop_cstr = nullptr;
+    cmListFileBacktrace bt = this->Makefile->GetBacktrace();
+    cmMessenger* messenger = this->Makefile->GetMessenger();
+    if (cmTargetPropertyComputer::PassesWhitelist(
+          target->GetType(), this->PropertyName, messenger, bt)) {
+      prop_cstr =
+        target->GetComputedProperty(this->PropertyName, messenger, bt);
+      if (!prop_cstr) {
+        prop_cstr = target->GetProperty(this->PropertyName);
+      }
+    }
+    return this->StoreResult(prop_cstr);
   }
   std::ostringstream e;
   e << "could not find TARGET " << this->Name
@@ -309,7 +333,7 @@ bool cmGetPropertyCommand::HandleCacheMode()
     return false;
   }
 
-  const char* value = CM_NULLPTR;
+  const char* value = nullptr;
   if (this->Makefile->GetState()->GetCacheEntryValue(this->Name)) {
     value = this->Makefile->GetState()->GetCacheEntryProperty(
       this->Name, this->PropertyName);
@@ -333,7 +357,7 @@ bool cmGetPropertyCommand::HandleInstallMode()
     std::string value;
     bool isSet = file->GetProperty(this->PropertyName, value);
 
-    return this->StoreResult(isSet ? value.c_str() : CM_NULLPTR);
+    return this->StoreResult(isSet ? value.c_str() : nullptr);
   }
   std::ostringstream e;
   e << "given INSTALL name that could not be found or created: " << this->Name;

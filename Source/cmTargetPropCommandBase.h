@@ -3,6 +3,11 @@
 #ifndef cmTargetPropCommandBase_h
 #define cmTargetPropCommandBase_h
 
+#include "cmConfigure.h" // IWYU pragma: keep
+
+#include <string>
+#include <vector>
+
 #include "cmCommand.h"
 
 class cmTarget;
@@ -20,8 +25,6 @@ public:
   bool HandleArguments(std::vector<std::string> const& args,
                        const std::string& prop,
                        ArgumentFlags flags = NO_FLAGS);
-
-  cmTypeMacro(cmTargetPropCommandBase, cmCommand);
 
 protected:
   std::string Property;

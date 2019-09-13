@@ -2,6 +2,7 @@ set(PROCESSORS 4)
 set(BOOTSTRAP_ARGS "--docdir=doc/cmake")
 set(HOST linux64)
 set(MAKE_PROGRAM "make")
+set(CPACK_BINARY_GENERATORS "STGZ TGZ")
 set(CC /opt/gcc-6.1.0/bin/gcc)
 set(CXX /opt/gcc-6.1.0/bin/g++)
 set(CFLAGS   "")
@@ -28,13 +29,13 @@ CURSES_LIBRARY:FILEPATH=/home/kitware/ncurses-5.9/lib/libncurses.a
 CURSES_INCLUDE_PATH:PATH=/home/kitware/ncurses-5.9/include
 FORM_LIBRARY:FILEPATH=/home/kitware/ncurses-5.9/lib/libform.a
 CMAKE_USE_OPENSSL:BOOL=ON
-OPENSSL_CRYPTO_LIBRARY:FILEPATH=/home/kitware/openssl-1.0.2h/lib/libcrypto.a
-OPENSSL_INCLUDE_DIR:PATH=/home/kitware/openssl-1.0.2h/include
-OPENSSL_SSL_LIBRARY:FILEPATH=/home/kitware/openssl-1.0.2h/lib/libssl.a
+OPENSSL_CRYPTO_LIBRARY:FILEPATH=/home/kitware/openssl-1.0.2j/lib/libcrypto.a
+OPENSSL_INCLUDE_DIR:PATH=/home/kitware/openssl-1.0.2j/include
+OPENSSL_SSL_LIBRARY:FILEPATH=/home/kitware/openssl-1.0.2j/lib/libssl.a
 PYTHON_EXECUTABLE:FILEPATH=/usr/bin/python3
 CPACK_SYSTEM_NAME:STRING=Linux-x86_64
 BUILD_QtDialog:BOOL:=TRUE
-CMake_ENABLE_SERVER_MODE:BOOL=TRUE
+CMAKE_SKIP_BOOTSTRAP_TEST:STRING=TRUE
 CMake_GUI_DISTRIBUTE_WITH_Qt_LGPL:STRING=3
 CMake_INSTALL_DEPENDENCIES:BOOL=ON
 CMAKE_PREFIX_PATH:STRING=${qt_prefix}

@@ -3,12 +3,9 @@
 #ifndef cmCTestMemCheckCommand_h
 #define cmCTestMemCheckCommand_h
 
-#include <cmConfigure.h>
+#include "cmConfigure.h" // IWYU pragma: keep
 
 #include "cmCTestTestCommand.h"
-#include "cmTypeMacro.h"
-
-#include <string>
 
 class cmCTestGenericHandler;
 class cmCommand;
@@ -21,12 +18,12 @@ class cmCommand;
 class cmCTestMemCheckCommand : public cmCTestTestCommand
 {
 public:
-  cmCTestMemCheckCommand() {}
+  cmCTestMemCheckCommand();
 
   /**
    * This is a virtual constructor for the command.
    */
-  cmCommand* Clone() CM_OVERRIDE
+  cmCommand* Clone() override
   {
     cmCTestMemCheckCommand* ni = new cmCTestMemCheckCommand;
     ni->CTest = this->CTest;
@@ -34,15 +31,16 @@ public:
     return ni;
   }
 
-  /**
-   * The name of the command as specified in CMakeList.txt.
-   */
-  std::string GetName() const CM_OVERRIDE { return "ctest_memcheck"; }
-
-  cmTypeMacro(cmCTestMemCheckCommand, cmCTestTestCommand);
-
 protected:
-  cmCTestGenericHandler* InitializeActualHandler() CM_OVERRIDE;
+  cmCTestGenericHandler* InitializeActualHandler() override;
+
+  void ProcessAdditionalValues(cmCTestGenericHandler* handler) override;
+
+  enum
+  {
+    ctm_DEFECT_COUNT = ctt_LAST,
+    ctm_LAST
+  };
 };
 
 #endif

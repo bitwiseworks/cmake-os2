@@ -2,7 +2,20 @@
    file Copyright.txt or https://cmake.org/licensing for details.  */
 #include "cmTargetLinkLibrariesCommand.h"
 
+#include <sstream>
+#include <string.h>
+
 #include "cmGeneratorExpression.h"
+#include "cmGlobalGenerator.h"
+#include "cmMakefile.h"
+#include "cmPolicies.h"
+#include "cmState.h"
+#include "cmStateTypes.h"
+#include "cmSystemTools.h"
+#include "cmTarget.h"
+#include "cmake.h"
+
+class cmExecutionStatus;
 
 const char* cmTargetLinkLibrariesCommand::LinkLibraryTypeNames[3] = {
   "general", "debug", "optimized"
@@ -71,7 +84,7 @@ bool cmTargetLinkLibrariesCommand::InitialPass(
     return true;
   }
 
-  if (this->Target->GetType() == cmState::OBJECT_LIBRARY) {
+  if (this->Target->GetType() == cmStateEnums::OBJECT_LIBRARY) {
     std::ostringstream e;
     e << "Object library target \"" << args[0] << "\" "
       << "may not link to anything.";
@@ -80,9 +93,9 @@ bool cmTargetLinkLibrariesCommand::InitialPass(
     return true;
   }
 
-  if (this->Target->GetType() == cmState::UTILITY) {
+  if (this->Target->GetType() == cmStateEnums::UTILITY) {
     std::ostringstream e;
-    const char* modal = CM_NULLPTR;
+    const char* modal = nullptr;
     cmake::MessageType messageType = cmake::AUTHOR_WARNING;
     switch (this->Makefile->GetPolicyStatus(cmPolicies::CMP0039)) {
       case cmPolicies::WARN:
@@ -278,7 +291,7 @@ void cmTargetLinkLibrariesCommand::LinkLibraryTypeSpecifierWarning(int left,
 bool cmTargetLinkLibrariesCommand::HandleLibrary(const std::string& lib,
                                                  cmTargetLinkLibraryType llt)
 {
-  if (this->Target->GetType() == cmState::INTERFACE_LIBRARY &&
+  if (this->Target->GetType() == cmStateEnums::INTERFACE_LIBRARY &&
       this->CurrentProcessingState != ProcessingKeywordLinkInterface) {
     this->Makefile->IssueMessage(
       cmake::FATAL_ERROR,
@@ -298,7 +311,7 @@ bool cmTargetLinkLibrariesCommand::HandleLibrary(const std::string& lib,
   if (!this->Target->PushTLLCommandTrace(
         sig, this->Makefile->GetExecutionContext())) {
     std::ostringstream e;
-    const char* modal = CM_NULLPTR;
+    const char* modal = nullptr;
     cmake::MessageType messageType = cmake::AUTHOR_WARNING;
     switch (this->Makefile->GetPolicyStatus(cmPolicies::CMP0023)) {
       case cmPolicies::WARN:
@@ -338,7 +351,36 @@ bool cmTargetLinkLibrariesCommand::HandleLibrary(const std::string& lib,
   // Handle normal case first.
   if (this->CurrentProcessingState != ProcessingKeywordLinkInterface &&
       this->CurrentProcessingState != ProcessingPlainLinkInterface) {
-    this->Makefile->AddLinkLibraryForTarget(this->Target->GetName(), lib, llt);
+
+    cmTarget* t =
+      this->Makefile->FindLocalNonAliasTarget(this->Target->GetName());
+    if (!t) {
+      std::ostringstream e;
+      e << "Attempt to add link library \"" << lib << "\" to target \""
+        << this->Target->GetName()
+        << "\" which is not built in this directory.";
+      this->Makefile->IssueMessage(cmake::FATAL_ERROR, e.str());
+    } else {
+
+      cmTarget* tgt = this->Makefile->GetGlobalGenerator()->FindTarget(lib);
+
+      if (tgt && (tgt->GetType() != cmStateEnums::STATIC_LIBRARY) &&
+          (tgt->GetType() != cmStateEnums::SHARED_LIBRARY) &&
+          (tgt->GetType() != cmStateEnums::UNKNOWN_LIBRARY) &&
+          (tgt->GetType() != cmStateEnums::INTERFACE_LIBRARY) &&
+          !tgt->IsExecutableWithExports()) {
+        std::ostringstream e;
+        e << "Target \"" << lib << "\" of type "
+          << cmState::GetTargetTypeName(tgt->GetType())
+          << " may not be linked into another target.  "
+          << "One may link only to STATIC or SHARED libraries, or "
+          << "to executables with the ENABLE_EXPORTS property set.";
+        this->Makefile->IssueMessage(cmake::FATAL_ERROR, e.str());
+      }
+
+      this->Target->AddLinkLibrary(*this->Makefile, lib, llt);
+    }
+
     if (this->CurrentProcessingState == ProcessingLinkLibraries) {
       this->Target->AppendProperty(
         "INTERFACE_LINK_LIBRARIES",
@@ -347,7 +389,7 @@ bool cmTargetLinkLibrariesCommand::HandleLibrary(const std::string& lib,
     }
     if (this->CurrentProcessingState != ProcessingKeywordPublicInterface &&
         this->CurrentProcessingState != ProcessingPlainPublicInterface) {
-      if (this->Target->GetType() == cmState::STATIC_LIBRARY) {
+      if (this->Target->GetType() == cmStateEnums::STATIC_LIBRARY) {
         std::string configLib =
           this->Target->GetDebugGeneratorExpressions(lib, llt);
         if (cmGeneratorExpression::IsValidTargetName(lib) ||
@@ -375,7 +417,7 @@ bool cmTargetLinkLibrariesCommand::HandleLibrary(const std::string& lib,
     return true;
   }
 
-  if (this->Target->GetType() == cmState::INTERFACE_LIBRARY) {
+  if (this->Target->GetType() == cmStateEnums::INTERFACE_LIBRARY) {
     return true;
   }
 
@@ -387,10 +429,9 @@ bool cmTargetLinkLibrariesCommand::HandleLibrary(const std::string& lib,
   // Include this library in the link interface for the target.
   if (llt == DEBUG_LibraryType || llt == GENERAL_LibraryType) {
     // Put in the DEBUG configuration interfaces.
-    for (std::vector<std::string>::const_iterator i = debugConfigs.begin();
-         i != debugConfigs.end(); ++i) {
+    for (std::string const& dc : debugConfigs) {
       prop = "LINK_INTERFACE_LIBRARIES_";
-      prop += *i;
+      prop += dc;
       this->Target->AppendProperty(prop, lib.c_str());
     }
   }
@@ -400,10 +441,9 @@ bool cmTargetLinkLibrariesCommand::HandleLibrary(const std::string& lib,
 
     // Make sure the DEBUG configuration interfaces exist so that the
     // general one will not be used as a fall-back.
-    for (std::vector<std::string>::const_iterator i = debugConfigs.begin();
-         i != debugConfigs.end(); ++i) {
+    for (std::string const& dc : debugConfigs) {
       prop = "LINK_INTERFACE_LIBRARIES_";
-      prop += *i;
+      prop += dc;
       if (!this->Target->GetProperty(prop)) {
         this->Target->SetProperty(prop, "");
       }

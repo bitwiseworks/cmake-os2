@@ -3,53 +3,28 @@
 #ifndef cmCPackGenerator_h
 #define cmCPackGenerator_h
 
-#include <cmConfigure.h>
-
-#include "cmCPackComponentGroup.h"
-#include "cmObject.h"
-#include "cmSystemTools.h"
-#include "cmTypeMacro.h"
+#include "cmConfigure.h" // IWYU pragma: keep
 
 #include <map>
 #include <sstream>
 #include <string>
 #include <vector>
 
+#include "cmCPackComponentGroup.h"
+#include "cmSystemTools.h"
+
 class cmCPackLog;
 class cmInstalledFile;
 class cmMakefile;
-
-#define cmCPackTypeMacro(klass, superclass)                                   \
-  cmTypeMacro(klass, superclass);                                             \
-  static cmCPackGenerator* CreateGenerator() { return new klass; }            \
-  class cmCPackTypeMacro_UseTrailingSemicolon
-
-#define cmCPackLogger(logType, msg)                                           \
-  do {                                                                        \
-    std::ostringstream cmCPackLog_msg;                                        \
-    cmCPackLog_msg << msg;                                                    \
-    this->Logger->Log(logType, __FILE__, __LINE__,                            \
-                      cmCPackLog_msg.str().c_str());                          \
-  } while (0)
-
-#ifdef cerr
-#undef cerr
-#endif
-#define cerr no_cerr_use_cmCPack_Log
-
-#ifdef cout
-#undef cout
-#endif
-#define cout no_cout_use_cmCPack_Log
 
 /** \class cmCPackGenerator
  * \brief A superclass of all CPack Generators
  *
  */
-class cmCPackGenerator : public cmObject
+class cmCPackGenerator
 {
 public:
-  cmTypeMacro(cmCPackGenerator, cmObject);
+  virtual const char* GetNameOfClass() = 0;
   /**
    * If verbose then more information is printed out
    */
@@ -93,7 +68,7 @@ public:
    * Construct generator
    */
   cmCPackGenerator();
-  ~cmCPackGenerator() CM_OVERRIDE;
+  virtual ~cmCPackGenerator();
 
   //! Set and get the options
   void SetOption(const std::string& op, const char* value);
@@ -102,6 +77,8 @@ public:
   std::vector<std::string> GetOptions() const;
   bool IsSet(const std::string& name) const;
   bool IsOn(const std::string& name) const;
+  bool IsSetToOff(const std::string& op) const;
+  bool IsSetToEmpty(const std::string& op) const;
 
   //! Set the logger
   void SetLogger(cmCPackLog* log) { this->Logger = log; }
@@ -128,7 +105,7 @@ protected:
   cmInstalledFile const* GetInstalledFile(std::string const& name) const;
 
   virtual const char* GetOutputExtension() { return ".cpack"; }
-  virtual const char* GetOutputPostfix() { return CM_NULLPTR; }
+  virtual const char* GetOutputPostfix() { return nullptr; }
 
   /**
    * Prepare requested grouping kind from CPACK_xxx vars
@@ -319,5 +296,19 @@ protected:
 private:
   cmMakefile* MakefileMap;
 };
+
+#define cmCPackTypeMacro(klass, superclass)                                   \
+  typedef superclass Superclass;                                              \
+  const char* GetNameOfClass() override { return #klass; }                    \
+  static cmCPackGenerator* CreateGenerator() { return new klass; }            \
+  class cmCPackTypeMacro_UseTrailingSemicolon
+
+#define cmCPackLogger(logType, msg)                                           \
+  do {                                                                        \
+    std::ostringstream cmCPackLog_msg;                                        \
+    cmCPackLog_msg << msg;                                                    \
+    this->Logger->Log(logType, __FILE__, __LINE__,                            \
+                      cmCPackLog_msg.str().c_str());                          \
+  } while (false)
 
 #endif

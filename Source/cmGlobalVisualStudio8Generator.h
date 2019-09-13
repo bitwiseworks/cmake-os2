@@ -20,8 +20,8 @@ public:
   ///! Get the name for the generator.
   virtual std::string GetName() const { return this->Name; }
 
-  /** Get the documentation entry for this generator.  */
-  static void GetDocumentation(cmDocumentationEntry& entry);
+  /** Get the name of the main stamp list file. */
+  static std::string GetGenerateStampList();
 
   virtual void EnableLanguage(std::vector<std::string> const& languages,
                               cmMakefile*, bool optional);
@@ -72,15 +72,15 @@ protected:
   bool AddCheckTarget();
 
   /** Return true if the configuration needs to be deployed */
-  virtual bool NeedsDeploy(cmState::TargetType type) const;
+  virtual bool NeedsDeploy(cmStateEnums::TargetType type) const;
 
   static cmIDEFlagTable const* GetExtraFlagTableVS8();
   virtual void WriteSLNHeader(std::ostream& fout);
   virtual void WriteSolutionConfigurations(
     std::ostream& fout, std::vector<std::string> const& configs);
   virtual void WriteProjectConfigurations(
-    std::ostream& fout, const std::string& name, cmState::TargetType type,
-    std::vector<std::string> const& configs,
+    std::ostream& fout, const std::string& name,
+    cmGeneratorTarget const& target, std::vector<std::string> const& configs,
     const std::set<std::string>& configsPartOfDefaultBuild,
     const std::string& platformMapping = "");
   virtual bool ComputeTargetDepends();

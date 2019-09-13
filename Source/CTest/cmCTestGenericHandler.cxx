@@ -2,16 +2,16 @@
    file Copyright.txt or https://cmake.org/licensing for details.  */
 #include "cmCTestGenericHandler.h"
 
-#include "cmCTest.h"
-#include "cmSystemTools.h"
-
 #include <sstream>
 #include <utility>
+
+#include "cmCTest.h"
+#include "cmSystemTools.h"
 
 cmCTestGenericHandler::cmCTestGenericHandler()
 {
   this->HandlerVerbose = cmSystemTools::OUTPUT_NONE;
-  this->CTest = CM_NULLPTR;
+  this->CTest = nullptr;
   this->SubmitIndex = 0;
   this->AppendXML = false;
   this->Quiet = false;
@@ -57,10 +57,8 @@ void cmCTestGenericHandler::Initialize()
   this->AppendXML = false;
   this->TestLoad = 0;
   this->Options.clear();
-  t_StringToString::iterator it;
-  for (it = this->PersistentOptions.begin();
-       it != this->PersistentOptions.end(); ++it) {
-    this->Options[it->first] = it->second;
+  for (auto const& po : this->PersistentOptions) {
+    this->Options[po.first] = po.second;
   }
 }
 
@@ -69,7 +67,7 @@ const char* cmCTestGenericHandler::GetOption(const std::string& op)
   cmCTestGenericHandler::t_StringToString::iterator remit =
     this->Options.find(op);
   if (remit == this->Options.end()) {
-    return CM_NULLPTR;
+    return nullptr;
   }
   return remit->second.c_str();
 }

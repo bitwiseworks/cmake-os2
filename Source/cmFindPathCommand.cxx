@@ -2,7 +2,13 @@
    file Copyright.txt or https://cmake.org/licensing for details.  */
 #include "cmFindPathCommand.h"
 
-#include <cmsys/Glob.hxx>
+#include "cmsys/Glob.hxx"
+
+#include "cmMakefile.h"
+#include "cmStateTypes.h"
+#include "cmSystemTools.h"
+
+class cmExecutionStatus;
 
 cmFindPathCommand::cmFindPathCommand()
 {
@@ -30,7 +36,8 @@ bool cmFindPathCommand::InitialPass(std::vector<std::string> const& argsIn,
     if (this->AlreadyInCacheWithoutMetaInfo) {
       this->Makefile->AddCacheDefinition(
         this->VariableName, "", this->VariableDocumentation.c_str(),
-        (this->IncludeFileInPath ? cmState::FILEPATH : cmState::PATH));
+        (this->IncludeFileInPath ? cmStateEnums::FILEPATH
+                                 : cmStateEnums::PATH));
     }
     return true;
   }
@@ -39,13 +46,13 @@ bool cmFindPathCommand::InitialPass(std::vector<std::string> const& argsIn,
   if (!result.empty()) {
     this->Makefile->AddCacheDefinition(
       this->VariableName, result.c_str(), this->VariableDocumentation.c_str(),
-      (this->IncludeFileInPath) ? cmState::FILEPATH : cmState::PATH);
+      (this->IncludeFileInPath) ? cmStateEnums::FILEPATH : cmStateEnums::PATH);
     return true;
   }
   this->Makefile->AddCacheDefinition(
     this->VariableName, (this->VariableName + "-NOTFOUND").c_str(),
     this->VariableDocumentation.c_str(),
-    (this->IncludeFileInPath) ? cmState::FILEPATH : cmState::PATH);
+    (this->IncludeFileInPath) ? cmStateEnums::FILEPATH : cmStateEnums::PATH);
   return true;
 }
 
@@ -69,20 +76,20 @@ std::string cmFindPathCommand::FindHeaderInFramework(std::string const& file,
 {
   std::string fileName = file;
   std::string frameWorkName;
-  std::string::size_type pos = fileName.find("/");
+  std::string::size_type pos = fileName.find('/');
   // if there is a / in the name try to find the header as a framework
   // For example bar/foo.h would look for:
   // bar.framework/Headers/foo.h
-  if (pos != fileName.npos) {
+  if (pos != std::string::npos) {
     // remove the name from the slash;
     fileName = fileName.substr(pos + 1);
     frameWorkName = file;
     frameWorkName =
       frameWorkName.substr(0, frameWorkName.size() - fileName.size() - 1);
     // if the framework has a path in it then just use the filename
-    if (frameWorkName.find("/") != frameWorkName.npos) {
+    if (frameWorkName.find('/') != std::string::npos) {
       fileName = file;
-      frameWorkName = "";
+      frameWorkName.clear();
     }
     if (!frameWorkName.empty()) {
       std::string fpath = dir;
@@ -121,18 +128,15 @@ std::string cmFindPathCommand::FindHeaderInFramework(std::string const& file,
 std::string cmFindPathCommand::FindNormalHeader()
 {
   std::string tryPath;
-  for (std::vector<std::string>::const_iterator ni = this->Names.begin();
-       ni != this->Names.end(); ++ni) {
-    for (std::vector<std::string>::const_iterator p =
-           this->SearchPaths.begin();
-         p != this->SearchPaths.end(); ++p) {
-      tryPath = *p;
-      tryPath += *ni;
+  for (std::string const& n : this->Names) {
+    for (std::string const& sp : this->SearchPaths) {
+      tryPath = sp;
+      tryPath += n;
       if (cmSystemTools::FileExists(tryPath.c_str())) {
         if (this->IncludeFileInPath) {
           return tryPath;
         }
-        return *p;
+        return sp;
       }
     }
   }
@@ -141,12 +145,9 @@ std::string cmFindPathCommand::FindNormalHeader()
 
 std::string cmFindPathCommand::FindFrameworkHeader()
 {
-  for (std::vector<std::string>::const_iterator ni = this->Names.begin();
-       ni != this->Names.end(); ++ni) {
-    for (std::vector<std::string>::const_iterator p =
-           this->SearchPaths.begin();
-         p != this->SearchPaths.end(); ++p) {
-      std::string fwPath = this->FindHeaderInFramework(*ni, *p);
+  for (std::string const& n : this->Names) {
+    for (std::string const& sp : this->SearchPaths) {
+      std::string fwPath = this->FindHeaderInFramework(n, sp);
       if (!fwPath.empty()) {
         return fwPath;
       }

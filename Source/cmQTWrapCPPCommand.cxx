@@ -2,6 +2,13 @@
    file Copyright.txt or https://cmake.org/licensing for details.  */
 #include "cmQTWrapCPPCommand.h"
 
+#include "cmCustomCommandLines.h"
+#include "cmMakefile.h"
+#include "cmSourceFile.h"
+#include "cmSystemTools.h"
+
+class cmExecutionStatus;
+
 // cmQTWrapCPPCommand
 bool cmQTWrapCPPCommand::InitialPass(std::vector<std::string> const& args,
                                      cmExecutionStatus&)
@@ -70,8 +77,8 @@ bool cmQTWrapCPPCommand::InitialPass(std::vector<std::string> const& args,
       depends.push_back(moc_exe);
       depends.push_back(hname);
 
-      std::string no_main_dependency = "";
-      const char* no_working_dir = CM_NULLPTR;
+      std::string no_main_dependency;
+      const char* no_working_dir = nullptr;
       this->Makefile->AddCustomCommandToOutput(
         newName, depends, no_main_dependency, commandLines, "Qt Wrapped File",
         no_working_dir);

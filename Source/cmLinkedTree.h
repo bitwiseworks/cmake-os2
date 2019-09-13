@@ -3,11 +3,11 @@
 #ifndef cmLinkedTree_h
 #define cmLinkedTree_h
 
-#include <cmConfigure.h>
-
-#include "cmStandardIncludes.h"
+#include "cmConfigure.h" // IWYU pragma: keep
 
 #include <assert.h>
+#include <iterator>
+#include <vector>
 
 /**
   @brief A adaptor for traversing a tree structure in a vector
@@ -49,7 +49,7 @@ public:
 
   public:
     iterator()
-      : Tree(CM_NULLPTR)
+      : Tree(nullptr)
       , Position(0)
     {
     }

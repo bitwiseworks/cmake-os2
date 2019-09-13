@@ -2,20 +2,18 @@
    file Copyright.txt or https://cmake.org/licensing for details.  */
 #include "cmTestGenerator.h"
 
+#include <ostream>
+#include <utility>
+
 #include "cmGeneratorExpression.h"
 #include "cmGeneratorTarget.h"
 #include "cmLocalGenerator.h"
 #include "cmOutputConverter.h"
 #include "cmProperty.h"
 #include "cmPropertyMap.h"
-#include "cmState.h"
+#include "cmStateTypes.h"
 #include "cmSystemTools.h"
 #include "cmTest.h"
-#include "cm_auto_ptr.hxx"
-
-#include <map>
-#include <ostream>
-#include <utility>
 
 cmTestGenerator::cmTestGenerator(
   cmTest* test, std::vector<std::string> const& configurations)
@@ -24,7 +22,7 @@ cmTestGenerator::cmTestGenerator(
 {
   this->ActionsPerConfig = !test->GetOldStyle();
   this->TestGenerated = false;
-  this->LG = CM_NULLPTR;
+  this->LG = nullptr;
 }
 
 cmTestGenerator::~cmTestGenerator()
@@ -36,15 +34,13 @@ void cmTestGenerator::Compute(cmLocalGenerator* lg)
   this->LG = lg;
 }
 
-void cmTestGenerator::GenerateScriptConfigs(std::ostream& os,
-                                            Indent const& indent)
+void cmTestGenerator::GenerateScriptConfigs(std::ostream& os, Indent indent)
 {
   // Create the tests.
   this->cmScriptGenerator::GenerateScriptConfigs(os, indent);
 }
 
-void cmTestGenerator::GenerateScriptActions(std::ostream& os,
-                                            Indent const& indent)
+void cmTestGenerator::GenerateScriptActions(std::ostream& os, Indent indent)
 {
   if (this->ActionsPerConfig) {
     // This is the per-config generation in a single-configuration
@@ -60,7 +56,7 @@ void cmTestGenerator::GenerateScriptActions(std::ostream& os,
 
 void cmTestGenerator::GenerateScriptForConfig(std::ostream& os,
                                               const std::string& config,
-                                              Indent const& indent)
+                                              Indent indent)
 {
   this->TestGenerated = true;
 
@@ -77,13 +73,13 @@ void cmTestGenerator::GenerateScriptForConfig(std::ostream& os,
   // be translated.
   std::string exe = command[0];
   cmGeneratorTarget* target = this->LG->FindGeneratorTargetToUse(exe);
-  if (target && target->GetType() == cmState::EXECUTABLE) {
+  if (target && target->GetType() == cmStateEnums::EXECUTABLE) {
     // Use the target file on disk.
     exe = target->GetFullPath(config);
 
     // Prepend with the emulator when cross compiling if required.
     const char* emulator = target->GetProperty("CROSSCOMPILING_EMULATOR");
-    if (emulator != CM_NULLPTR) {
+    if (emulator != nullptr) {
       std::vector<std::string> emulatorWithArgs;
       cmSystemTools::ExpandListArgument(emulator, emulatorWithArgs);
       std::string emulatorExe(emulatorWithArgs[0]);
@@ -117,17 +113,16 @@ void cmTestGenerator::GenerateScriptForConfig(std::ostream& os,
   if (!pm.empty()) {
     os << indent << "set_tests_properties(" << this->Test->GetName()
        << " PROPERTIES ";
-    for (cmPropertyMap::const_iterator i = pm.begin(); i != pm.end(); ++i) {
-      os << " " << i->first << " "
+    for (auto const& i : pm) {
+      os << " " << i.first << " "
          << cmOutputConverter::EscapeForCMake(
-              ge.Parse(i->second.GetValue())->Evaluate(this->LG, config));
+              ge.Parse(i.second.GetValue())->Evaluate(this->LG, config));
     }
     os << ")" << std::endl;
   }
 }
 
-void cmTestGenerator::GenerateScriptNoConfig(std::ostream& os,
-                                             Indent const& indent)
+void cmTestGenerator::GenerateScriptNoConfig(std::ostream& os, Indent indent)
 {
   os << indent << "add_test(" << this->Test->GetName() << " NOT_AVAILABLE)\n";
 }
@@ -140,8 +135,7 @@ bool cmTestGenerator::NeedsScriptNoConfig() const
           !this->ConfigurationTypes->empty()); // config-dependent command
 }
 
-void cmTestGenerator::GenerateOldStyle(std::ostream& fout,
-                                       Indent const& indent)
+void cmTestGenerator::GenerateOldStyle(std::ostream& fout, Indent indent)
 {
   this->TestGenerated = true;
 
@@ -159,15 +153,14 @@ void cmTestGenerator::GenerateOldStyle(std::ostream& fout,
     // Just double-quote all arguments so they are re-parsed
     // correctly by the test system.
     fout << " \"";
-    for (std::string::const_iterator c = argit->begin(); c != argit->end();
-         ++c) {
+    for (char c : *argit) {
       // Escape quotes within arguments.  We should escape
       // backslashes too but we cannot because it makes the result
       // inconsistent with previous behavior of this command.
-      if ((*c == '"')) {
+      if (c == '"') {
         fout << '\\';
       }
-      fout << *c;
+      fout << c;
     }
     fout << "\"";
   }
@@ -178,9 +171,9 @@ void cmTestGenerator::GenerateOldStyle(std::ostream& fout,
   if (!pm.empty()) {
     fout << indent << "set_tests_properties(" << this->Test->GetName()
          << " PROPERTIES ";
-    for (cmPropertyMap::const_iterator i = pm.begin(); i != pm.end(); ++i) {
-      fout << " " << i->first << " "
-           << cmOutputConverter::EscapeForCMake(i->second.GetValue());
+    for (auto const& i : pm) {
+      fout << " " << i.first << " "
+           << cmOutputConverter::EscapeForCMake(i.second.GetValue());
     }
     fout << ")" << std::endl;
   }

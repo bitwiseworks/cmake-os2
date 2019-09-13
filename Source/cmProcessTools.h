@@ -3,7 +3,8 @@
 #ifndef cmProcessTools_h
 #define cmProcessTools_h
 
-#include <cmConfigure.h>
+#include "cmConfigure.h" // IWYU pragma: keep
+#include "cmProcessOutput.h"
 
 #include <iosfwd>
 #include <string.h>
@@ -16,6 +17,7 @@
 class cmProcessTools
 {
 public:
+  typedef cmProcessOutput::Encoding Encoding;
   /** Abstract interface for process output parsers.  */
   class OutputParser
   {
@@ -57,7 +59,7 @@ public:
     char Separator;
     char LineEnd;
     bool IgnoreCR;
-    bool ProcessChunk(const char* data, int length) CM_OVERRIDE;
+    bool ProcessChunk(const char* data, int length) override;
 
     /** Implement in a subclass to process one line of input.  It
         should return true only if it is interested in more data.  */
@@ -68,18 +70,19 @@ public:
   class OutputLogger : public LineParser
   {
   public:
-    OutputLogger(std::ostream& log, const char* prefix = CM_NULLPTR)
+    OutputLogger(std::ostream& log, const char* prefix = nullptr)
     {
       this->SetLog(&log, prefix);
     }
 
   private:
-    bool ProcessLine() CM_OVERRIDE { return true; }
+    bool ProcessLine() override { return true; }
   };
 
   /** Run a process and send output to given parsers.  */
   static void RunProcess(struct cmsysProcess_s* cp, OutputParser* out,
-                         OutputParser* err = CM_NULLPTR);
+                         OutputParser* err = nullptr,
+                         Encoding encoding = cmProcessOutput::Auto);
 };
 
 #endif

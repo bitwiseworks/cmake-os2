@@ -3,7 +3,14 @@
 #ifndef cmCreateTestSourceList_h
 #define cmCreateTestSourceList_h
 
+#include "cmConfigure.h" // IWYU pragma: keep
+
+#include <string>
+#include <vector>
+
 #include "cmCommand.h"
+
+class cmExecutionStatus;
 
 /** \class cmCreateTestSourceList
  * \brief Test driver generation command
@@ -16,21 +23,14 @@ public:
   /**
    * This is a virtual constructor for the command.
    */
-  cmCommand* Clone() CM_OVERRIDE { return new cmCreateTestSourceList; }
+  cmCommand* Clone() override { return new cmCreateTestSourceList; }
 
   /**
    * This is called when the command is first encountered in
    * the CMakeLists.txt file.
    */
   bool InitialPass(std::vector<std::string> const& args,
-                   cmExecutionStatus& status) CM_OVERRIDE;
-
-  /**
-   * The name of the command as specified in CMakeList.txt.
-   */
-  std::string GetName() const CM_OVERRIDE { return "create_test_sourcelist"; }
-
-  cmTypeMacro(cmCreateTestSourceList, cmCommand);
+                   cmExecutionStatus& status) override;
 };
 
 #endif

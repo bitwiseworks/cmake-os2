@@ -3,11 +3,7 @@
 #ifndef cmMakefileTargetGenerator_h
 #define cmMakefileTargetGenerator_h
 
-#include <cmConfigure.h>
-
-#include "cmCommonTargetGenerator.h"
-#include "cmLocalUnixMakefileGenerator3.h"
-#include "cmOSXBundleGenerator.h"
+#include "cmConfigure.h" // IWYU pragma: keep
 
 #include <iosfwd>
 #include <map>
@@ -15,11 +11,18 @@
 #include <string>
 #include <vector>
 
+#include "cmCommonTargetGenerator.h"
+#include "cmLocalUnixMakefileGenerator3.h"
+#include "cmOSXBundleGenerator.h"
+
 class cmCustomCommandGenerator;
 class cmGeneratedFileStream;
 class cmGeneratorTarget;
 class cmGlobalUnixMakefileGenerator3;
+class cmLinkLineComputer;
+class cmOutputConverter;
 class cmSourceFile;
+class cmStateDirectory;
 
 /** \class cmMakefileTargetGenerator
  * \brief Support Routines for writing makefiles
@@ -30,7 +33,7 @@ class cmMakefileTargetGenerator : public cmCommonTargetGenerator
 public:
   // constructor to set the ivars
   cmMakefileTargetGenerator(cmGeneratorTarget* target);
-  ~cmMakefileTargetGenerator() CM_OVERRIDE;
+  ~cmMakefileTargetGenerator() override;
 
   // construct using this factory call
   static cmMakefileTargetGenerator* New(cmGeneratorTarget* tgt);
@@ -78,8 +81,7 @@ protected:
     {
     }
 
-    void operator()(cmSourceFile const& source,
-                    const char* pkgloc) CM_OVERRIDE;
+    void operator()(cmSourceFile const& source, const char* pkgloc) override;
 
   private:
     cmMakefileTargetGenerator* Generator;
@@ -112,7 +114,6 @@ protected:
   void WriteObjectsVariable(std::string& variableName,
                             std::string& variableNameExternal,
                             bool useWatcomQuote);
-  void WriteObjectsString(std::string& buildObjs);
   void WriteObjectsStrings(std::vector<std::string>& objStrings,
                            std::string::size_type limit = std::string::npos);
 
@@ -140,6 +141,9 @@ protected:
                         std::vector<std::string>& makefile_commands,
                         std::vector<std::string>& makefile_depends);
 
+  cmLinkLineComputer* CreateLinkLineComputer(
+    cmOutputConverter* outputConverter, cmStateDirectory const& stateDir);
+
   /** Create a response file with the given set of options.  Returns
       the relative path from the target build working directory to the
       response file name.  */
@@ -150,9 +154,9 @@ protected:
   bool CheckUseResponseFileForLibraries(std::string const& l) const;
 
   /** Create list of flags for link libraries. */
-  void CreateLinkLibs(std::string& linkLibs, bool relink, bool useResponseFile,
-                      std::vector<std::string>& makefile_depends,
-                      bool useWatcomQuote);
+  void CreateLinkLibs(cmLinkLineComputer* linkLineComputer,
+                      std::string& linkLibs, bool useResponseFile,
+                      std::vector<std::string>& makefile_depends);
 
   /** Create lists of object files for linking and cleaning.  */
   void CreateObjectLists(bool useLinkScript, bool useArchiveRules,
@@ -161,15 +165,11 @@ protected:
                          bool useWatcomQuote);
 
   /** Add commands for generate def files */
-  void GenDefFile(std::vector<std::string>& real_link_commands,
-                  std::string& linkFlags);
+  void GenDefFile(std::vector<std::string>& real_link_commands);
 
-  void AddIncludeFlags(std::string& flags,
-                       const std::string& lang) CM_OVERRIDE;
+  void AddIncludeFlags(std::string& flags, const std::string& lang) override;
 
   virtual void CloseFileStreams();
-  void RemoveForbiddenFlags(const char* flagVar, const std::string& linkLang,
-                            std::string& linkFlags);
   cmLocalUnixMakefileGenerator3* LocalGenerator;
   cmGlobalUnixMakefileGenerator3* GlobalGenerator;
 

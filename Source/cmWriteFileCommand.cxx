@@ -2,11 +2,13 @@
    file Copyright.txt or https://cmake.org/licensing for details.  */
 #include "cmWriteFileCommand.h"
 
-#include <cmsys/FStream.hxx>
+#include "cmsys/FStream.hxx"
 
-#include <sys/types.h>
-// include sys/stat.h after sys/types.h
-#include <sys/stat.h>
+#include "cmMakefile.h"
+#include "cmSystemTools.h"
+#include "cm_sys_stat.h"
+
+class cmExecutionStatus;
 
 // cmLibraryCommand
 bool cmWriteFileCommand::InitialPass(std::vector<std::string> const& args,
@@ -19,7 +21,7 @@ bool cmWriteFileCommand::InitialPass(std::vector<std::string> const& args,
   std::string message;
   std::vector<std::string>::const_iterator i = args.begin();
 
-  std::string fileName = *i;
+  std::string const& fileName = *i;
   bool overwrite = true;
   i++;
 
@@ -60,7 +62,7 @@ bool cmWriteFileCommand::InitialPass(std::vector<std::string> const& args,
                        overwrite ? std::ios::out : std::ios::app);
   if (!file) {
     std::string error = "Internal CMake error when trying to open file: ";
-    error += fileName.c_str();
+    error += fileName;
     error += " for writing.";
     this->SetError(error);
     return false;

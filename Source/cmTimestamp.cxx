@@ -2,18 +2,26 @@
    file Copyright.txt or https://cmake.org/licensing for details.  */
 #include "cmTimestamp.h"
 
-#include <cstdlib>
 #include <cstring>
 #include <sstream>
+#include <stdlib.h>
 
-#include <sys/types.h>
-// include sys/stat.h after sys/types.h
-#include <sys/stat.h>
+#include "cmSystemTools.h"
 
 std::string cmTimestamp::CurrentTime(const std::string& formatString,
                                      bool utcFlag)
 {
-  time_t currentTimeT = time(CM_NULLPTR);
+  time_t currentTimeT = time(nullptr);
+  std::string source_date_epoch;
+  cmSystemTools::GetEnv("SOURCE_DATE_EPOCH", source_date_epoch);
+  if (!source_date_epoch.empty()) {
+    std::istringstream iss(source_date_epoch);
+    iss >> currentTimeT;
+    if (iss.fail() || !iss.eof()) {
+      cmSystemTools::Error("Cannot parse SOURCE_DATE_EPOCH as integer");
+      exit(27);
+    }
+  }
   if (currentTimeT == time_t(-1)) {
     return std::string();
   }
@@ -47,14 +55,14 @@ std::string cmTimestamp::CreateTimestampFromTimeT(time_t timeT,
   struct tm timeStruct;
   memset(&timeStruct, 0, sizeof(timeStruct));
 
-  struct tm* ptr = (struct tm*)CM_NULLPTR;
+  struct tm* ptr = nullptr;
   if (utcFlag) {
     ptr = gmtime(&timeT);
   } else {
     ptr = localtime(&timeT);
   }
 
-  if (ptr == CM_NULLPTR) {
+  if (ptr == nullptr) {
     return std::string();
   }
 
@@ -84,7 +92,7 @@ time_t cmTimestamp::CreateUtcTimeTFromTm(struct tm& tm) const
 #else
   // From Linux timegm() manpage.
 
-  std::string tz_old = "";
+  std::string tz_old;
   cmSystemTools::GetEnv("TZ", tz_old);
   tz_old = "TZ=" + tz_old;
 
@@ -115,7 +123,9 @@ std::string cmTimestamp::AddTimestampComponent(char flag,
 
   switch (flag) {
     case 'a':
+    case 'A':
     case 'b':
+    case 'B':
     case 'd':
     case 'H':
     case 'I':
@@ -127,6 +137,7 @@ std::string cmTimestamp::AddTimestampComponent(char flag,
     case 'w':
     case 'y':
     case 'Y':
+    case '%':
       break;
     case 's': // Seconds since UNIX epoch (midnight 1-jan-1970)
     {

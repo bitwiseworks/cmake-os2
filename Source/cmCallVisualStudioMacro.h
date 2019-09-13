@@ -3,9 +3,9 @@
 #ifndef cmCallVisualStudioMacro_h
 #define cmCallVisualStudioMacro_h
 
-#include <cmConfigure.h>
+#include "cmConfigure.h" // IWYU pragma: keep
 
-#include "cmStandardIncludes.h"
+#include <string>
 
 /** \class cmCallVisualStudioMacro
  * \brief Control class for communicating with CMake's Visual Studio macros

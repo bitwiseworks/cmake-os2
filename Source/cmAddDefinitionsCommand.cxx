@@ -2,6 +2,10 @@
    file Copyright.txt or https://cmake.org/licensing for details.  */
 #include "cmAddDefinitionsCommand.h"
 
+#include "cmMakefile.h"
+
+class cmExecutionStatus;
+
 // cmAddDefinitionsCommand
 bool cmAddDefinitionsCommand::InitialPass(std::vector<std::string> const& args,
                                           cmExecutionStatus&)
@@ -11,9 +15,8 @@ bool cmAddDefinitionsCommand::InitialPass(std::vector<std::string> const& args,
     return true;
   }
 
-  for (std::vector<std::string>::const_iterator i = args.begin();
-       i != args.end(); ++i) {
-    this->Makefile->AddDefineFlag(i->c_str());
+  for (std::string const& i : args) {
+    this->Makefile->AddDefineFlag(i.c_str());
   }
   return true;
 }

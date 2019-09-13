@@ -3,26 +3,26 @@
 #ifndef cmGetTestPropertyCommand_h
 #define cmGetTestPropertyCommand_h
 
+#include "cmConfigure.h" // IWYU pragma: keep
+
+#include <string>
+#include <vector>
+
 #include "cmCommand.h"
+
+class cmExecutionStatus;
 
 class cmGetTestPropertyCommand : public cmCommand
 {
 public:
-  cmCommand* Clone() CM_OVERRIDE { return new cmGetTestPropertyCommand; }
+  cmCommand* Clone() override { return new cmGetTestPropertyCommand; }
 
   /**
    * This is called when the command is first encountered in
    * the input file.
    */
   bool InitialPass(std::vector<std::string> const& args,
-                   cmExecutionStatus& status) CM_OVERRIDE;
-
-  /**
-   * The name of the command as specified in CMakeList.txt.
-   */
-  std::string GetName() const CM_OVERRIDE { return "get_test_property"; }
-
-  cmTypeMacro(cmGetTestPropertyCommand, cmCommand);
+                   cmExecutionStatus& status) override;
 };
 
 #endif

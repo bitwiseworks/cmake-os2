@@ -8,7 +8,7 @@
 #include "cmVisualStudio10TargetGenerator.h"
 #include "cmXMLParser.h"
 
-#include <cm_expat.h>
+#include "cm_expat.h"
 
 class cmVS10XMLParser : public cmXMLParser
 {
@@ -17,7 +17,12 @@ public:
   virtual void CharacterDataHandler(const char* data, int length)
   {
     if (this->DoGUID) {
-      this->GUID.assign(data + 1, length - 2);
+      if (data[0] == '{') {
+        // remove surrounding curly brackets
+        this->GUID.assign(data + 1, length - 2);
+      } else {
+        this->GUID.assign(data, length);
+      }
       this->DoGUID = false;
     }
   }
@@ -60,10 +65,10 @@ cmLocalVisualStudio10Generator::~cmLocalVisualStudio10Generator()
 void cmLocalVisualStudio10Generator::Generate()
 {
 
-  std::vector<cmGeneratorTarget*> tgts = this->GetGeneratorTargets();
-  for (std::vector<cmGeneratorTarget*>::iterator l = tgts.begin();
+  const std::vector<cmGeneratorTarget*>& tgts = this->GetGeneratorTargets();
+  for (std::vector<cmGeneratorTarget*>::const_iterator l = tgts.begin();
        l != tgts.end(); ++l) {
-    if ((*l)->GetType() == cmState::INTERFACE_LIBRARY) {
+    if ((*l)->GetType() == cmStateEnums::INTERFACE_LIBRARY) {
       continue;
     }
     if (static_cast<cmGlobalVisualStudioGenerator*>(this->GlobalGenerator)
@@ -95,7 +100,7 @@ void cmLocalVisualStudio10Generator::ReadAndStoreExternalGUID(
   // save the GUID in the cache
   this->GlobalGenerator->GetCMakeInstance()->AddCacheEntry(
     guidStoreName.c_str(), parser.GUID.c_str(), "Stored GUID",
-    cmState::INTERNAL);
+    cmStateEnums::INTERNAL);
 }
 
 const char* cmLocalVisualStudio10Generator::ReportErrorLabel() const

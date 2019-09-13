@@ -3,7 +3,14 @@
 #ifndef cmAddDefinitionsCommand_h
 #define cmAddDefinitionsCommand_h
 
+#include "cmConfigure.h" // IWYU pragma: keep
+
+#include <string>
+#include <vector>
+
 #include "cmCommand.h"
+
+class cmExecutionStatus;
 
 /** \class cmAddDefinitionsCommand
  * \brief Specify a list of compiler defines
@@ -17,21 +24,14 @@ public:
   /**
    * This is a virtual constructor for the command.
    */
-  cmCommand* Clone() CM_OVERRIDE { return new cmAddDefinitionsCommand; }
+  cmCommand* Clone() override { return new cmAddDefinitionsCommand; }
 
   /**
    * This is called when the command is first encountered in
    * the CMakeLists.txt file.
    */
   bool InitialPass(std::vector<std::string> const& args,
-                   cmExecutionStatus& status) CM_OVERRIDE;
-
-  /**
-   * The name of the command as specified in CMakeList.txt.
-   */
-  std::string GetName() const CM_OVERRIDE { return "add_definitions"; }
-
-  cmTypeMacro(cmAddDefinitionsCommand, cmCommand);
+                   cmExecutionStatus& status) override;
 };
 
 #endif

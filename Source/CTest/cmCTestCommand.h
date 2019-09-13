@@ -20,14 +20,12 @@ class cmCTestCommand : public cmCommand
 public:
   cmCTestCommand()
   {
-    this->CTest = CM_NULLPTR;
-    this->CTestScriptHandler = CM_NULLPTR;
+    this->CTest = nullptr;
+    this->CTestScriptHandler = nullptr;
   }
 
   cmCTest* CTest;
   cmCTestScriptHandler* CTestScriptHandler;
-
-  cmTypeMacro(cmCTestCommand, cmCommand);
 };
 
 #endif

@@ -3,7 +3,7 @@
 #ifndef cmCustomCommand_h
 #define cmCustomCommand_h
 
-#include <cmConfigure.h> // IWYU pragma: keep
+#include "cmConfigure.h" // IWYU pragma: keep
 
 #include "cmCustomCommandLines.h"
 #include "cmListFileCache.h"
@@ -85,6 +85,10 @@ public:
   bool GetUsesTerminal() const;
   void SetUsesTerminal(bool b);
 
+  /** Set/Get whether lists in command lines should be expanded. */
+  bool GetCommandExpandLists() const;
+  void SetCommandExpandLists(bool b);
+
   /** Set/Get the depfile (used by the Ninja generator) */
   const std::string& GetDepfile() const;
   void SetDepfile(const std::string& depfile);
@@ -103,6 +107,7 @@ private:
   bool EscapeAllowMakeVars;
   bool EscapeOldStyle;
   bool UsesTerminal;
+  bool CommandExpandLists;
 };
 
 #endif

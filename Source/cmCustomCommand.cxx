@@ -4,8 +4,6 @@
 
 #include "cmMakefile.h"
 
-#include <cmConfigure.h>
-
 cmCustomCommand::cmCustomCommand()
   : Backtrace()
 {
@@ -13,6 +11,7 @@ cmCustomCommand::cmCustomCommand()
   this->EscapeOldStyle = true;
   this->EscapeAllowMakeVars = false;
   this->UsesTerminal = false;
+  this->CommandExpandLists = false;
 }
 
 cmCustomCommand::cmCustomCommand(cmMakefile const* mf,
@@ -29,9 +28,10 @@ cmCustomCommand::cmCustomCommand(cmMakefile const* mf,
   , Backtrace()
   , Comment(comment ? comment : "")
   , WorkingDirectory(workingDirectory ? workingDirectory : "")
-  , HaveComment(comment != CM_NULLPTR)
+  , HaveComment(comment != nullptr)
   , EscapeAllowMakeVars(false)
   , EscapeOldStyle(true)
+  , CommandExpandLists(false)
 {
   if (mf) {
     this->Backtrace = mf->GetBacktrace();
@@ -60,7 +60,7 @@ const cmCustomCommandLines& cmCustomCommand::GetCommandLines() const
 
 const char* cmCustomCommand::GetComment() const
 {
-  const char* no_comment = CM_NULLPTR;
+  const char* no_comment = nullptr;
   return this->HaveComment ? this->Comment.c_str() : no_comment;
 }
 
@@ -125,6 +125,16 @@ bool cmCustomCommand::GetUsesTerminal() const
 void cmCustomCommand::SetUsesTerminal(bool b)
 {
   this->UsesTerminal = b;
+}
+
+bool cmCustomCommand::GetCommandExpandLists() const
+{
+  return this->CommandExpandLists;
+}
+
+void cmCustomCommand::SetCommandExpandLists(bool b)
+{
+  this->CommandExpandLists = b;
 }
 
 const std::string& cmCustomCommand::GetDepfile() const

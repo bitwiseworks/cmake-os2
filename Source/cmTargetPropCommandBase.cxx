@@ -3,6 +3,10 @@
 #include "cmTargetPropCommandBase.h"
 
 #include "cmGlobalGenerator.h"
+#include "cmMakefile.h"
+#include "cmStateTypes.h"
+#include "cmTarget.h"
+#include "cmake.h"
 
 bool cmTargetPropCommandBase::HandleArguments(
   std::vector<std::string> const& args, const std::string& prop,
@@ -28,12 +32,12 @@ bool cmTargetPropCommandBase::HandleArguments(
     this->HandleMissingTarget(args[0]);
     return false;
   }
-  if ((this->Target->GetType() != cmState::SHARED_LIBRARY) &&
-      (this->Target->GetType() != cmState::STATIC_LIBRARY) &&
-      (this->Target->GetType() != cmState::OBJECT_LIBRARY) &&
-      (this->Target->GetType() != cmState::MODULE_LIBRARY) &&
-      (this->Target->GetType() != cmState::INTERFACE_LIBRARY) &&
-      (this->Target->GetType() != cmState::EXECUTABLE)) {
+  if ((this->Target->GetType() != cmStateEnums::SHARED_LIBRARY) &&
+      (this->Target->GetType() != cmStateEnums::STATIC_LIBRARY) &&
+      (this->Target->GetType() != cmStateEnums::OBJECT_LIBRARY) &&
+      (this->Target->GetType() != cmStateEnums::MODULE_LIBRARY) &&
+      (this->Target->GetType() != cmStateEnums::INTERFACE_LIBRARY) &&
+      (this->Target->GetType() != cmStateEnums::EXECUTABLE)) {
     this->SetError("called with non-compilable target type");
     return false;
   }
@@ -74,7 +78,7 @@ bool cmTargetPropCommandBase::ProcessContentArgs(
   std::vector<std::string> const& args, unsigned int& argIndex, bool prepend,
   bool system)
 {
-  const std::string scope = args[argIndex];
+  std::string const& scope = args[argIndex];
 
   if (scope != "PUBLIC" && scope != "PRIVATE" && scope != "INTERFACE") {
     this->SetError("called with invalid arguments");
@@ -86,7 +90,7 @@ bool cmTargetPropCommandBase::ProcessContentArgs(
     return false;
   }
 
-  if (this->Target->GetType() == cmState::INTERFACE_LIBRARY &&
+  if (this->Target->GetType() == cmStateEnums::INTERFACE_LIBRARY &&
       scope != "INTERFACE") {
     this->SetError("may only be set INTERFACE properties on INTERFACE "
                    "targets");

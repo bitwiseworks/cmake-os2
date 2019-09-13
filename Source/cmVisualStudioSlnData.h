@@ -3,9 +3,11 @@
 #ifndef cmVisualStudioSlnData_h
 #define cmVisualStudioSlnData_h
 
-#include <cmConfigure.h>
+#include "cmConfigure.h" // IWYU pragma: keep
 
-#include "cmStandardIncludes.h"
+#include <map>
+#include <string>
+#include <vector>
 
 class cmSlnProjectEntry
 {

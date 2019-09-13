@@ -79,6 +79,7 @@ static cmVS7FlagTable cmVS141CLFlagTable[] = {
   { "FloatingPointModel", "fp:strict", "Strict", "Strict", 0 },
   { "FloatingPointModel", "fp:fast", "Fast", "Fast", 0 },
 
+  { "LanguageStandard", "std:c++17", "ISO C++17 Standard", "stdcpp17", 0 },
   { "LanguageStandard", "std:c++14", "ISO C++14 Standard", "stdcpp14", 0 },
   { "LanguageStandard", "std:c++latest", "ISO C++ Latest Draft Standard",
     "stdcpplatest", 0 },
@@ -87,7 +88,8 @@ static cmVS7FlagTable cmVS141CLFlagTable[] = {
     cmVS7FlagTable::UserValueIgnored | cmVS7FlagTable::Continue },
   { "PrecompiledHeader", "Yu", "Use", "Use",
     cmVS7FlagTable::UserValueIgnored | cmVS7FlagTable::Continue },
-  { "PrecompiledHeader", "", "Not Using Precompiled Headers", "NotUsing", 0 },
+  { "PrecompiledHeader", "Y-", "Not Using Precompiled Headers", "NotUsing",
+    0 },
 
   { "AssemblerOutput", "", "No Listing", "NoListing", 0 },
   { "AssemblerOutput", "FA", "Assembly-Only Listing", "AssemblyCode", 0 },
@@ -171,6 +173,7 @@ static cmVS7FlagTable cmVS141CLFlagTable[] = {
   { "TreatWChar_tAsBuiltInType", "Zc:wchar_t", "", "true", 0 },
   { "ForceConformanceInForLoopScope", "Zc:forScope-", "", "false", 0 },
   { "ForceConformanceInForLoopScope", "Zc:forScope", "", "true", 0 },
+  { "RemoveUnreferencedCodeData", "Zc:inline-", "", "false", 0 },
   { "RemoveUnreferencedCodeData", "Zc:inline", "", "true", 0 },
   { "EnforceTypeConversionRules", "Zc:rvalueCast-", "", "false", 0 },
   { "EnforceTypeConversionRules", "Zc:rvalueCast", "", "true", 0 },

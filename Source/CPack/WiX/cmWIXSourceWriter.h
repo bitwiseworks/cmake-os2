@@ -3,9 +3,9 @@
 #ifndef cmWIXSourceWriter_h
 #define cmWIXSourceWriter_h
 
-#include <CPack/cmCPackLog.h>
+#include "cmCPackLog.h"
 
-#include <cmsys/FStream.hxx>
+#include "cmsys/FStream.hxx"
 
 #include <string>
 #include <vector>
@@ -49,8 +49,6 @@ public:
                                std::string const& value);
 
   std::string CreateGuidFromComponentId(std::string const& componentId);
-
-  static std::string CMakeEncodingToUtf8(std::string const& value);
 
 protected:
   cmCPackLog* Logger;

@@ -16,8 +16,11 @@ Properties of Global Scope
    :maxdepth: 1
 
    /prop_gbl/ALLOW_DUPLICATE_CUSTOM_TARGETS
+   /prop_gbl/AUTOGEN_SOURCE_GROUP
    /prop_gbl/AUTOGEN_TARGETS_FOLDER
+   /prop_gbl/AUTOMOC_SOURCE_GROUP
    /prop_gbl/AUTOMOC_TARGETS_FOLDER
+   /prop_gbl/AUTORCC_SOURCE_GROUP
    /prop_gbl/CMAKE_C_KNOWN_FEATURES
    /prop_gbl/CMAKE_CXX_KNOWN_FEATURES
    /prop_gbl/DEBUG_CONFIGURATIONS
@@ -26,7 +29,9 @@ Properties of Global Scope
    /prop_gbl/ENABLED_LANGUAGES
    /prop_gbl/FIND_LIBRARY_USE_LIB32_PATHS
    /prop_gbl/FIND_LIBRARY_USE_LIB64_PATHS
+   /prop_gbl/FIND_LIBRARY_USE_LIBX32_PATHS
    /prop_gbl/FIND_LIBRARY_USE_OPENBSD_VERSIONING
+   /prop_gbl/GENERATOR_IS_MULTI_CONFIG
    /prop_gbl/GLOBAL_DEPENDS_DEBUG_MODE
    /prop_gbl/GLOBAL_DEPENDS_NO_CYCLES
    /prop_gbl/IN_TRY_COMPILE
@@ -44,6 +49,7 @@ Properties of Global Scope
    /prop_gbl/TARGET_MESSAGES
    /prop_gbl/TARGET_SUPPORTS_SHARED_LIBS
    /prop_gbl/USE_FOLDERS
+   /prop_gbl/XCODE_EMIT_EFFECTIVE_PLATFORM_NAME
 
 .. _`Directory Properties`:
 
@@ -68,6 +74,7 @@ Properties on Directories
    /prop_dir/INCLUDE_REGULAR_EXPRESSION
    /prop_dir/INTERPROCEDURAL_OPTIMIZATION_CONFIG
    /prop_dir/INTERPROCEDURAL_OPTIMIZATION
+   /prop_dir/LABELS
    /prop_dir/LINK_DIRECTORIES
    /prop_dir/LISTFILE_STACK
    /prop_dir/MACROS
@@ -77,7 +84,7 @@ Properties on Directories
    /prop_dir/RULE_LAUNCH_LINK
    /prop_dir/SOURCE_DIR
    /prop_dir/SUBDIRECTORIES
-   /prop_dir/TEST_INCLUDE_FILE
+   /prop_dir/TEST_INCLUDE_FILES
    /prop_dir/VARIABLES
    /prop_dir/VS_GLOBAL_SECTION_POST_section
    /prop_dir/VS_GLOBAL_SECTION_PRE_section
@@ -113,14 +120,21 @@ Properties on Targets
    /prop_tgt/ARCHIVE_OUTPUT_DIRECTORY
    /prop_tgt/ARCHIVE_OUTPUT_NAME_CONFIG
    /prop_tgt/ARCHIVE_OUTPUT_NAME
+   /prop_tgt/AUTOGEN_BUILD_DIR
    /prop_tgt/AUTOGEN_TARGET_DEPENDS
+   /prop_tgt/AUTOMOC_COMPILER_PREDEFINES
+   /prop_tgt/AUTOMOC_DEPEND_FILTERS
+   /prop_tgt/AUTOMOC_MACRO_NAMES
    /prop_tgt/AUTOMOC_MOC_OPTIONS
    /prop_tgt/AUTOMOC
    /prop_tgt/AUTOUIC
    /prop_tgt/AUTOUIC_OPTIONS
+   /prop_tgt/AUTOUIC_SEARCH_PATHS
    /prop_tgt/AUTORCC
    /prop_tgt/AUTORCC_OPTIONS
    /prop_tgt/BINARY_DIR
+   /prop_tgt/BUILD_RPATH
+   /prop_tgt/BUILD_WITH_INSTALL_NAME_DIR
    /prop_tgt/BUILD_WITH_INSTALL_RPATH
    /prop_tgt/BUNDLE_EXTENSION
    /prop_tgt/BUNDLE
@@ -142,6 +156,12 @@ Properties on Targets
    /prop_tgt/CONFIG_OUTPUT_NAME
    /prop_tgt/CONFIG_POSTFIX
    /prop_tgt/CROSSCOMPILING_EMULATOR
+   /prop_tgt/CUDA_PTX_COMPILATION
+   /prop_tgt/CUDA_SEPARABLE_COMPILATION
+   /prop_tgt/CUDA_RESOLVE_DEVICE_SYMBOLS
+   /prop_tgt/CUDA_EXTENSIONS
+   /prop_tgt/CUDA_STANDARD
+   /prop_tgt/CUDA_STANDARD_REQUIRED
    /prop_tgt/CXX_EXTENSIONS
    /prop_tgt/CXX_STANDARD
    /prop_tgt/CXX_STANDARD_REQUIRED
@@ -166,6 +186,8 @@ Properties on Targets
    /prop_tgt/IMPORTED_CONFIGURATIONS
    /prop_tgt/IMPORTED_IMPLIB_CONFIG
    /prop_tgt/IMPORTED_IMPLIB
+   /prop_tgt/IMPORTED_LIBNAME_CONFIG
+   /prop_tgt/IMPORTED_LIBNAME
    /prop_tgt/IMPORTED_LINK_DEPENDENT_LIBRARIES_CONFIG
    /prop_tgt/IMPORTED_LINK_DEPENDENT_LIBRARIES
    /prop_tgt/IMPORTED_LINK_INTERFACE_LANGUAGES_CONFIG
@@ -178,6 +200,8 @@ Properties on Targets
    /prop_tgt/IMPORTED_LOCATION
    /prop_tgt/IMPORTED_NO_SONAME_CONFIG
    /prop_tgt/IMPORTED_NO_SONAME
+   /prop_tgt/IMPORTED_OBJECTS_CONFIG
+   /prop_tgt/IMPORTED_OBJECTS
    /prop_tgt/IMPORTED
    /prop_tgt/IMPORTED_SONAME_CONFIG
    /prop_tgt/IMPORTED_SONAME
@@ -204,6 +228,8 @@ Properties on Targets
    /prop_tgt/LABELS
    /prop_tgt/LANG_CLANG_TIDY
    /prop_tgt/LANG_COMPILER_LAUNCHER
+   /prop_tgt/LANG_CPPCHECK
+   /prop_tgt/LANG_CPPLINT
    /prop_tgt/LANG_INCLUDE_WHAT_YOU_USE
    /prop_tgt/LANG_VISIBILITY_PRESET
    /prop_tgt/LIBRARY_OUTPUT_DIRECTORY_CONFIG
@@ -229,6 +255,7 @@ Properties on Targets
    /prop_tgt/MACOSX_BUNDLE
    /prop_tgt/MACOSX_FRAMEWORK_INFO_PLIST
    /prop_tgt/MACOSX_RPATH
+   /prop_tgt/MANUALLY_ADDED_DEPENDENCIES
    /prop_tgt/MAP_IMPORTED_CONFIG_CONFIG
    /prop_tgt/NAME
    /prop_tgt/NO_SONAME
@@ -265,8 +292,12 @@ Properties on Targets
    /prop_tgt/VERSION
    /prop_tgt/VISIBILITY_INLINES_HIDDEN
    /prop_tgt/VS_CONFIGURATION_TYPE
+   /prop_tgt/VS_DEBUGGER_WORKING_DIRECTORY
    /prop_tgt/VS_DESKTOP_EXTENSIONS_VERSION
+   /prop_tgt/VS_DOTNET_REFERENCE_refname
+   /prop_tgt/VS_DOTNET_REFERENCEPROP_refname_TAG_tagname
    /prop_tgt/VS_DOTNET_REFERENCES
+   /prop_tgt/VS_DOTNET_REFERENCES_COPY_LOCAL
    /prop_tgt/VS_DOTNET_TARGET_FRAMEWORK_VERSION
    /prop_tgt/VS_GLOBAL_KEYWORD
    /prop_tgt/VS_GLOBAL_PROJECT_TYPES
@@ -281,6 +312,7 @@ Properties on Targets
    /prop_tgt/VS_SCC_PROJECTNAME
    /prop_tgt/VS_SCC_PROVIDER
    /prop_tgt/VS_SDK_REFERENCES
+   /prop_tgt/VS_USER_PROPS
    /prop_tgt/VS_WINDOWS_TARGET_PLATFORM_MIN_VERSION
    /prop_tgt/VS_WINRT_COMPONENT
    /prop_tgt/VS_WINRT_EXTENSIONS
@@ -288,6 +320,8 @@ Properties on Targets
    /prop_tgt/WIN32_EXECUTABLE
    /prop_tgt/WINDOWS_EXPORT_ALL_SYMBOLS
    /prop_tgt/XCODE_ATTRIBUTE_an-attribute
+   /prop_tgt/XCODE_EXPLICIT_FILE_TYPE
+   /prop_tgt/XCODE_PRODUCT_TYPE
    /prop_tgt/XCTEST
 
 .. _`Test Properties`:
@@ -302,6 +336,7 @@ Properties on Tests
    /prop_test/ATTACHED_FILES
    /prop_test/COST
    /prop_test/DEPENDS
+   /prop_test/DISABLED
    /prop_test/ENVIRONMENT
    /prop_test/FAIL_REGULAR_EXPRESSION
    /prop_test/FIXTURES_CLEANUP
@@ -344,13 +379,23 @@ Properties on Source Files
    /prop_sf/MACOSX_PACKAGE_LOCATION
    /prop_sf/OBJECT_DEPENDS
    /prop_sf/OBJECT_OUTPUTS
+   /prop_sf/SKIP_AUTOGEN
+   /prop_sf/SKIP_AUTOMOC
+   /prop_sf/SKIP_AUTORCC
+   /prop_sf/SKIP_AUTOUIC
    /prop_sf/SYMBOLIC
+   /prop_sf/VS_COPY_TO_OUT_DIR
+   /prop_sf/VS_CSHARP_tagname
    /prop_sf/VS_DEPLOYMENT_CONTENT
    /prop_sf/VS_DEPLOYMENT_LOCATION
+   /prop_sf/VS_INCLUDE_IN_VSIX
+   /prop_sf/VS_RESOURCE_GENERATOR
    /prop_sf/VS_SHADER_ENTRYPOINT
    /prop_sf/VS_SHADER_FLAGS
    /prop_sf/VS_SHADER_MODEL
+   /prop_sf/VS_SHADER_OUTPUT_HEADER_FILE
    /prop_sf/VS_SHADER_TYPE
+   /prop_sf/VS_SHADER_VARIABLE_NAME
    /prop_sf/VS_TOOL_OVERRIDE.rst
    /prop_sf/VS_XAML_TYPE
    /prop_sf/WRAP_EXCLUDE
@@ -396,6 +441,7 @@ Deprecated Properties on Directories
    :maxdepth: 1
 
    /prop_dir/COMPILE_DEFINITIONS_CONFIG
+   /prop_dir/TEST_INCLUDE_FILE
 
 
 Deprecated Properties on Targets

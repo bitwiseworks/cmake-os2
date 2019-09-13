@@ -2,10 +2,14 @@
    file Copyright.txt or https://cmake.org/licensing for details.  */
 #include "cmGetCMakePropertyCommand.h"
 
+#include <set>
+
 #include "cmAlgorithms.h"
 #include "cmGlobalGenerator.h"
+#include "cmMakefile.h"
 #include "cmState.h"
-#include "cmake.h"
+
+class cmExecutionStatus;
 
 // cmGetCMakePropertyCommand
 bool cmGetCMakePropertyCommand::InitialPass(
@@ -16,7 +20,7 @@ bool cmGetCMakePropertyCommand::InitialPass(
     return false;
   }
 
-  std::string variable = args[0];
+  std::string const& variable = args[0];
   std::string output = "NOTFOUND";
 
   if (args[1] == "VARIABLES") {
@@ -33,7 +37,7 @@ bool cmGetCMakePropertyCommand::InitialPass(
       this->Makefile->GetGlobalGenerator()->GetInstallComponents();
     output = cmJoin(*components, ";");
   } else {
-    const char* prop = CM_NULLPTR;
+    const char* prop = nullptr;
     if (!args[1].empty()) {
       prop = this->Makefile->GetState()->GetGlobalProperty(args[1]);
     }

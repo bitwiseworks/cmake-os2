@@ -2,6 +2,18 @@
    file Copyright.txt or https://cmake.org/licensing for details.  */
 #include "cmAddExecutableCommand.h"
 
+#include <sstream>
+
+#include "cmGeneratorExpression.h"
+#include "cmGlobalGenerator.h"
+#include "cmMakefile.h"
+#include "cmPolicies.h"
+#include "cmStateTypes.h"
+#include "cmTarget.h"
+#include "cmake.h"
+
+class cmExecutionStatus;
+
 // cmExecutableCommand
 bool cmAddExecutableCommand::InitialPass(std::vector<std::string> const& args,
                                          cmExecutionStatus&)
@@ -12,7 +24,7 @@ bool cmAddExecutableCommand::InitialPass(std::vector<std::string> const& args,
   }
   std::vector<std::string>::const_iterator s = args.begin();
 
-  std::string exename = *s;
+  std::string const& exename = *s;
 
   ++s;
   bool use_win32 = false;
@@ -49,7 +61,7 @@ bool cmAddExecutableCommand::InitialPass(std::vector<std::string> const& args,
     !cmGlobalGenerator::IsReservedTarget(exename);
 
   if (nameOk && !importTarget && !isAlias) {
-    nameOk = exename.find(":") == std::string::npos;
+    nameOk = exename.find(':') == std::string::npos;
   }
   if (!nameOk) {
     cmake::MessageType messageType = cmake::AUTHOR_WARNING;
@@ -133,8 +145,8 @@ bool cmAddExecutableCommand::InitialPass(std::vector<std::string> const& args,
       this->SetError(e.str());
       return false;
     }
-    cmState::TargetType type = aliasedTarget->GetType();
-    if (type != cmState::EXECUTABLE) {
+    cmStateEnums::TargetType type = aliasedTarget->GetType();
+    if (type != cmStateEnums::EXECUTABLE) {
       std::ostringstream e;
       e << "cannot create ALIAS target \"" << exename << "\" because target \""
         << aliasedName << "\" is not an "
@@ -165,7 +177,7 @@ bool cmAddExecutableCommand::InitialPass(std::vector<std::string> const& args,
     }
 
     // Create the imported target.
-    this->Makefile->AddImportedTarget(exename, cmState::EXECUTABLE,
+    this->Makefile->AddImportedTarget(exename, cmStateEnums::EXECUTABLE,
                                       importGlobal);
     return true;
   }

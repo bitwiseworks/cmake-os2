@@ -2,13 +2,13 @@
    file Copyright.txt or https://cmake.org/licensing for details.  */
 #include "cmProcess.h"
 
-#include <cmConfigure.h>
-#include <cmSystemTools.h>
+#include "cmProcessOutput.h"
+#include "cmSystemTools.h"
 #include <iostream>
 
 cmProcess::cmProcess()
 {
-  this->Process = CM_NULLPTR;
+  this->Process = nullptr;
   this->Timeout = 0;
   this->TotalTime = 0;
   this->ExitValue = 0;
@@ -40,11 +40,10 @@ bool cmProcess::StartProcess()
   // put the command as arg0
   this->ProcessArgs.push_back(this->Command.c_str());
   // now put the command arguments in
-  for (std::vector<std::string>::iterator i = this->Arguments.begin();
-       i != this->Arguments.end(); ++i) {
-    this->ProcessArgs.push_back(i->c_str());
+  for (std::string const& arg : this->Arguments) {
+    this->ProcessArgs.push_back(arg.c_str());
   }
-  this->ProcessArgs.push_back(CM_NULLPTR); // null terminate the list
+  this->ProcessArgs.push_back(nullptr); // null terminate the list
   this->Process = cmsysProcess_New();
   cmsysProcess_SetCommand(this->Process, &*this->ProcessArgs.begin());
   if (!this->WorkingDirectory.empty()) {
@@ -104,6 +103,8 @@ bool cmProcess::Buffer::GetLast(std::string& line)
 
 int cmProcess::GetNextOutputLine(std::string& line, double timeout)
 {
+  cmProcessOutput processOutput(cmProcessOutput::UTF8);
+  std::string strdata;
   for (;;) {
     // Look for lines already buffered.
     if (this->Output.GetLine(line)) {
@@ -118,11 +119,16 @@ int cmProcess::GetNextOutputLine(std::string& line, double timeout)
       return cmsysProcess_Pipe_Timeout;
     }
     if (p == cmsysProcess_Pipe_STDOUT) {
-      this->Output.insert(this->Output.end(), data, data + length);
+      processOutput.DecodeText(data, length, strdata);
+      this->Output.insert(this->Output.end(), strdata.begin(), strdata.end());
     } else { // p == cmsysProcess_Pipe_None
       // The process will provide no more data.
       break;
     }
+  }
+  processOutput.DecodeText(std::string(), strdata);
+  if (!strdata.empty()) {
+    this->Output.insert(this->Output.end(), strdata.begin(), strdata.end());
   }
 
   // Look for partial last lines.
@@ -225,9 +231,15 @@ void cmProcess::ChangeTimeout(double t)
 void cmProcess::ResetStartTime()
 {
   cmsysProcess_ResetStartTime(this->Process);
+  this->StartTime = cmSystemTools::GetTime();
 }
 
 int cmProcess::GetExitException()
 {
   return cmsysProcess_GetExitException(this->Process);
+}
+
+std::string cmProcess::GetExitExceptionString()
+{
+  return cmsysProcess_GetExceptionString(this->Process);
 }

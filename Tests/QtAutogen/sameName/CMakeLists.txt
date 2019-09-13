@@ -16,6 +16,19 @@ add_executable(sameName
   data.qrc
   main.cpp
 )
-target_include_directories(sameName PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
 target_link_libraries(sameName ${QT_LIBRARIES})
-set_target_properties( sameName PROPERTIES AUTOMOC TRUE AUTORCC TRUE )
+set_target_properties(sameName PROPERTIES
+  AUTOMOC TRUE
+  AUTOUIC TRUE
+  AUTORCC TRUE)
+
+# Set different compression levels
+if (QT_TEST_VERSION STREQUAL 4)
+  set(rccCompress "-compress")
+else()
+  set(rccCompress "--compress")
+endif()
+set_target_properties(sameName PROPERTIES AUTORCC_OPTIONS "${rccCompress};0" )
+set_source_files_properties(aaa/data.qrc PROPERTIES AUTORCC_OPTIONS "${rccCompress};1" )
+set_source_files_properties(bbb/data.qrc PROPERTIES AUTORCC_OPTIONS "${rccCompress};2" )
+set_source_files_properties(ccc/data.qrc PROPERTIES AUTORCC_OPTIONS "${rccCompress};3" )

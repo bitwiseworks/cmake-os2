@@ -1,5 +1,5 @@
 
-cmake_minimum_required(VERSION 2.8.12)
+cmake_minimum_required(VERSION 3.7)
 
 project(QtAutoUicInterface)
 
@@ -21,7 +21,6 @@ else()
 endif()
 
 set(CMAKE_INCLUDE_CURRENT_DIR_IN_INTERFACE ON)
-set(CMAKE_INCLUDE_CURRENT_DIR ON)
 set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTOUIC ON)
 
@@ -54,6 +53,13 @@ set_property(TARGET KI18n APPEND PROPERTY
 
 # END upstream
 
+get_property(_GENERATOR_IS_MULTI_CONFIG GLOBAL PROPERTY GENERATOR_IS_MULTI_CONFIG)
+if(_GENERATOR_IS_MULTI_CONFIG)
+set(INC_DIR "include_$<CONFIG>" )
+else()
+set(INC_DIR "include" )
+endif()
+
 add_library(LibWidget libwidget.cpp)
 target_link_libraries(LibWidget KI18n ${QT_GUI_TARGET})
 set_property(TARGET LibWidget PROPERTY NO_KUIT_SEMANTIC ON)
@@ -65,6 +71,6 @@ target_link_libraries(MyWidget KI18n ${QT_GUI_TARGET})
 add_executable(QtAutoUicInterface main.cpp)
 target_compile_definitions(QtAutoUicInterface
   PRIVATE
-    UI_LIBWIDGET_H="${CMAKE_CURRENT_BINARY_DIR}/ui_libwidget.h"
-    UI_MYWIDGET_H="${CMAKE_CURRENT_BINARY_DIR}/ui_mywidget.h"
+    UI_LIBWIDGET_H="${CMAKE_CURRENT_BINARY_DIR}/LibWidget_autogen/${INC_DIR}/ui_libwidget.h"
+    UI_MYWIDGET_H="${CMAKE_CURRENT_BINARY_DIR}/MyWidget_autogen/${INC_DIR}/ui_mywidget.h"
 )

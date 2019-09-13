@@ -2,6 +2,16 @@
    file Copyright.txt or https://cmake.org/licensing for details.  */
 #include "cmIncludeCommand.h"
 
+#include <sstream>
+
+#include "cmGlobalGenerator.h"
+#include "cmMakefile.h"
+#include "cmPolicies.h"
+#include "cmSystemTools.h"
+#include "cmake.h"
+
+class cmExecutionStatus;
+
 // cmIncludeCommand
 bool cmIncludeCommand::InitialPass(std::vector<std::string> const& args,
                                    cmExecutionStatus&)
@@ -59,7 +69,7 @@ bool cmIncludeCommand::InitialPass(std::vector<std::string> const& args,
     module += ".cmake";
     std::string mfile = this->Makefile->GetModulesFile(module.c_str());
     if (!mfile.empty()) {
-      fname = mfile.c_str();
+      fname = mfile;
     }
   }
 
@@ -68,7 +78,7 @@ bool cmIncludeCommand::InitialPass(std::vector<std::string> const& args,
 
   cmGlobalGenerator* gg = this->Makefile->GetGlobalGenerator();
   if (gg->IsExportedTargetsFile(fname_abs)) {
-    const char* modal = CM_NULLPTR;
+    const char* modal = nullptr;
     std::ostringstream e;
     cmake::MessageType messageType = cmake::AUTHOR_WARNING;
 
@@ -101,7 +111,7 @@ bool cmIncludeCommand::InitialPass(std::vector<std::string> const& args,
   }
 
   std::string listFile = cmSystemTools::CollapseFullPath(
-    fname.c_str(), this->Makefile->GetCurrentSourceDirectory());
+    fname, this->Makefile->GetCurrentSourceDirectory());
   if (optional && !cmSystemTools::FileExists(listFile.c_str())) {
     if (!resultVarName.empty()) {
       this->Makefile->AddDefinition(resultVarName, "NOTFOUND");

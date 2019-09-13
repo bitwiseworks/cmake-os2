@@ -2,7 +2,13 @@
    file Copyright.txt or https://cmake.org/licensing for details.  */
 #include "cmAddDependenciesCommand.h"
 
-#include "cmGlobalGenerator.h"
+#include <sstream>
+
+#include "cmMakefile.h"
+#include "cmTarget.h"
+#include "cmake.h"
+
+class cmExecutionStatus;
 
 // cmDependenciesCommand
 bool cmAddDependenciesCommand::InitialPass(
@@ -13,7 +19,7 @@ bool cmAddDependenciesCommand::InitialPass(
     return false;
   }
 
-  std::string target_name = args[0];
+  std::string const& target_name = args[0];
   if (this->Makefile->IsAlias(target_name)) {
     std::ostringstream e;
     e << "Cannot add target-level dependencies to alias target \""

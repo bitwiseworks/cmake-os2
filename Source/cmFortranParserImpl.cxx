@@ -1,11 +1,9 @@
 /* Distributed under the OSI-approved BSD 3-Clause License.  See accompanying
    file Copyright.txt or https://cmake.org/licensing for details.  */
 #include "cmFortranParser.h"
-#include "cmFortranLexer.h"
 #include "cmSystemTools.h"
 
 #include <assert.h>
-#include <cmConfigure.h>
 #include <set>
 #include <stack>
 #include <stdio.h>
@@ -32,9 +30,8 @@ bool cmFortranParser_s::FindIncludeFile(const char* dir,
   }
 
   // Search the include path for the file.
-  for (std::vector<std::string>::const_iterator i = this->IncludePath.begin();
-       i != this->IncludePath.end(); ++i) {
-    fullName = *i;
+  for (std::string const& i : this->IncludePath) {
+    fullName = i;
     fullName += "/";
     fullName += includeName;
     if (cmSystemTools::FileExists(fullName.c_str(), true)) {
@@ -52,7 +49,7 @@ cmFortranParser_s::cmFortranParser_s(std::vector<std::string> const& includes,
   , PPDefinitions(defines)
   , Info(info)
 {
-  this->InInterface = 0;
+  this->InInterface = false;
   this->InPPFalseBranch = 0;
 
   // Initialize the lexical scanner.
@@ -62,7 +59,7 @@ cmFortranParser_s::cmFortranParser_s(std::vector<std::string> const& includes,
   // Create a dummy buffer that is never read but is the fallback
   // buffer when the last file is popped off the stack.
   YY_BUFFER_STATE buffer =
-    cmFortran_yy_create_buffer(CM_NULLPTR, 4, this->Scanner);
+    cmFortran_yy_create_buffer(nullptr, 4, this->Scanner);
   cmFortran_yy_switch_to_buffer(buffer, this->Scanner);
 }
 
@@ -80,12 +77,12 @@ bool cmFortranParser_FilePush(cmFortranParser* parser, const char* fname)
     std::string dir = cmSystemTools::GetParentDirectory(fname);
     cmFortranFile f(file, current, dir);
     YY_BUFFER_STATE buffer =
-      cmFortran_yy_create_buffer(CM_NULLPTR, 16384, parser->Scanner);
+      cmFortran_yy_create_buffer(nullptr, 16384, parser->Scanner);
     cmFortran_yy_switch_to_buffer(buffer, parser->Scanner);
     parser->FileStack.push(f);
-    return 1;
+    return true;
   }
-  return 0;
+  return false;
 }
 
 bool cmFortranParser_FilePop(cmFortranParser* parser)
@@ -93,7 +90,7 @@ bool cmFortranParser_FilePop(cmFortranParser* parser)
   // Pop one file off the stack and close it.  Switch the lexer back
   // to the next one on the stack.
   if (parser->FileStack.empty()) {
-    return 0;
+    return false;
   }
   cmFortranFile f = parser->FileStack.top();
   parser->FileStack.pop();
@@ -101,7 +98,7 @@ bool cmFortranParser_FilePop(cmFortranParser* parser)
   YY_BUFFER_STATE current = cmFortranLexer_GetCurrentBuffer(parser->Scanner);
   cmFortran_yy_delete_buffer(current, parser->Scanner);
   cmFortran_yy_switch_to_buffer(f.Buffer, parser->Scanner);
-  return 1;
+  return true;
 }
 
 int cmFortranParser_Input(cmFortranParser* parser, char* buffer,
@@ -122,14 +119,14 @@ int cmFortranParser_Input(cmFortranParser* parser, char* buffer,
       n = 1;
       ff.LastCharWasNewline = true;
     }
-    return (int)n;
+    return static_cast<int>(n);
   }
   return 0;
 }
 
 void cmFortranParser_StringStart(cmFortranParser* parser)
 {
-  parser->TokenString = "";
+  parser->TokenString.clear();
 }
 
 const char* cmFortranParser_StringEnd(cmFortranParser* parser)

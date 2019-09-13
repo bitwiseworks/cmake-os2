@@ -3,7 +3,12 @@
 #ifndef cmCPackBundleGenerator_h
 #define cmCPackBundleGenerator_h
 
+#include "cmConfigure.h" // IWYU pragma: keep
+
+#include <string>
+
 #include "cmCPackDragNDropGenerator.h"
+#include "cmCPackGenerator.h"
 
 /** \class cmCPackBundleGenerator
  * \brief A generator for OSX bundles
@@ -16,15 +21,15 @@ public:
   cmCPackTypeMacro(cmCPackBundleGenerator, cmCPackDragNDropGenerator);
 
   cmCPackBundleGenerator();
-  virtual ~cmCPackBundleGenerator();
+  ~cmCPackBundleGenerator() override;
 
 protected:
-  int InitializeInternal() CM_OVERRIDE;
-  const char* GetPackagingInstallPrefix() CM_OVERRIDE;
+  int InitializeInternal() override;
+  const char* GetPackagingInstallPrefix() override;
   int ConstructBundle();
   int SignBundle(const std::string& src_dir);
-  int PackageFiles() CM_OVERRIDE;
-  bool SupportsComponentInstallation() const CM_OVERRIDE;
+  int PackageFiles() override;
+  bool SupportsComponentInstallation() const override;
 
   std::string InstallPrefix;
 };

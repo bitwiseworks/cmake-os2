@@ -3,32 +3,27 @@
 #ifndef cmSetSourceFilesPropertiesCommand_h
 #define cmSetSourceFilesPropertiesCommand_h
 
+#include "cmConfigure.h" // IWYU pragma: keep
+
+#include <string>
+#include <vector>
+
 #include "cmCommand.h"
+
+class cmExecutionStatus;
+class cmMakefile;
 
 class cmSetSourceFilesPropertiesCommand : public cmCommand
 {
 public:
-  cmCommand* Clone() CM_OVERRIDE
-  {
-    return new cmSetSourceFilesPropertiesCommand;
-  }
+  cmCommand* Clone() override { return new cmSetSourceFilesPropertiesCommand; }
 
   /**
    * This is called when the command is first encountered in
    * the input file.
    */
   bool InitialPass(std::vector<std::string> const& args,
-                   cmExecutionStatus& status) CM_OVERRIDE;
-
-  /**
-   * The name of the command as specified in CMakeList.txt.
-   */
-  std::string GetName() const CM_OVERRIDE
-  {
-    return "set_source_files_properties";
-  }
-
-  cmTypeMacro(cmSetSourceFilesPropertiesCommand, cmCommand);
+                   cmExecutionStatus& status) override;
 
   static bool RunCommand(cmMakefile* mf,
                          std::vector<std::string>::const_iterator filebeg,

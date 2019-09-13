@@ -4,6 +4,7 @@
 #define cmGlobalVisualStudio10Generator_h
 
 #include "cmGlobalVisualStudio8Generator.h"
+#include "cmVisualStudio10ToolsetOptions.h"
 
 /** \class cmGlobalVisualStudio10Generator
  * \brief Write a Unix makefiles.
@@ -41,12 +42,29 @@ public:
                               cmMakefile*, bool optional);
   virtual void WriteSLNHeader(std::ostream& fout);
 
+  bool IsCudaEnabled() const { return this->CudaEnabled; }
+
   /** Generating for Nsight Tegra VS plugin?  */
   bool IsNsightTegra() const;
   std::string GetNsightTegraVersion() const;
 
   /** The toolset name for the target platform.  */
   const char* GetPlatformToolset() const;
+  std::string const& GetPlatformToolsetString() const;
+
+  /** The toolset host architecture name (e.g. x64 for 64-bit host tools).  */
+  const char* GetPlatformToolsetHostArchitecture() const;
+
+  /** The cuda toolset version.  */
+  const char* GetPlatformToolsetCuda() const;
+  std::string const& GetPlatformToolsetCudaString() const;
+
+  /** Return whether we need to use No/Debug instead of false/true
+      for GenerateDebugInformation.  */
+  bool GetPlatformToolsetNeedsDebugEnum() const
+  {
+    return this->PlatformToolsetNeedsDebugEnum;
+  }
 
   /** Return the CMAKE_SYSTEM_NAME.  */
   std::string const& GetSystemName() const { return this->SystemName; }
@@ -80,9 +98,19 @@ public:
 
   virtual const char* GetToolsVersion() { return "4.0"; }
 
-  virtual void FindMakeProgram(cmMakefile*);
+  bool FindMakeProgram(cmMakefile* mf) override;
 
   static std::string GetInstalledNsightTegraVersion();
+
+  cmIDEFlagTable const* GetClFlagTable() const;
+  cmIDEFlagTable const* GetCSharpFlagTable() const;
+  cmIDEFlagTable const* GetRcFlagTable() const;
+  cmIDEFlagTable const* GetLibFlagTable() const;
+  cmIDEFlagTable const* GetLinkFlagTable() const;
+  cmIDEFlagTable const* GetCudaFlagTable() const;
+  cmIDEFlagTable const* GetCudaHostFlagTable() const;
+  cmIDEFlagTable const* GetMasmFlagTable() const;
+  cmIDEFlagTable const* GetNasmFlagTable() const;
 
 protected:
   virtual void Generate();
@@ -91,6 +119,9 @@ protected:
   virtual bool InitializeWindowsCE(cmMakefile* mf);
   virtual bool InitializeWindowsPhone(cmMakefile* mf);
   virtual bool InitializeWindowsStore(cmMakefile* mf);
+
+  virtual bool ProcessGeneratorToolsetField(std::string const& key,
+                                            std::string const& value);
 
   virtual std::string SelectWindowsCEToolset() const;
   virtual bool SelectWindowsPhoneToolset(std::string& toolset) const;
@@ -101,11 +132,22 @@ protected:
   std::string const& GetMSBuildCommand();
 
   std::string GeneratorToolset;
+  std::string GeneratorToolsetHostArchitecture;
+  std::string GeneratorToolsetCuda;
   std::string DefaultPlatformToolset;
   std::string WindowsTargetPlatformVersion;
   std::string SystemName;
   std::string SystemVersion;
   std::string NsightTegraVersion;
+  cmIDEFlagTable const* DefaultClFlagTable;
+  cmIDEFlagTable const* DefaultCSharpFlagTable;
+  cmIDEFlagTable const* DefaultLibFlagTable;
+  cmIDEFlagTable const* DefaultLinkFlagTable;
+  cmIDEFlagTable const* DefaultCudaFlagTable;
+  cmIDEFlagTable const* DefaultCudaHostFlagTable;
+  cmIDEFlagTable const* DefaultMasmFlagTable;
+  cmIDEFlagTable const* DefaultNasmFlagTable;
+  cmIDEFlagTable const* DefaultRcFlagTable;
   bool SystemIsWindowsCE;
   bool SystemIsWindowsPhone;
   bool SystemIsWindowsStore;
@@ -129,9 +171,19 @@ private:
 
   std::string MSBuildCommand;
   bool MSBuildCommandInitialized;
+  cmVisualStudio10ToolsetOptions ToolsetOptions;
   virtual std::string FindMSBuildCommand();
   virtual std::string FindDevEnvCommand();
   virtual std::string GetVSMakeProgram() { return this->GetMSBuildCommand(); }
+
+  bool PlatformToolsetNeedsDebugEnum;
+
+  bool ParseGeneratorToolset(std::string const& ts, cmMakefile* mf);
+
+  std::string VCTargetsPath;
+  bool FindVCTargetsPath(cmMakefile* mf);
+
+  bool CudaEnabled;
 
   // We do not use the reload macros for VS >= 10.
   virtual std::string GetUserMacrosDirectory() { return ""; }

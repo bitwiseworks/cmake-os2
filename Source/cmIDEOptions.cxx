@@ -2,9 +2,12 @@
    file Copyright.txt or https://cmake.org/licensing for details.  */
 #include "cmIDEOptions.h"
 
-#include "cmSystemTools.h"
+#include "cmsys/String.h"
+#include <iterator>
+#include <string.h>
 
-#include <cmsys/String.h>
+#include "cmIDEFlagTable.h"
+#include "cmSystemTools.h"
 
 cmIDEOptions::cmIDEOptions()
 {
@@ -122,6 +125,8 @@ void cmIDEOptions::FlagMapUpdate(cmIDEFlagTable const* entry,
     this->FlagMap[entry->IDEName] = entry->value;
   } else if (entry->special & cmIDEFlagTable::SemicolonAppendable) {
     this->FlagMap[entry->IDEName].push_back(new_value);
+  } else if (entry->special & cmIDEFlagTable::SpaceAppendable) {
+    this->FlagMap[entry->IDEName].append_with_space(new_value);
   } else {
     // Use the user-specified value.
     this->FlagMap[entry->IDEName] = new_value;
@@ -143,6 +148,11 @@ void cmIDEOptions::AddDefines(const char* defines)
 void cmIDEOptions::AddDefines(const std::vector<std::string>& defines)
 {
   this->Defines.insert(this->Defines.end(), defines.begin(), defines.end());
+}
+
+std::vector<std::string> const& cmIDEOptions::GetDefines() const
+{
+  return this->Defines;
 }
 
 void cmIDEOptions::AddFlag(const char* flag, const char* value)
@@ -167,6 +177,12 @@ void cmIDEOptions::AppendFlag(std::string const& flag,
 {
   FlagValue& fv = this->FlagMap[flag];
   std::copy(value.begin(), value.end(), std::back_inserter(fv));
+}
+
+void cmIDEOptions::AppendFlagString(std::string const& flag,
+                                    std::string const& value)
+{
+  this->FlagMap[flag].append_with_space(value);
 }
 
 void cmIDEOptions::RemoveFlag(const char* flag)

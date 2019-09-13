@@ -3,9 +3,10 @@
 #ifndef cmGeneratedFileStream_h
 #define cmGeneratedFileStream_h
 
-#include <cmConfigure.h>
+#include "cmConfigure.h" // IWYU pragma: keep
 
-#include <cmsys/FStream.hxx>
+#include "cm_codecvt.hxx"
+#include "cmsys/FStream.hxx"
 #include <string>
 
 // This is the first base class of cmGeneratedFileStream.  It will be
@@ -71,12 +72,13 @@ class cmGeneratedFileStream : private cmGeneratedFileStreamBase,
 {
 public:
   typedef cmsys::ofstream Stream;
+  typedef codecvt::Encoding Encoding;
 
   /**
    * This constructor prepares a default stream.  The open method must
    * be used before writing to the stream.
    */
-  cmGeneratedFileStream();
+  cmGeneratedFileStream(Encoding encoding = codecvt::None);
 
   /**
    * This constructor takes the name of the file to be generated.  It
@@ -84,14 +86,15 @@ public:
    * file cannot be opened an error message is produced unless the
    * second argument is set to true.
    */
-  cmGeneratedFileStream(const char* name, bool quiet = false);
+  cmGeneratedFileStream(const char* name, bool quiet = false,
+                        Encoding encoding = codecvt::None);
 
   /**
    * The destructor checks the stream status to be sure the temporary
    * file was successfully written before allowing the original to be
    * replaced.
    */
-  ~cmGeneratedFileStream() CM_OVERRIDE;
+  ~cmGeneratedFileStream() override;
 
   /**
    * Open an output file by name.  This should be used only with a

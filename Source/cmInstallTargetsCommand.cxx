@@ -2,6 +2,15 @@
    file Copyright.txt or https://cmake.org/licensing for details.  */
 #include "cmInstallTargetsCommand.h"
 
+#include <unordered_map>
+#include <utility>
+
+#include "cmGlobalGenerator.h"
+#include "cmMakefile.h"
+#include "cmTarget.h"
+
+class cmExecutionStatus;
+
 // cmExecutableCommand
 bool cmInstallTargetsCommand::InitialPass(std::vector<std::string> const& args,
                                           cmExecutionStatus&)

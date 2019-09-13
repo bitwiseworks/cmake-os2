@@ -2,21 +2,30 @@
    file Copyright.txt or https://cmake.org/licensing for details.  */
 #include "cmGeneratedFileStream.h"
 
-#include "cmSystemTools.h"
-
 #include <stdio.h>
 
+#include "cmSystemTools.h"
+
 #if defined(CMAKE_BUILD_WITH_CMAKE)
-#include <cm_zlib.h>
+#include "cm_codecvt.hxx"
+#include "cm_zlib.h"
 #endif
 
-cmGeneratedFileStream::cmGeneratedFileStream()
+cmGeneratedFileStream::cmGeneratedFileStream(Encoding encoding)
   : cmGeneratedFileStreamBase()
   , Stream()
 {
+#ifdef CMAKE_BUILD_WITH_CMAKE
+  if (encoding != codecvt::None) {
+    imbue(std::locale(getloc(), new codecvt(encoding)));
+  }
+#else
+  static_cast<void>(encoding);
+#endif
 }
 
-cmGeneratedFileStream::cmGeneratedFileStream(const char* name, bool quiet)
+cmGeneratedFileStream::cmGeneratedFileStream(const char* name, bool quiet,
+                                             Encoding encoding)
   : cmGeneratedFileStreamBase(name)
   , Stream(TempName.c_str())
 {
@@ -26,6 +35,13 @@ cmGeneratedFileStream::cmGeneratedFileStream(const char* name, bool quiet)
                          this->TempName.c_str());
     cmSystemTools::ReportLastSystemError("");
   }
+#ifdef CMAKE_BUILD_WITH_CMAKE
+  if (encoding != codecvt::None) {
+    imbue(std::locale(getloc(), new codecvt(encoding)));
+  }
+#else
+  static_cast<void>(encoding);
+#endif
 }
 
 cmGeneratedFileStream::~cmGeneratedFileStream()

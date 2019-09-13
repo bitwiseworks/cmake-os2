@@ -2,7 +2,15 @@
    file Copyright.txt or https://cmake.org/licensing for details.  */
 #include "cmFLTKWrapUICommand.h"
 
+#include <stddef.h>
+
+#include "cmCustomCommandLines.h"
+#include "cmMakefile.h"
 #include "cmSourceFile.h"
+#include "cmSystemTools.h"
+
+class cmExecutionStatus;
+class cmTarget;
 
 // cmFLTKWrapUICommand
 bool cmFLTKWrapUICommand::InitialPass(std::vector<std::string> const& args,
@@ -63,9 +71,9 @@ bool cmFLTKWrapUICommand::InitialPass(std::vector<std::string> const& args,
       commandLines.push_back(commandLine);
 
       // Add command for generating the .h and .cxx files
-      std::string no_main_dependency = "";
-      const char* no_comment = CM_NULLPTR;
-      const char* no_working_dir = CM_NULLPTR;
+      std::string no_main_dependency;
+      const char* no_comment = nullptr;
+      const char* no_working_dir = nullptr;
       this->Makefile->AddCustomCommandToOutput(
         cxxres, depends, no_main_dependency, commandLines, no_comment,
         no_working_dir);
@@ -74,8 +82,8 @@ bool cmFLTKWrapUICommand::InitialPass(std::vector<std::string> const& args,
         no_working_dir);
 
       cmSourceFile* sf = this->Makefile->GetSource(cxxres);
-      sf->AddDepend(hname.c_str());
-      sf->AddDepend(origname.c_str());
+      sf->AddDepend(hname);
+      sf->AddDepend(origname);
       this->GeneratedSourcesClasses.push_back(sf);
     }
   }

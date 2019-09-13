@@ -3,10 +3,7 @@
 #ifndef cmCPackLog_h
 #define cmCPackLog_h
 
-#include <cmConfigure.h>
-
-#include "cmObject.h"
-#include "cmTypeMacro.h"
+#include "cmConfigure.h" // IWYU pragma: keep
 
 #include <ostream>
 #include <string.h>
@@ -17,29 +14,17 @@
     std::ostringstream cmCPackLog_msg;                                        \
     cmCPackLog_msg << msg;                                                    \
     (ctSelf)->Log(logType, __FILE__, __LINE__, cmCPackLog_msg.str().c_str()); \
-  } while (0)
-
-#ifdef cerr
-#undef cerr
-#endif
-#define cerr no_cerr_use_cmCPack_Log
-
-#ifdef cout
-#undef cout
-#endif
-#define cout no_cout_use_cmCPack_Log
+  } while (false)
 
 /** \class cmCPackLog
  * \brief A container for CPack generators
  *
  */
-class cmCPackLog : public cmObject
+class cmCPackLog
 {
 public:
-  cmTypeMacro(cmCPackLog, cmObject);
-
   cmCPackLog();
-  ~cmCPackLog() CM_OVERRIDE;
+  ~cmCPackLog();
 
   enum __log_tags
   {
@@ -100,12 +85,12 @@ public:
 
   //! Set the various prefixes for the logging. SetPrefix sets the generic
   // prefix that overwrittes missing ones.
-  void SetPrefix(std::string pfx) { this->Prefix = pfx; }
-  void SetOutputPrefix(std::string pfx) { this->OutputPrefix = pfx; }
-  void SetVerbosePrefix(std::string pfx) { this->VerbosePrefix = pfx; }
-  void SetDebugPrefix(std::string pfx) { this->DebugPrefix = pfx; }
-  void SetWarningPrefix(std::string pfx) { this->WarningPrefix = pfx; }
-  void SetErrorPrefix(std::string pfx) { this->ErrorPrefix = pfx; }
+  void SetPrefix(std::string const& pfx) { this->Prefix = pfx; }
+  void SetOutputPrefix(std::string const& pfx) { this->OutputPrefix = pfx; }
+  void SetVerbosePrefix(std::string const& pfx) { this->VerbosePrefix = pfx; }
+  void SetDebugPrefix(std::string const& pfx) { this->DebugPrefix = pfx; }
+  void SetWarningPrefix(std::string const& pfx) { this->WarningPrefix = pfx; }
+  void SetErrorPrefix(std::string const& pfx) { this->ErrorPrefix = pfx; }
 
 private:
   bool Verbose;

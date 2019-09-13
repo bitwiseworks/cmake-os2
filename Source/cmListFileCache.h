@@ -3,13 +3,13 @@
 #ifndef cmListFileCache_h
 #define cmListFileCache_h
 
-#include <cmConfigure.h> // IWYU pragma: keep
+#include "cmConfigure.h" // IWYU pragma: keep
 
 #include <iosfwd>
 #include <string>
 #include <vector>
 
-#include "cmState.h"
+#include "cmStateSnapshot.h"
 
 /** \class cmListFileCache
  * \brief A class to cache list file contents.
@@ -43,12 +43,6 @@ struct cmListFileArgument
     : Value()
     , Delim(Unquoted)
     , Line(0)
-  {
-  }
-  cmListFileArgument(const cmListFileArgument& r)
-    : Value(r.Value)
-    , Delim(r.Delim)
-    , Line(r.Line)
   {
   }
   cmListFileArgument(const std::string& v, Delimiter d, long line)
@@ -113,12 +107,14 @@ public:
 
   // Construct an empty backtrace whose bottom sits in the directory
   // indicated by the given valid snapshot.
-  cmListFileBacktrace(cmState::Snapshot snapshot);
+  cmListFileBacktrace(cmStateSnapshot const& snapshot);
 
   // Backtraces may be copied and assigned as values.
   cmListFileBacktrace(cmListFileBacktrace const& r);
   cmListFileBacktrace& operator=(cmListFileBacktrace const& r);
   ~cmListFileBacktrace();
+
+  cmStateSnapshot GetBottom() const { return this->Bottom; }
 
   // Get a backtrace with the given file scope added to the top.
   // May not be called until after construction with a valid snapshot.
@@ -145,11 +141,11 @@ public:
 private:
   struct Entry;
 
-  cmState::Snapshot Bottom;
+  cmStateSnapshot Bottom;
   Entry* Cur;
-  cmListFileBacktrace(cmState::Snapshot bottom, Entry* up,
+  cmListFileBacktrace(cmStateSnapshot const& bottom, Entry* up,
                       cmListFileContext const& lfc);
-  cmListFileBacktrace(cmState::Snapshot bottom, Entry* cur);
+  cmListFileBacktrace(cmStateSnapshot const& bottom, Entry* cur);
 };
 
 struct cmListFile

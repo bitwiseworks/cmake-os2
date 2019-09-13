@@ -48,6 +48,19 @@ from sphinx.roles import XRefRole
 from sphinx.util.nodes import make_refnode
 from sphinx import addnodes
 
+# Needed for checking if Sphinx version is >= 1.4.
+# See https://github.com/sphinx-doc/sphinx/issues/2673
+old_sphinx = False
+
+try:
+    from sphinx import version_info
+    if version_info < (1, 4):
+        old_sphinx = True
+except ImportError:
+    # The `sphinx.version_info` tuple was added in Sphinx v1.2:
+    old_sphinx = True
+
+
 class CMakeModule(Directive):
     required_arguments = 1
     optional_arguments = 0
@@ -123,7 +136,11 @@ class _cmake_index_entry:
         self.desc = desc
 
     def __call__(self, title, targetid, main = 'main'):
-        return ('pair', u'%s ; %s' % (self.desc, title), targetid, main)
+        # See https://github.com/sphinx-doc/sphinx/issues/2673
+        if old_sphinx:
+            return ('pair', u'%s ; %s' % (self.desc, title), targetid, main)
+        else:
+            return ('pair', u'%s ; %s' % (self.desc, title), targetid, main, None)
 
 _cmake_index_objs = {
     'command':    _cmake_index_entry('command'),

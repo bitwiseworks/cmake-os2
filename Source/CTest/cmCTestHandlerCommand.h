@@ -3,10 +3,9 @@
 #ifndef cmCTestHandlerCommand_h
 #define cmCTestHandlerCommand_h
 
-#include <cmConfigure.h>
+#include "cmConfigure.h" // IWYU pragma: keep
 
 #include "cmCTestCommand.h"
-#include "cmTypeMacro.h"
 
 #include <stddef.h>
 #include <string>
@@ -26,13 +25,16 @@ public:
   cmCTestHandlerCommand();
 
   /**
+   * The name of the command as specified in CMakeList.txt.
+   */
+  virtual std::string GetName() const = 0;
+
+  /**
    * This is called when the command is first encountered in
    * the CMakeLists.txt file.
    */
   bool InitialPass(std::vector<std::string> const& args,
-                   cmExecutionStatus& status) CM_OVERRIDE;
-
-  cmTypeMacro(cmCTestHandlerCommand, cmCTestCommand);
+                   cmExecutionStatus& status) override;
 
   enum
   {
@@ -47,6 +49,8 @@ public:
 
 protected:
   virtual cmCTestGenericHandler* InitializeHandler() = 0;
+
+  virtual void ProcessAdditionalValues(cmCTestGenericHandler* handler);
 
   // Command argument handling.
   virtual bool CheckArgumentKeyword(std::string const& arg);

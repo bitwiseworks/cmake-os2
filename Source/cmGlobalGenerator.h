@@ -3,37 +3,38 @@
 #ifndef cmGlobalGenerator_h
 #define cmGlobalGenerator_h
 
-#include <cmConfigure.h>
-
-#include "cmExportSetMap.h"
-#include "cmState.h"
-#include "cmSystemTools.h"
-#include "cmTarget.h"
-#include "cmTargetDepend.h"
+#include "cmConfigure.h" // IWYU pragma: keep
 
 #include <iosfwd>
 #include <map>
 #include <set>
 #include <string>
+#include <unordered_map>
 #include <utility>
 #include <vector>
 
+#include "cmCustomCommandLines.h"
+#include "cmExportSetMap.h"
+#include "cmQtAutoGenDigest.h"
+#include "cmStateSnapshot.h"
+#include "cmSystemTools.h"
+#include "cmTarget.h"
+#include "cmTargetDepend.h"
+#include "cm_codecvt.hxx"
+
 #if defined(CMAKE_BUILD_WITH_CMAKE)
 #include "cmFileLockPool.h"
-#ifdef CMake_HAVE_CXX_UNORDERED_MAP
-#include <unordered_map>
-#else
-#include <cmsys/hash_map.hxx>
-#endif
 #endif
 
-class cmCustomCommandLines;
-class cmSourceFile;
 class cmExportBuildFileGenerator;
 class cmExternalMakefileProjectGenerator;
 class cmGeneratorTarget;
+class cmLinkLineComputer;
 class cmLocalGenerator;
 class cmMakefile;
+class cmOutputConverter;
+class cmSourceFile;
+class cmStateDirectory;
 class cmake;
 
 /** \class cmGlobalGenerator
@@ -58,6 +59,12 @@ public:
   virtual bool MatchesGeneratorName(const std::string& name) const
   {
     return this->GetName() == name;
+  }
+
+  /** Get encoding used by generator for makefile files */
+  virtual codecvt::Encoding GetMakefileEncoding() const
+  {
+    return codecvt::None;
   }
 
   /** Tell the generator about the target system.  */
@@ -97,6 +104,14 @@ public:
    * requests that they Generate.
    */
   virtual void Generate();
+
+  virtual cmLinkLineComputer* CreateLinkLineComputer(
+    cmOutputConverter* outputConverter,
+    cmStateDirectory const& stateDir) const;
+
+  cmLinkLineComputer* CreateMSVC60LinkLineComputer(
+    cmOutputConverter* outputConverter,
+    cmStateDirectory const& stateDir) const;
 
   /**
    * Set/Get and Clear the enabled languages.
@@ -173,9 +188,15 @@ public:
     return this->LocalGenerators;
   }
 
-  cmMakefile* GetCurrentMakefile() const { return this->CurrentMakefile; }
+  cmMakefile* GetCurrentMakefile() const
+  {
+    return this->CurrentConfigureMakefile;
+  }
 
-  void SetCurrentMakefile(cmMakefile* mf) { this->CurrentMakefile = mf; }
+  void SetCurrentMakefile(cmMakefile* mf)
+  {
+    this->CurrentConfigureMakefile = mf;
+  }
 
   void AddMakefile(cmMakefile* mf);
 
@@ -234,7 +255,7 @@ public:
   /*
    * Determine what program to use for building the project.
    */
-  virtual void FindMakeProgram(cmMakefile*);
+  virtual bool FindMakeProgram(cmMakefile*);
 
   ///! Find a target by name by searching the local generators.
   cmTarget* FindTarget(const std::string& name,
@@ -275,15 +296,15 @@ public:
 
   virtual const char* GetAllTargetName() const { return "ALL_BUILD"; }
   virtual const char* GetInstallTargetName() const { return "INSTALL"; }
-  virtual const char* GetInstallLocalTargetName() const { return CM_NULLPTR; }
-  virtual const char* GetInstallStripTargetName() const { return CM_NULLPTR; }
-  virtual const char* GetPreinstallTargetName() const { return CM_NULLPTR; }
+  virtual const char* GetInstallLocalTargetName() const { return nullptr; }
+  virtual const char* GetInstallStripTargetName() const { return nullptr; }
+  virtual const char* GetPreinstallTargetName() const { return nullptr; }
   virtual const char* GetTestTargetName() const { return "RUN_TESTS"; }
   virtual const char* GetPackageTargetName() const { return "PACKAGE"; }
-  virtual const char* GetPackageSourceTargetName() const { return CM_NULLPTR; }
-  virtual const char* GetEditCacheTargetName() const { return CM_NULLPTR; }
-  virtual const char* GetRebuildCacheTargetName() const { return CM_NULLPTR; }
-  virtual const char* GetCleanTargetName() const { return CM_NULLPTR; }
+  virtual const char* GetPackageSourceTargetName() const { return nullptr; }
+  virtual const char* GetEditCacheTargetName() const { return nullptr; }
+  virtual const char* GetRebuildCacheTargetName() const { return nullptr; }
+  virtual const char* GetCleanTargetName() const { return nullptr; }
 
   // Lookup edit_cache target command preferred by this generator.
   virtual std::string GetEditCacheCommand() const { return ""; }
@@ -296,7 +317,7 @@ public:
   TargetDependSet const& GetTargetDirectDepends(
     const cmGeneratorTarget* target);
 
-  const std::map<std::string, std::vector<cmLocalGenerator*> >& GetProjectMap()
+  const std::map<std::string, std::vector<cmLocalGenerator*>>& GetProjectMap()
     const
   {
     return this->ProjectMap;
@@ -319,6 +340,23 @@ public:
       i.e. "Can I build Debug and Release in the same tree?" */
   virtual bool IsMultiConfig() const { return false; }
 
+  /** Return true if we know the exact location of object files.
+      If false, store the reason in the given string.
+      This is meaningful only after EnableLanguage has been called.  */
+  virtual bool HasKnownObjectFileLocation(std::string*) const { return true; }
+
+  virtual bool UseFolderProperty() const;
+
+  virtual bool IsIPOSupported() const { return false; }
+
+  /** Return whether the generator should use EFFECTIVE_PLATFORM_NAME. This is
+      relevant for mixed macOS and iOS builds. */
+  virtual bool UseEffectivePlatformName(cmMakefile*) const { return false; }
+
+  /** Return whether the "Resources" folder prefix should be stripped from
+      MacFolder. */
+  virtual bool ShouldStripResourcePath(cmMakefile*) const;
+
   std::string GetSharedLibFlagsForLanguage(std::string const& lang) const;
 
   /** Generate an <output>.rule file path for a given command output.  */
@@ -339,6 +377,7 @@ public:
   cmExportBuildFileGenerator* GetExportedTargetsFile(
     const std::string& filename) const;
   void AddCMP0042WarnTarget(const std::string& target);
+  void AddCMP0068WarnTarget(const std::string& target);
 
   virtual void ComputeTargetObjectDirectory(cmGeneratorTarget* gt) const;
 
@@ -384,7 +423,8 @@ protected:
 
   virtual bool CheckALLOW_DUPLICATE_CUSTOM_TARGETS() const;
 
-  std::vector<const cmGeneratorTarget*> CreateQtAutoGeneratorsTargets();
+  // Qt auto generators
+  cmQtAutoGenDigestUPV CreateQtAutoGeneratorsTargets();
 
   std::string SelectMakeProgram(const std::string& makeProgram,
                                 const std::string& makeDefault = "") const;
@@ -393,8 +433,8 @@ protected:
   // has been populated.
   void FillProjectMap();
   void CheckTargetProperties();
-  bool IsExcluded(cmState::Snapshot const& root,
-                  cmState::Snapshot const& snp) const;
+  bool IsExcluded(cmStateSnapshot const& root,
+                  cmStateSnapshot const& snp) const;
   bool IsExcluded(cmLocalGenerator* root, cmLocalGenerator* gen) const;
   bool IsExcluded(cmLocalGenerator* root, cmGeneratorTarget* target) const;
   virtual void InitializeProgressMarks() {}
@@ -428,9 +468,9 @@ protected:
   cmake* CMakeInstance;
   std::vector<cmMakefile*> Makefiles;
   std::vector<cmLocalGenerator*> LocalGenerators;
-  cmMakefile* CurrentMakefile;
+  cmMakefile* CurrentConfigureMakefile;
   // map from project name to vector of local generators in that project
-  std::map<std::string, std::vector<cmLocalGenerator*> > ProjectMap;
+  std::map<std::string, std::vector<cmLocalGenerator*>> ProjectMap;
 
   // Set of named installation components requested by the project.
   std::set<std::string> InstallComponents;
@@ -448,25 +488,12 @@ protected:
     std::string const& name) const;
 
   const char* GetPredefinedTargetsFolder();
-  virtual bool UseFolderProperty();
 
 private:
-#if defined(CMAKE_BUILD_WITH_CMAKE)
-#ifdef CMake_HAVE_CXX_UNORDERED_MAP
   typedef std::unordered_map<std::string, cmTarget*> TargetMap;
   typedef std::unordered_map<std::string, cmGeneratorTarget*>
     GeneratorTargetMap;
   typedef std::unordered_map<std::string, cmMakefile*> MakefileMap;
-#else
-  typedef cmsys::hash_map<std::string, cmTarget*> TargetMap;
-  typedef cmsys::hash_map<std::string, cmGeneratorTarget*> GeneratorTargetMap;
-  typedef cmsys::hash_map<std::string, cmMakefile*> MakefileMap;
-#endif
-#else
-  typedef std::map<std::string, cmTarget*> TargetMap;
-  typedef std::map<std::string, cmGeneratorTarget*> GeneratorTargetMap;
-  typedef std::map<std::string, cmMakefile*> MakefileMap;
-#endif
   // Map efficiently from target name to cmTarget instance.
   // Do not use this structure for looping over all targets.
   // It contains both normal and globally visible imported targets.
@@ -532,7 +559,7 @@ private:
 
   void IndexMakefile(cmMakefile* mf);
 
-  virtual const char* GetBuildIgnoreErrorsFlag() const { return CM_NULLPTR; }
+  virtual const char* GetBuildIgnoreErrorsFlag() const { return nullptr; }
 
   // Cache directory content and target files to be built.
   struct DirectoryContent
@@ -544,12 +571,6 @@ private:
       : LastDiskTime(-1)
     {
     }
-    DirectoryContent(DirectoryContent const& dc)
-      : LastDiskTime(dc.LastDiskTime)
-      , All(dc.All)
-      , Generated(dc.Generated)
-    {
-    }
   };
   std::map<std::string, DirectoryContent> DirectoryContentMap;
 
@@ -558,8 +579,10 @@ private:
 
   // track targets to issue CMP0042 warning for.
   std::set<std::string> CMP0042WarnTargets;
+  // track targets to issue CMP0068 warning for.
+  std::set<std::string> CMP0068WarnTargets;
 
-  mutable std::map<cmSourceFile*, std::set<cmGeneratorTarget const*> >
+  mutable std::map<cmSourceFile*, std::set<cmGeneratorTarget const*>>
     FilenameTargetDepends;
 
 #if defined(CMAKE_BUILD_WITH_CMAKE)

@@ -3,7 +3,14 @@
 #ifndef cmSourceGroupCommand_h
 #define cmSourceGroupCommand_h
 
+#include "cmConfigure.h" // IWYU pragma: keep
+
+#include <string>
+#include <vector>
+
 #include "cmCommand.h"
+
+class cmExecutionStatus;
 
 /** \class cmSourceGroupCommand
  * \brief Adds a cmSourceGroup to the cmMakefile.
@@ -17,21 +24,20 @@ public:
   /**
    * This is a virtual constructor for the command.
    */
-  cmCommand* Clone() CM_OVERRIDE { return new cmSourceGroupCommand; }
+  cmCommand* Clone() override { return new cmSourceGroupCommand; }
 
   /**
    * This is called when the command is first encountered in
    * the CMakeLists.txt file.
    */
   bool InitialPass(std::vector<std::string> const& args,
-                   cmExecutionStatus& status) CM_OVERRIDE;
+                   cmExecutionStatus& status) override;
 
-  /**
-   * The name of the command as specified in CMakeList.txt.
-   */
-  std::string GetName() const CM_OVERRIDE { return "source_group"; }
-
-  cmTypeMacro(cmSourceGroupCommand, cmCommand);
+private:
+  bool processTree(const std::vector<std::string>& args,
+                   std::string& errorMsg);
+  bool checkTreeArgumentsPreconditions(const std::vector<std::string>& args,
+                                       std::string& errorMsg) const;
 };
 
 #endif

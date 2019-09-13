@@ -3,9 +3,14 @@
 #ifndef cmXCodeObject_h
 #define cmXCodeObject_h
 
-#include <cmConfigure.h>
+#include "cmConfigure.h" // IWYU pragma: keep
 
-#include "cmStandardIncludes.h"
+#include <algorithm>
+#include <iosfwd>
+#include <map>
+#include <string>
+#include <utility>
+#include <vector>
 
 class cmGeneratorTarget;
 
@@ -89,8 +94,8 @@ public:
   }
   static void Indent(int level, std::ostream& out);
   void Print(std::ostream& out);
-  void PrintAttribute(std::ostream& out, const int level,
-                      const std::string separator, const int factor,
+  void PrintAttribute(std::ostream& out, int level,
+                      const std::string& separator, int factor,
                       const std::string& name, const cmXCodeObject* object,
                       const cmXCodeObject* parent);
   virtual void PrintComment(std::ostream&) {}
@@ -109,19 +114,17 @@ public:
     if (i != this->ObjectAttributes.end()) {
       return i->second;
     }
-    return 0;
+    return nullptr;
   }
   // search the attribute list for an object of the specified type
   cmXCodeObject* GetObject(cmXCodeObject::PBXType t) const
   {
-    for (std::vector<cmXCodeObject*>::const_iterator i = this->List.begin();
-         i != this->List.end(); ++i) {
-      cmXCodeObject* o = *i;
+    for (auto o : this->List) {
       if (o->IsA == t) {
         return o;
       }
     }
-    return 0;
+    return nullptr;
   }
 
   void CopyAttributes(cmXCodeObject*);

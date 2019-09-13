@@ -2,6 +2,18 @@
    file Copyright.txt or https://cmake.org/licensing for details.  */
 #include "cmGetTargetPropertyCommand.h"
 
+#include <sstream>
+
+#include "cmListFileCache.h"
+#include "cmMakefile.h"
+#include "cmPolicies.h"
+#include "cmTarget.h"
+#include "cmTargetPropertyComputer.h"
+#include "cmake.h"
+
+class cmExecutionStatus;
+class cmMessenger;
+
 // cmSetTargetPropertyCommand
 bool cmGetTargetPropertyCommand::InitialPass(
   std::vector<std::string> const& args, cmExecutionStatus&)
@@ -10,8 +22,8 @@ bool cmGetTargetPropertyCommand::InitialPass(
     this->SetError("called with incorrect number of arguments");
     return false;
   }
-  std::string var = args[0];
-  const std::string& targetName = args[1];
+  std::string const& var = args[0];
+  std::string const& targetName = args[1];
   std::string prop;
   bool prop_exists = false;
 
@@ -22,7 +34,16 @@ bool cmGetTargetPropertyCommand::InitialPass(
         prop_exists = true;
       }
     } else if (!args[2].empty()) {
-      const char* prop_cstr = tgt->GetProperty(args[2], this->Makefile);
+      const char* prop_cstr = nullptr;
+      cmListFileBacktrace bt = this->Makefile->GetBacktrace();
+      cmMessenger* messenger = this->Makefile->GetMessenger();
+      if (cmTargetPropertyComputer::PassesWhitelist(tgt->GetType(), args[2],
+                                                    messenger, bt)) {
+        prop_cstr = tgt->GetComputedProperty(args[2], messenger, bt);
+        if (!prop_cstr) {
+          prop_cstr = tgt->GetProperty(args[2]);
+        }
+      }
       if (prop_cstr) {
         prop = prop_cstr;
         prop_exists = true;

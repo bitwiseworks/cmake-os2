@@ -3,9 +3,10 @@
 #ifndef cmCryptoHash_h
 #define cmCryptoHash_h
 
-#include <cmConfigure.h>
+#include "cmConfigure.h" // IWYU pragma: keep
 
-#include <cm_auto_ptr.hxx>
+#include <memory> // IWYU pragma: keep
+#include <stddef.h>
 #include <string>
 #include <vector>
 
@@ -14,15 +15,33 @@
  */
 class cmCryptoHash
 {
+  CM_DISABLE_COPY(cmCryptoHash)
+
 public:
-  virtual ~cmCryptoHash() {}
+  enum Algo
+  {
+    AlgoMD5,
+    AlgoSHA1,
+    AlgoSHA224,
+    AlgoSHA256,
+    AlgoSHA384,
+    AlgoSHA512,
+    AlgoSHA3_224,
+    AlgoSHA3_256,
+    AlgoSHA3_384,
+    AlgoSHA3_512
+  };
+
+  cmCryptoHash(Algo algo);
+  ~cmCryptoHash();
 
   /// @brief Returns a new hash generator of the requested type
   /// @arg algo Hash type name. Supported hash types are
-  ///      MD5, SHA1, SHA224, SHA256, SHA384, SHA512
+  ///      MD5, SHA1, SHA224, SHA256, SHA384, SHA512,
+  ///      SHA3_224, SHA3_256, SHA3_384, SHA3_512
   /// @return A valid auto pointer if algo is supported or
   ///         an invalid/NULL pointer otherwise
-  static CM_AUTO_PTR<cmCryptoHash> New(const char* algo);
+  static std::unique_ptr<cmCryptoHash> New(const char* algo);
 
   /// @brief Converts a hex character to its binary value (4 bits)
   /// @arg input Hex character [0-9a-fA-F].
@@ -53,47 +72,15 @@ public:
   ///         An empty string otherwise.
   std::string HashFile(const std::string& file);
 
-protected:
-  virtual void Initialize() = 0;
-  virtual void Append(unsigned char const*, int) = 0;
-  virtual std::vector<unsigned char> Finalize() = 0;
+  void Initialize();
+  void Append(void const*, size_t);
+  void Append(std::string const& str);
+  std::vector<unsigned char> Finalize();
+  std::string FinalizeHex();
+
+private:
+  unsigned int Id;
+  struct rhash_context* CTX;
 };
-
-class cmCryptoHashMD5 : public cmCryptoHash
-{
-  struct cmsysMD5_s* MD5;
-
-public:
-  cmCryptoHashMD5();
-  ~cmCryptoHashMD5() CM_OVERRIDE;
-
-protected:
-  void Initialize() CM_OVERRIDE;
-  void Append(unsigned char const* buf, int sz) CM_OVERRIDE;
-  std::vector<unsigned char> Finalize() CM_OVERRIDE;
-};
-
-#define cmCryptoHash_SHA_CLASS_DECL(SHA)                                      \
-  class cmCryptoHash##SHA : public cmCryptoHash                               \
-  {                                                                           \
-    union _SHA_CTX* SHA;                                                      \
-                                                                              \
-  public:                                                                     \
-    cmCryptoHash##SHA();                                                      \
-    ~cmCryptoHash##SHA();                                                     \
-                                                                              \
-  protected:                                                                  \
-    virtual void Initialize();                                                \
-    virtual void Append(unsigned char const* buf, int sz);                    \
-    virtual std::vector<unsigned char> Finalize();                            \
-  }
-
-cmCryptoHash_SHA_CLASS_DECL(SHA1);
-cmCryptoHash_SHA_CLASS_DECL(SHA224);
-cmCryptoHash_SHA_CLASS_DECL(SHA256);
-cmCryptoHash_SHA_CLASS_DECL(SHA384);
-cmCryptoHash_SHA_CLASS_DECL(SHA512);
-
-#undef cmCryptoHash_SHA_CLASS_DECL
 
 #endif

@@ -5,6 +5,8 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "cmSystemTools.h"
+
 #define INTEL_HEX_MIN_LINE_LENGTH (1 + 8 + 2)
 #define INTEL_HEX_MAX_LINE_LENGTH (1 + 8 + (256 * 2) + 2)
 #define MOTOROLA_SREC_MIN_LINE_LENGTH (2 + 2 + 4 + 2)
@@ -19,7 +21,7 @@ static bool cm_IsHexChar(char c)
 
 static unsigned int ChompStrlen(const char* line)
 {
-  if (line == CM_NULLPTR) {
+  if (line == nullptr) {
     return 0;
   }
   unsigned int length = static_cast<unsigned int>(strlen(line));
@@ -136,7 +138,7 @@ cmHexFileConverter::FileType cmHexFileConverter::DetermineFileType(
 {
   char buf[1024];
   FILE* inFile = cmsys::SystemTools::Fopen(inFileName, "rb");
-  if (inFile == CM_NULLPTR) {
+  if (inFile == nullptr) {
     return Binary;
   }
 
@@ -185,11 +187,11 @@ bool cmHexFileConverter::TryConvert(const char* inFileName,
   // try to open the file
   FILE* inFile = cmsys::SystemTools::Fopen(inFileName, "rb");
   FILE* outFile = cmsys::SystemTools::Fopen(outFileName, "wb");
-  if ((inFile == CM_NULLPTR) || (outFile == CM_NULLPTR)) {
-    if (inFile != CM_NULLPTR) {
+  if ((inFile == nullptr) || (outFile == nullptr)) {
+    if (inFile != nullptr) {
       fclose(inFile);
     }
-    if (outFile != CM_NULLPTR) {
+    if (outFile != nullptr) {
       fclose(outFile);
     }
     return false;
@@ -198,13 +200,13 @@ bool cmHexFileConverter::TryConvert(const char* inFileName,
   // convert them line by line
   bool success = false;
   char buf[1024];
-  while (fgets(buf, 1024, inFile) != CM_NULLPTR) {
+  while (fgets(buf, 1024, inFile) != nullptr) {
     if (type == MotorolaSrec) {
       success = ConvertMotorolaSrecLine(buf, outFile);
     } else if (type == IntelHex) {
       success = ConvertIntelHexLine(buf, outFile);
     }
-    if (success == false) {
+    if (!success) {
       break;
     }
   }

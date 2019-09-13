@@ -2,10 +2,12 @@
    file Copyright.txt or https://cmake.org/licensing for details.  */
 #include "cmReturnCommand.h"
 
+#include "cmExecutionStatus.h"
+
 // cmReturnCommand
 bool cmReturnCommand::InitialPass(std::vector<std::string> const&,
                                   cmExecutionStatus& status)
 {
-  status.SetReturnInvoked(true);
+  status.SetReturnInvoked();
   return true;
 }

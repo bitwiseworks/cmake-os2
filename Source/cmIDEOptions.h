@@ -3,11 +3,13 @@
 #ifndef cmIDEOptions_h
 #define cmIDEOptions_h
 
-#include <cmConfigure.h>
+#include "cmConfigure.h" // IWYU pragma: keep
 
-#include "cmStandardIncludes.h"
+#include <map>
+#include <string>
+#include <vector>
 
-#include "cmIDEFlagTable.h"
+struct cmIDEFlagTable;
 
 /** \class cmIDEOptions
  * \brief Superclass for IDE option processing
@@ -22,11 +24,14 @@ public:
   void AddDefine(const std::string& define);
   void AddDefines(const char* defines);
   void AddDefines(const std::vector<std::string>& defines);
+  std::vector<std::string> const& GetDefines() const;
+
   void AddFlag(const char* flag, const char* value);
   void AddFlag(const char* flag, std::vector<std::string> const& value);
   void AppendFlag(std::string const& flag, std::string const& value);
   void AppendFlag(std::string const& flag,
                   std::vector<std::string> const& value);
+  void AppendFlagString(std::string const& flag, std::string const& value);
   void RemoveFlag(const char* flag);
   bool HasFlag(std::string const& flag) const;
   const char* GetFlag(const char* flag);
@@ -55,14 +60,21 @@ protected:
       this->derived::operator=(r);
       return *this;
     }
+    FlagValue& append_with_space(std::string const& r)
+    {
+      this->resize(1);
+      std::string& l = this->operator[](0);
+      if (!l.empty()) {
+        l += " ";
+      }
+      l += r;
+      return *this;
+    }
   };
   std::map<std::string, FlagValue> FlagMap;
 
   // Preprocessor definitions.
   std::vector<std::string> Defines;
-
-  // Unrecognized flags that get no special handling.
-  std::string FlagString;
 
   bool DoingDefine;
   bool AllowDefine;

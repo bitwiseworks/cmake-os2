@@ -84,6 +84,33 @@ Feature requirements are evaluated transitively by consuming the link
 implementation.  See :manual:`cmake-buildsystem(7)` for more on
 transitive behavior of build properties and usage requirements.
 
+Requiring Language Standards
+----------------------------
+
+In projects that use a large number of commonly available features from
+a particular language standard (e.g. C++ 11) one may specify a
+meta-feature (e.g. ``cxx_std_11``) that requires use of a compiler mode
+aware of that standard.  This is simpler than specifying all the
+features individually, but does not guarantee the existence of any
+particular feature.  Diagnosis of use of unsupported features will be
+delayed until compile time.
+
+For example, if C++ 11 features are used extensively in a project's
+header files, then clients must use a compiler mode aware of C++ 11
+or above.  This can be requested with the code:
+
+.. code-block:: cmake
+
+  target_compile_features(mylib PUBLIC cxx_std_11)
+
+In this example, CMake will ensure the compiler is invoked in a mode
+that is aware of C++ 11 (or above), adding flags such as
+``-std=gnu++11`` if necessary.  This applies to sources within ``mylib``
+as well as any dependents (that may include headers from ``mylib``).
+
+Availability of Compiler Extensions
+-----------------------------------
+
 Because the :prop_tgt:`CXX_EXTENSIONS` target property is ``ON`` by default,
 CMake uses extended variants of language dialects by default, such as
 ``-std=gnu++11`` instead of ``-std=c++11``.  That target property may be
@@ -299,7 +326,7 @@ the feature-appropriate include directory
 Supported Compilers
 ===================
 
-CMake is currently aware of the :prop_tgt:`language standards <CXX_STANDARD>`
+CMake is currently aware of the :prop_tgt:`C++ standards <CXX_STANDARD>`
 and :prop_gbl:`compile features <CMAKE_CXX_KNOWN_FEATURES>` available from
 the following :variable:`compiler ids <CMAKE_<LANG>_COMPILER_ID>` as of the
 versions specified for each:
@@ -307,6 +334,36 @@ versions specified for each:
 * ``AppleClang``: Apple Clang for Xcode versions 4.4 though 6.2.
 * ``Clang``: Clang compiler versions 2.9 through 3.4.
 * ``GNU``: GNU compiler versions 4.4 through 5.0.
-* ``MSVC``: Microsoft Visual Studio versions 2010 through 2015.
-* ``SunPro``: Oracle SolarisStudio version 12.4.
-* ``Intel``: Intel compiler versions 12.1 through 16.0 on UNIX platforms.
+* ``MSVC``: Microsoft Visual Studio versions 2010 through 2017.
+* ``SunPro``: Oracle SolarisStudio versions 12.4 through 12.5.
+* ``Intel``: Intel compiler versions 12.1 through 17.0.
+
+CMake is currently aware of the :prop_tgt:`C standards <C_STANDARD>`
+and :prop_gbl:`compile features <CMAKE_C_KNOWN_FEATURES>` available from
+the following :variable:`compiler ids <CMAKE_<LANG>_COMPILER_ID>` as of the
+versions specified for each:
+
+* all compilers and versions listed above for C++.
+* ``GNU``: GNU compiler versions 3.4 through 5.0.
+
+CMake is currently aware of the :prop_tgt:`C++ standards <CXX_STANDARD>` and
+their associated meta-features (e.g. ``cxx_std_11``) available from the
+following :variable:`compiler ids <CMAKE_<LANG>_COMPILER_ID>` as of the
+versions specified for each:
+
+* ``Cray``: Cray Compiler Environment version 8.1 through 8.5.8.
+* ``PGI``: PGI version 12.10 through 17.5.
+* ``XL``: IBM XL version 10.1 through 13.1.5.
+
+CMake is currently aware of the :prop_tgt:`C standards <C_STANDARD>` and
+their associated meta-features (e.g. ``c_std_99``) available from the
+following :variable:`compiler ids <CMAKE_<LANG>_COMPILER_ID>` as of the
+versions specified for each:
+
+* all compilers and versions listed above with only meta-features for C++.
+
+CMake is currently aware of the :prop_tgt:`CUDA standards <CUDA_STANDARD>`
+from the following :variable:`compiler ids <CMAKE_<LANG>_COMPILER_ID>` as of the
+versions specified for each:
+
+* ``NVIDIA``: NVIDIA nvcc compiler 7.5 though 8.0.

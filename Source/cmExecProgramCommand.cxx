@@ -2,9 +2,14 @@
    file Copyright.txt or https://cmake.org/licensing for details.  */
 #include "cmExecProgramCommand.h"
 
+#include "cmsys/Process.h"
+#include <stdio.h>
+
+#include "cmMakefile.h"
+#include "cmProcessOutput.h"
 #include "cmSystemTools.h"
 
-#include <cmsys/Process.h>
+class cmExecutionStatus;
 
 // cmExecProgramCommand
 bool cmExecProgramCommand::InitialPass(std::vector<std::string> const& args,
@@ -21,8 +26,8 @@ bool cmExecProgramCommand::InitialPass(std::vector<std::string> const& args,
   bool haveoutput_variable = false;
   std::string return_variable;
   bool havereturn_variable = false;
-  for (size_t i = 0; i < args.size(); ++i) {
-    if (args[i] == "OUTPUT_VARIABLE") {
+  for (std::string const& arg : args) {
+    if (arg == "OUTPUT_VARIABLE") {
       count++;
       doingargs = false;
       havereturn_variable = false;
@@ -32,10 +37,10 @@ bool cmExecProgramCommand::InitialPass(std::vector<std::string> const& args,
         this->SetError("called with incorrect number of arguments");
         return false;
       }
-      output_variable = args[i];
+      output_variable = arg;
       haveoutput_variable = false;
       count++;
-    } else if (args[i] == "RETURN_VALUE") {
+    } else if (arg == "RETURN_VALUE") {
       count++;
       doingargs = false;
       haveoutput_variable = false;
@@ -45,16 +50,16 @@ bool cmExecProgramCommand::InitialPass(std::vector<std::string> const& args,
         this->SetError("called with incorrect number of arguments");
         return false;
       }
-      return_variable = args[i];
+      return_variable = arg;
       havereturn_variable = false;
       count++;
-    } else if (args[i] == "ARGS") {
+    } else if (arg == "ARGS") {
       count++;
       havereturn_variable = false;
       haveoutput_variable = false;
       doingargs = true;
     } else if (doingargs) {
-      arguments += args[i];
+      arguments += arg;
       arguments += " ";
       count++;
     }
@@ -81,7 +86,7 @@ bool cmExecProgramCommand::InitialPass(std::vector<std::string> const& args,
                                               args[1].c_str(), verbose);
   } else {
     result = cmExecProgramCommand::RunCommand(command.c_str(), output, retVal,
-                                              CM_NULLPTR, verbose);
+                                              nullptr, verbose);
   }
   if (!result) {
     retVal = -1;
@@ -112,7 +117,7 @@ bool cmExecProgramCommand::InitialPass(std::vector<std::string> const& args,
 
 bool cmExecProgramCommand::RunCommand(const char* command, std::string& output,
                                       int& retVal, const char* dir,
-                                      bool verbose)
+                                      bool verbose, Encoding encoding)
 {
   if (cmSystemTools::GetRunCommandOutput()) {
     verbose = false;
@@ -201,9 +206,9 @@ bool cmExecProgramCommand::RunCommand(const char* command, std::string& output,
   fflush(stdout);
   fflush(stderr);
 #ifdef __OS2__
-  const char* cmd[] = { "sh", "-c", command, CM_NULLPTR };
+  const char* cmd[] = { "sh", "-c", command, nullptr };
 #else
-  const char* cmd[] = { "/bin/sh", "-c", command, CM_NULLPTR };
+  const char* cmd[] = { "/bin/sh", "-c", command, nullptr };
 #endif
   cmsysProcess_SetCommand(cp, cmd);
 #endif
@@ -214,17 +219,28 @@ bool cmExecProgramCommand::RunCommand(const char* command, std::string& output,
   int length;
   char* data;
   int p;
-  while ((p = cmsysProcess_WaitForData(cp, &data, &length, CM_NULLPTR), p)) {
+  cmProcessOutput processOutput(encoding);
+  std::string strdata;
+  while ((p = cmsysProcess_WaitForData(cp, &data, &length, nullptr), p)) {
     if (p == cmsysProcess_Pipe_STDOUT || p == cmsysProcess_Pipe_STDERR) {
       if (verbose) {
-        cmSystemTools::Stdout(data, length);
+        processOutput.DecodeText(data, length, strdata);
+        cmSystemTools::Stdout(strdata.c_str(), strdata.size());
       }
       output.append(data, length);
     }
   }
 
+  if (verbose) {
+    processOutput.DecodeText(std::string(), strdata);
+    if (!strdata.empty()) {
+      cmSystemTools::Stdout(strdata.c_str(), strdata.size());
+    }
+  }
+
   // All output has been read.  Wait for the process to exit.
-  cmsysProcess_WaitForExit(cp, CM_NULLPTR);
+  cmsysProcess_WaitForExit(cp, nullptr);
+  processOutput.DecodeText(output, output);
 
   // Check the result of running the process.
   std::string msg;

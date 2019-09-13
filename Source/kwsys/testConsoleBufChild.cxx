@@ -1,14 +1,5 @@
-/*============================================================================
-  KWSys - Kitware System Library
-  Copyright 2000-2016 Kitware, Inc., Insight Software Consortium
-
-  Distributed under the OSI-approved BSD License (the "License");
-  see accompanying file Copyright.txt for details.
-
-  This software is distributed WITHOUT ANY WARRANTY; without even the
-  implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
-  See the License for more information.
-============================================================================*/
+/* Distributed under the OSI-approved BSD 3-Clause License.  See accompanying
+   file Copyright.txt or https://cmake.org/licensing#kwsys for details.  */
 #include "kwsysPrivate.h"
 
 #include KWSYS_HEADER(ConsoleBuf.hxx)
@@ -17,14 +8,14 @@
 // Work-around CMake dependency scanning limitation.  This must
 // duplicate the above list of headers.
 #if 0
-# include "ConsoleBuf.hxx.in"
-# include "Encoding.hxx.in"
+#include "ConsoleBuf.hxx.in"
+#include "Encoding.hxx.in"
 #endif
 
 #include <iostream>
+
 #include "testConsoleBuf.hxx"
 
-//----------------------------------------------------------------------------
 int main(int argc, const char* argv[])
 {
 #if defined(_WIN32)
@@ -36,7 +27,8 @@ int main(int argc, const char* argv[])
     std::cout << argv[1] << std::endl;
     std::cerr << argv[1] << std::endl;
   } else {
-    std::string str = kwsys::Encoding::ToNarrow(UnicodeTestString);
+    std::string str = kwsys::Encoding::ToNarrow(std::wstring(
+      UnicodeTestString, sizeof(UnicodeTestString) / sizeof(wchar_t) - 1));
     std::cout << str << std::endl;
     std::cerr << str << std::endl;
   }

@@ -2,6 +2,13 @@
    file Copyright.txt or https://cmake.org/licensing for details.  */
 #include "cmQTWrapUICommand.h"
 
+#include "cmCustomCommandLines.h"
+#include "cmMakefile.h"
+#include "cmSourceFile.h"
+#include "cmSystemTools.h"
+
+class cmExecutionStatus;
+
 // cmQTWrapUICommand
 bool cmQTWrapUICommand::InitialPass(std::vector<std::string> const& args,
                                     cmExecutionStatus&)
@@ -101,9 +108,9 @@ bool cmQTWrapUICommand::InitialPass(std::vector<std::string> const& args,
 
       std::vector<std::string> depends;
       depends.push_back(uiName);
-      std::string no_main_dependency = "";
-      const char* no_comment = CM_NULLPTR;
-      const char* no_working_dir = CM_NULLPTR;
+      std::string no_main_dependency;
+      const char* no_comment = nullptr;
+      const char* no_working_dir = nullptr;
       this->Makefile->AddCustomCommandToOutput(
         hName, depends, no_main_dependency, hCommandLines, no_comment,
         no_working_dir);
