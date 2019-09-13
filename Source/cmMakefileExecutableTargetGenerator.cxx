@@ -245,8 +245,8 @@ void cmMakefileExecutableTargetGenerator::WriteDeviceExecutableRule(
     vars.OS2DefVendor = this->GeneratorTarget->GetProperty("OS2_DEF_VENDOR");
     vars.OS2DefVersion = this->GeneratorTarget->GetProperty("OS2_DEF_VERSION");
     vars.OS2DefPatch = this->GeneratorTarget->GetProperty("OS2_DEF_PATCH");
-    vars.OS2DefEXEType = this->GeneratorTarget->GetProperty("OS2_DEF_EXEType");
-    vars.OS2DefEXEStack = this->GeneratorTarget->GetProperty("OS2_DEF_EXEStack");
+    vars.OS2DefExeType = this->GeneratorTarget->GetProperty("OS2_DEF_EXEType");
+    vars.OS2DefExeStack = this->GeneratorTarget->GetProperty("OS2_DEF_EXEStack");
     vars.Version = this->GeneratorTarget->GetProperty("VERSION");
 #endif
 

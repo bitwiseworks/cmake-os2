@@ -245,7 +245,7 @@ std::string cmRulePlaceholderExpander::ExpandRuleVariable(
     }
 
     if (variable == "OS2_DEF_PATCH") {
-      if (replaveValues.OS2DefPatch) {
+      if (replaceValues.OS2DefPatch) {
         return replaceValues.OS2DefPatch;
       } else {
         return "0";
@@ -253,7 +253,7 @@ std::string cmRulePlaceholderExpander::ExpandRuleVariable(
     }
 
     if (variable == "OS2_DEF_VENDOR") {
-      if (replaveValues.OS2DefVendor) {
+      if (replaceValues.OS2DefVendor) {
         return replaceValues.OS2DefVendor;
       } else {
         return "cmake build system";
@@ -261,7 +261,7 @@ std::string cmRulePlaceholderExpander::ExpandRuleVariable(
     }
 
     if (variable == "OS2_DEF_EXEType") {
-      if (replaveValues.OS2DefExeType) {
+      if (replaceValues.OS2DefExeType) {
         return replaceValues.OS2DefExeType;
       } else {
         return "";
@@ -269,7 +269,7 @@ std::string cmRulePlaceholderExpander::ExpandRuleVariable(
     }
 
     if (variable == "OS2_DEF_EXEStack") {
-      if (replaveValues.OS2DefExeStack) {
+      if (replaceValues.OS2DefExeStack) {
         return replaceValues.OS2DefExeStack;
       } else {
         return "";

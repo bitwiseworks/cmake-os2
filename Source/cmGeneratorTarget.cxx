@@ -302,7 +302,7 @@ std::string cmGeneratorTarget::GetOutputName(
 #ifdef __OS2__
     // short name for os/2 to overcome the 8.3 dll name scheme
     // not needed for importlibs
-    if (!implib)
+    if (artifact != cmStateEnums::ImportLibraryArtifact)
       props.push_back("TARGET_SHORT");
 #endif
 
@@ -3237,9 +3237,9 @@ void cmGeneratorTarget::GetFullNameInternal(
   outBase += configPostfix ? configPostfix : "";
 
 #ifdef __OS2__
-  if((this->GetType() == cmState::SHARED_LIBRARY ||
-      this->GetType() == cmState::MODULE_LIBRARY) && !implib &&
-      outBase.length() > 8)
+  if ((this->GetType() == cmStateEnums::SHARED_LIBRARY ||
+      this->GetType() == cmStateEnums::MODULE_LIBRARY) &&
+      !isImportedLibraryArtifact && outBase.length() > 8)
     outBase.erase(8);
 #endif
 
