@@ -132,4 +132,13 @@ void cmIncludeDirectoryCommand::NormalizeInclude(std::string& inc)
       }
     }
   }
+#ifdef __OS2__
+  // we don't need systemincludes to be added
+  std::string sysInclude = getenv("UNIXROOT");
+  sysInclude += "/usr/include";
+  if (strcasecmp(inc.c_str(), sysInclude.c_str()) == 0 ||
+      strcasecmp(inc.c_str(), "/@unixroot/usr/include") == 0) {
+    inc.clear();
+  }
+#endif
 }
