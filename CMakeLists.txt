@@ -554,7 +554,7 @@ macro (CMAKE_BUILD_UTILITIES)
 
   #---------------------------------------------------------------------
   # Use curses?
-  if (UNIX)
+  if (UNIX OR OS2)
     # there is a bug in the Syllable libraries which makes linking ccmake fail, Alex
     if(NOT CMAKE_SYSTEM_NAME MATCHES syllable)
       set(CURSES_NEED_NCURSES TRUE)

@@ -34,5 +34,12 @@ else()
   target_link_libraries(ccmake cmForm)
 endif()
 
+if(OS2)
+  set_target_properties(ccmake PROPERTIES
+   OS2_DEF_VENDOR "$ENV{VENDOR}"
+   OS2_DEF_PATCH "${CMake_VERSION_PATCH}"
+   OS2_DEF_VERSION "${CMake_VERSION}")
+endif(OS2)
+
 CMake_OPTIONAL_COMPONENT(ccmake)
 install(TARGETS ccmake DESTINATION ${CMAKE_BIN_DIR} ${COMPONENT})
