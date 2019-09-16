@@ -233,11 +233,12 @@ std::string cmRulePlaceholderExpander::ExpandRuleVariable(
   if (replaceValues.CMTargetName) {
     if (variable == "OS2_DEF_VERSION") {
 
-      if (replaceValues.OS2DefVersion) {
+      if (replaceValues.OS2DefVersion &&
+          strlen(replaceValues.OS2DefVersion) > 0) {
         return replaceValues.OS2DefVersion;
       }
 
-      if (replaceValues.Version) {
+      if (replaceValues.Version && strlen(replaceValues.Version) > 0) {
         return replaceValues.Version;
       }
 
@@ -245,7 +246,8 @@ std::string cmRulePlaceholderExpander::ExpandRuleVariable(
     }
 
     if (variable == "OS2_DEF_PATCH") {
-      if (replaceValues.OS2DefPatch) {
+      if (replaceValues.OS2DefPatch &&
+          strlen(replaceValues.OS2DefPatch) > 0) {
         return replaceValues.OS2DefPatch;
       } else {
         return "0";
@@ -253,7 +255,8 @@ std::string cmRulePlaceholderExpander::ExpandRuleVariable(
     }
 
     if (variable == "OS2_DEF_VENDOR") {
-      if (replaceValues.OS2DefVendor) {
+      if (replaceValues.OS2DefVendor &&
+          strlen(replaceValues.OS2DefVendor) > 0) {
         return replaceValues.OS2DefVendor;
       } else {
         return "cmake build system";
