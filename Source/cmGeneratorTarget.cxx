@@ -3251,6 +3251,10 @@ void cmGeneratorTarget::GetFullNameInternal(
 #ifndef __OS2__
        outBase += "-";
 #else
+      std::string soversionString;
+      soversionString += soversion;
+      cmSystemTools::ReplaceString(soversionString, ".", "");
+      soversion = soversionString.c_str();
       int len = std::string(soversion).length();
       if(outBase.length() + len > 8)
         outBase.erase(8 - len);
