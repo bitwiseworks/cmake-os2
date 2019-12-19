@@ -7,9 +7,11 @@ add_executable(target_compile_options
   "${CMAKE_CURRENT_SOURCE_DIR}/main.cpp"
 )
 target_compile_options(target_compile_options
-  PRIVATE $<$<CXX_COMPILER_ID:GNU>:-DMY_PRIVATE_DEFINE>
-  PUBLIC $<$<CXX_COMPILER_ID:GNU>:-DMY_PUBLIC_DEFINE>
+  PRIVATE $<$<CXX_COMPILER_ID:AppleClang,Clang,GNU>:-DMY_PRIVATE_DEFINE>
+  PUBLIC $<$<COMPILE_LANG_AND_ID:CXX,GNU>:-DMY_PUBLIC_DEFINE>
+  PUBLIC $<$<COMPILE_LANG_AND_ID:CXX,GNU,Clang,AppleClang>:-DMY_MUTLI_COMP_PUBLIC_DEFINE>
   INTERFACE $<$<CXX_COMPILER_ID:GNU>:-DMY_INTERFACE_DEFINE>
+  INTERFACE $<$<CXX_COMPILER_ID:GNU,Clang,AppleClang>:-DMY_MULTI_COMP_INTERFACE_DEFINE>
 )
 
 if(CMAKE_CXX_COMPILER_ID MATCHES "GNU")
@@ -17,35 +19,46 @@ if(CMAKE_CXX_COMPILER_ID MATCHES "GNU")
     PRIVATE
       "DO_GNU_TESTS"
   )
+elseif(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+  target_compile_definitions(target_compile_options
+    PRIVATE
+      "DO_CLANG_TESTS"
+  )
 endif()
 
 add_executable(consumer
   "${CMAKE_CURRENT_SOURCE_DIR}/consumer.cpp"
 )
 
-if (NOT CMAKE_GENERATOR MATCHES "Visual Studio")
-  target_sources(consumer PRIVATE
-    "${CMAKE_CURRENT_SOURCE_DIR}/consumer.c"
-  )
-  target_compile_options(consumer
-    PRIVATE
-      -DCONSUMER_LANG_$<COMPILE_LANGUAGE>
-      -DLANG_IS_CXX=$<COMPILE_LANGUAGE:CXX>
-      -DLANG_IS_C=$<COMPILE_LANGUAGE:C>
-  )
+target_sources(consumer PRIVATE
+  "${CMAKE_CURRENT_SOURCE_DIR}/consumer.c"
+)
+target_compile_options(consumer
+  PRIVATE
+    -DCONSUMER_LANG_$<COMPILE_LANGUAGE>
+    -DLANG_IS_CXX=$<COMPILE_LANGUAGE:CXX>
+    -DLANG_IS_C=$<COMPILE_LANGUAGE:C>
+)
+
+if(CMAKE_GENERATOR MATCHES "Visual Studio")
   target_compile_definitions(consumer
-    PRIVATE -DTEST_LANG_DEFINES
+    PRIVATE TEST_LANG_DEFINES_FOR_VISUAL_STUDIO
   )
 endif()
 
 target_compile_options(consumer
-  PRIVATE $<$<CXX_COMPILER_ID:GNU>:$<TARGET_PROPERTY:target_compile_options,INTERFACE_COMPILE_OPTIONS>>
+  PRIVATE $<$<CXX_COMPILER_ID:GNU,Clang,AppleClang>:$<TARGET_PROPERTY:target_compile_options,INTERFACE_COMPILE_OPTIONS>>
 )
 
 if(CMAKE_CXX_COMPILER_ID MATCHES "GNU")
   target_compile_definitions(consumer
     PRIVATE
       "DO_GNU_TESTS"
+  )
+elseif(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+  target_compile_definitions(consumer
+    PRIVATE
+      "DO_CLANG_TESTS"
   )
 endif()
 

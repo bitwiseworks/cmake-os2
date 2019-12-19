@@ -10,7 +10,7 @@
 #include "cmSystemTools.h"
 
 #ifdef Q_OS_WIN
-#include "qt_windows.h" // For SetErrorMode
+#  include "qt_windows.h" // For SetErrorMode
 #endif
 
 QCMake::QCMake(QObject* p)
@@ -23,32 +23,33 @@ QCMake::QCMake(QObject* p)
 
   cmSystemTools::DisableRunCommandOutput();
   cmSystemTools::SetRunCommandHideConsole(true);
-  cmSystemTools::SetMessageCallback(QCMake::messageCallback, this);
-  cmSystemTools::SetStdoutCallback(QCMake::stdoutCallback, this);
-  cmSystemTools::SetStderrCallback(QCMake::stderrCallback, this);
 
-  this->CMakeInstance = new cmake(cmake::RoleProject);
+  cmSystemTools::SetMessageCallback(
+    [this](std::string const& msg, const char* title) {
+      this->messageCallback(msg, title);
+    });
+  cmSystemTools::SetStdoutCallback(
+    [this](std::string const& msg) { this->stdoutCallback(msg); });
+  cmSystemTools::SetStderrCallback(
+    [this](std::string const& msg) { this->stderrCallback(msg); });
+
+  this->CMakeInstance = new cmake(cmake::RoleProject, cmState::Project);
   this->CMakeInstance->SetCMakeEditCommand(
     cmSystemTools::GetCMakeGUICommand());
-  this->CMakeInstance->SetProgressCallback(QCMake::progressCallback, this);
+  this->CMakeInstance->SetProgressCallback(
+    [this](const std::string& msg, float percent) {
+      this->progressCallback(msg, percent);
+    });
 
-  cmSystemTools::SetInterruptCallback(QCMake::interruptCallback, this);
+  cmSystemTools::SetInterruptCallback(
+    [this] { return this->interruptCallback(); });
 
   std::vector<cmake::GeneratorInfo> generators;
-  this->CMakeInstance->GetRegisteredGenerators(generators);
+  this->CMakeInstance->GetRegisteredGenerators(
+    generators, /*includeNamesWithPlatform=*/false);
 
-  std::vector<cmake::GeneratorInfo>::const_iterator it;
-  for (it = generators.begin(); it != generators.end(); ++it) {
-    // Skip the generator "KDevelop3", since there is also
-    // "KDevelop3 - Unix Makefiles", which is the full and official name.
-    // The short name is actually only still there since this was the name
-    // in CMake 2.4, to keep "command line argument compatibility", but
-    // this is not necessary in the GUI.
-    if (it->name == "KDevelop3") {
-      continue;
-    }
-
-    this->AvailableGenerators.push_back(*it);
+  for (cmake::GeneratorInfo const& gen : generators) {
+    this->AvailableGenerators.push_back(gen);
   }
 }
 
@@ -83,6 +84,7 @@ void QCMake::setBinaryDirectory(const QString& _dir)
     cmState* state = this->CMakeInstance->GetState();
     this->setGenerator(QString());
     this->setToolset(QString());
+    this->setPlatform(QString());
     if (!this->CMakeInstance->LoadCache(
           this->BinaryDirectory.toLocal8Bit().data())) {
       QDir testDir(this->BinaryDirectory);
@@ -103,18 +105,26 @@ void QCMake::setBinaryDirectory(const QString& _dir)
     }
     const char* gen = state->GetCacheEntryValue("CMAKE_GENERATOR");
     if (gen) {
-      const char* extraGen =
+      const std::string* extraGen =
         state->GetInitializedCacheValue("CMAKE_EXTRA_GENERATOR");
       std::string curGen =
         cmExternalMakefileProjectGenerator::CreateFullGeneratorName(
-          gen, extraGen ? extraGen : "");
+          gen, extraGen ? *extraGen : "");
       this->setGenerator(QString::fromLocal8Bit(curGen.c_str()));
+    }
+
+    const char* platform =
+      state->GetCacheEntryValue("CMAKE_GENERATOR_PLATFORM");
+    if (platform) {
+      this->setPlatform(QString::fromLocal8Bit(platform));
     }
 
     const char* toolset = state->GetCacheEntryValue("CMAKE_GENERATOR_TOOLSET");
     if (toolset) {
       this->setToolset(QString::fromLocal8Bit(toolset));
     }
+
+    checkOpenPossible();
   }
 }
 
@@ -123,6 +133,14 @@ void QCMake::setGenerator(const QString& gen)
   if (this->Generator != gen) {
     this->Generator = gen;
     emit this->generatorChanged(this->Generator);
+  }
+}
+
+void QCMake::setPlatform(const QString& platform)
+{
+  if (this->Platform != platform) {
+    this->Platform = platform;
+    emit this->platformChanged(this->Platform);
   }
 }
 
@@ -147,7 +165,8 @@ void QCMake::configure()
   this->CMakeInstance->SetGlobalGenerator(
     this->CMakeInstance->CreateGlobalGenerator(
       this->Generator.toLocal8Bit().data()));
-  this->CMakeInstance->SetGeneratorPlatform("");
+  this->CMakeInstance->SetGeneratorPlatform(
+    this->Platform.toLocal8Bit().data());
   this->CMakeInstance->SetGeneratorToolset(this->Toolset.toLocal8Bit().data());
   this->CMakeInstance->LoadCache();
   this->CMakeInstance->SetWarnUninitialized(this->WarnUninitializedMode);
@@ -183,6 +202,26 @@ void QCMake::generate()
 #endif
 
   emit this->generateDone(err);
+  checkOpenPossible();
+}
+
+void QCMake::open()
+{
+#ifdef Q_OS_WIN
+  UINT lastErrorMode = SetErrorMode(0);
+#endif
+
+  InterruptFlag = 0;
+  cmSystemTools::ResetErrorOccuredFlag();
+
+  auto successful = this->CMakeInstance->Open(
+    this->BinaryDirectory.toLocal8Bit().data(), false);
+
+#ifdef Q_OS_WIN
+  SetErrorMode(lastErrorMode);
+#endif
+
+  emit this->openDone(successful);
 }
 
 void QCMake::setProperties(const QCMakePropertyList& newProps)
@@ -194,24 +233,23 @@ void QCMake::setProperties(const QCMakePropertyList& newProps)
   // set the value of properties
   cmState* state = this->CMakeInstance->GetState();
   std::vector<std::string> cacheKeys = state->GetCacheEntryKeys();
-  for (std::vector<std::string>::const_iterator it = cacheKeys.begin();
-       it != cacheKeys.end(); ++it) {
-    cmStateEnums::CacheEntryType t = state->GetCacheEntryType(*it);
+  for (std::string const& key : cacheKeys) {
+    cmStateEnums::CacheEntryType t = state->GetCacheEntryType(key);
     if (t == cmStateEnums::INTERNAL || t == cmStateEnums::STATIC) {
       continue;
     }
 
     QCMakeProperty prop;
-    prop.Key = QString::fromLocal8Bit(it->c_str());
+    prop.Key = QString::fromLocal8Bit(key.c_str());
     int idx = props.indexOf(prop);
     if (idx == -1) {
-      toremove.append(QString::fromLocal8Bit(it->c_str()));
+      toremove.append(QString::fromLocal8Bit(key.c_str()));
     } else {
       prop = props[idx];
       if (prop.Value.type() == QVariant::Bool) {
-        state->SetCacheEntryValue(*it, prop.Value.toBool() ? "ON" : "OFF");
+        state->SetCacheEntryValue(key, prop.Value.toBool() ? "ON" : "OFF");
       } else {
-        state->SetCacheEntryValue(*it,
+        state->SetCacheEntryValue(key,
                                   prop.Value.toString().toLocal8Bit().data());
       }
       props.removeAt(idx);
@@ -257,22 +295,21 @@ QCMakePropertyList QCMake::properties() const
 
   cmState* state = this->CMakeInstance->GetState();
   std::vector<std::string> cacheKeys = state->GetCacheEntryKeys();
-  for (std::vector<std::string>::const_iterator i = cacheKeys.begin();
-       i != cacheKeys.end(); ++i) {
-    cmStateEnums::CacheEntryType t = state->GetCacheEntryType(*i);
+  for (std::string const& key : cacheKeys) {
+    cmStateEnums::CacheEntryType t = state->GetCacheEntryType(key);
     if (t == cmStateEnums::INTERNAL || t == cmStateEnums::STATIC ||
         t == cmStateEnums::UNINITIALIZED) {
       continue;
     }
 
-    const char* cachedValue = state->GetCacheEntryValue(*i);
+    const char* cachedValue = state->GetCacheEntryValue(key);
 
     QCMakeProperty prop;
-    prop.Key = QString::fromLocal8Bit(i->c_str());
+    prop.Key = QString::fromLocal8Bit(key.c_str());
     prop.Help =
-      QString::fromLocal8Bit(state->GetCacheEntryProperty(*i, "HELPSTRING"));
+      QString::fromLocal8Bit(state->GetCacheEntryProperty(key, "HELPSTRING"));
     prop.Value = QString::fromLocal8Bit(cachedValue);
-    prop.Advanced = state->GetCacheEntryPropertyAsBool(*i, "ADVANCED");
+    prop.Advanced = state->GetCacheEntryPropertyAsBool(key, "ADVANCED");
     if (t == cmStateEnums::BOOL) {
       prop.Type = QCMakeProperty::BOOL;
       prop.Value = cmSystemTools::IsOn(cachedValue);
@@ -283,7 +320,7 @@ QCMakePropertyList QCMake::properties() const
     } else if (t == cmStateEnums::STRING) {
       prop.Type = QCMakeProperty::STRING;
       const char* stringsProperty =
-        state->GetCacheEntryProperty(*i, "STRINGS");
+        state->GetCacheEntryProperty(key, "STRINGS");
       if (stringsProperty) {
         prop.Strings = QString::fromLocal8Bit(stringsProperty).split(";");
       }
@@ -300,46 +337,40 @@ void QCMake::interrupt()
   this->InterruptFlag.ref();
 }
 
-bool QCMake::interruptCallback(void* cd)
+bool QCMake::interruptCallback()
 {
-  QCMake* self = reinterpret_cast<QCMake*>(cd);
 #if QT_VERSION < QT_VERSION_CHECK(5, 0, 0)
-  return self->InterruptFlag;
+  return this->InterruptFlag;
 #else
-  return self->InterruptFlag.load();
+  return this->InterruptFlag.load();
 #endif
 }
 
-void QCMake::progressCallback(const char* msg, float percent, void* cd)
+void QCMake::progressCallback(const std::string& msg, float percent)
 {
-  QCMake* self = reinterpret_cast<QCMake*>(cd);
   if (percent >= 0) {
-    emit self->progressChanged(QString::fromLocal8Bit(msg), percent);
+    emit this->progressChanged(QString::fromStdString(msg), percent);
   } else {
-    emit self->outputMessage(QString::fromLocal8Bit(msg));
+    emit this->outputMessage(QString::fromStdString(msg));
   }
   QCoreApplication::processEvents();
 }
 
-void QCMake::messageCallback(const char* msg, const char* /*title*/,
-                             bool& /*stop*/, void* cd)
+void QCMake::messageCallback(std::string const& msg, const char* /*title*/)
 {
-  QCMake* self = reinterpret_cast<QCMake*>(cd);
-  emit self->errorMessage(QString::fromLocal8Bit(msg));
+  emit this->errorMessage(QString::fromStdString(msg));
   QCoreApplication::processEvents();
 }
 
-void QCMake::stdoutCallback(const char* msg, size_t len, void* cd)
+void QCMake::stdoutCallback(std::string const& msg)
 {
-  QCMake* self = reinterpret_cast<QCMake*>(cd);
-  emit self->outputMessage(QString::fromLocal8Bit(msg, int(len)));
+  emit this->outputMessage(QString::fromStdString(msg));
   QCoreApplication::processEvents();
 }
 
-void QCMake::stderrCallback(const char* msg, size_t len, void* cd)
+void QCMake::stderrCallback(std::string const& msg)
 {
-  QCMake* self = reinterpret_cast<QCMake*>(cd);
-  emit self->outputMessage(QString::fromLocal8Bit(msg, int(len)));
+  emit this->outputMessage(QString::fromStdString(msg));
   QCoreApplication::processEvents();
 }
 
@@ -449,4 +480,11 @@ void QCMake::setWarnUninitializedMode(bool value)
 void QCMake::setWarnUnusedMode(bool value)
 {
   this->WarnUnusedMode = value;
+}
+
+void QCMake::checkOpenPossible()
+{
+  auto data = this->BinaryDirectory.toLocal8Bit().data();
+  auto possible = this->CMakeInstance->Open(data, true);
+  emit openPossible(possible);
 }

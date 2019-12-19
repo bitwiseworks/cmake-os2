@@ -25,7 +25,7 @@
 class cmRST
 {
 public:
-  cmRST(std::ostream& os, std::string const& docroot);
+  cmRST(std::ostream& os, std::string docroot);
   bool ProcessFile(std::string const& fname, bool isModule = false);
 
 private:
@@ -85,6 +85,8 @@ private:
   cmsys::RegularExpression NoteDirective;
   cmsys::RegularExpression ModuleRST;
   cmsys::RegularExpression CMakeRole;
+  cmsys::RegularExpression InlineLink;
+  cmsys::RegularExpression InlineLiteral;
   cmsys::RegularExpression Substitution;
   cmsys::RegularExpression TocTreeLink;
 

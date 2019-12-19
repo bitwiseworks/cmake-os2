@@ -28,11 +28,7 @@ public:
    * Construct with dependency generation marked not done; instance
    * not placed in cmMakefile's list.
    */
-  cmDependInformation()
-    : DependDone(false)
-    , SourceFile(nullptr)
-  {
-  }
+  cmDependInformation() = default;
 
   /**
    * The set of files on which this one depends.
@@ -44,13 +40,13 @@ public:
    * This flag indicates whether dependency checking has been
    * performed for this file.
    */
-  bool DependDone;
+  bool DependDone = false;
 
   /**
    * If this object corresponds to a cmSourceFile instance, this points
    * to it.
    */
-  const cmSourceFile* SourceFile;
+  const cmSourceFile* SourceFile = nullptr;
 
   /**
    * Full path to this file.
@@ -96,6 +92,9 @@ public:
    */
   ~cmLBDepend() { cmDeleteAll(this->DependInformationMap); }
 
+  cmLBDepend(const cmLBDepend&) = delete;
+  cmLBDepend& operator=(const cmLBDepend&) = delete;
+
   /**
    * Set the makefile that is used as a source of classes.
    */
@@ -112,8 +111,7 @@ public:
     // Now extract any include paths from the targets
     std::set<std::string> uniqueIncludes;
     std::vector<std::string> orderedAndUniqueIncludes;
-    cmTargets& targets = this->Makefile->GetTargets();
-    for (auto const& target : targets) {
+    for (auto const& target : this->Makefile->GetTargets()) {
       const char* incDirProp =
         target.second.GetProperty("INCLUDE_DIRECTORIES");
       if (!incDirProp) {
@@ -167,13 +165,13 @@ protected:
   {
     cmsys::ifstream fin(info->FullPath.c_str());
     if (!fin) {
-      cmSystemTools::Error("error can not open ", info->FullPath.c_str());
+      cmSystemTools::Error("error can not open " + info->FullPath);
       return;
     }
 
     std::string line;
     while (cmSystemTools::GetLineFromStream(fin, line)) {
-      if (cmHasLiteralPrefix(line.c_str(), "#include")) {
+      if (cmHasLiteralPrefix(line, "#include")) {
         // if it is an include line then create a string class
         size_t qstart = line.find('\"', 8);
         size_t qend;
@@ -182,7 +180,7 @@ protected:
           qstart = line.find('<', 8);
           // if a < is not found then move on
           if (qstart == std::string::npos) {
-            cmSystemTools::Error("unknown include directive ", line.c_str());
+            cmSystemTools::Error("unknown include directive " + line);
             continue;
           }
           qend = line.find('>', qstart + 1);
@@ -198,7 +196,7 @@ protected:
             message += includeFile;
             message += " for file ";
             message += info->FullPath;
-            cmSystemTools::Error(message.c_str(), nullptr);
+            cmSystemTools::Error(message);
           }
           continue;
         }
@@ -213,51 +211,51 @@ protected:
           cxxFile = root + ".cxx";
           bool found = false;
           // try jumping to .cxx .cpp and .c in order
-          if (cmSystemTools::FileExists(cxxFile.c_str())) {
+          if (cmSystemTools::FileExists(cxxFile)) {
             found = true;
           }
           for (std::string path : this->IncludeDirectories) {
             path = path + "/";
             path = path + cxxFile;
-            if (cmSystemTools::FileExists(path.c_str())) {
+            if (cmSystemTools::FileExists(path)) {
               found = true;
             }
           }
           if (!found) {
             cxxFile = root + ".cpp";
-            if (cmSystemTools::FileExists(cxxFile.c_str())) {
+            if (cmSystemTools::FileExists(cxxFile)) {
               found = true;
             }
             for (std::string path : this->IncludeDirectories) {
               path = path + "/";
               path = path + cxxFile;
-              if (cmSystemTools::FileExists(path.c_str())) {
+              if (cmSystemTools::FileExists(path)) {
                 found = true;
               }
             }
           }
           if (!found) {
             cxxFile = root + ".c";
-            if (cmSystemTools::FileExists(cxxFile.c_str())) {
+            if (cmSystemTools::FileExists(cxxFile)) {
               found = true;
             }
             for (std::string path : this->IncludeDirectories) {
               path = path + "/";
               path = path + cxxFile;
-              if (cmSystemTools::FileExists(path.c_str())) {
+              if (cmSystemTools::FileExists(path)) {
                 found = true;
               }
             }
           }
           if (!found) {
             cxxFile = root + ".txx";
-            if (cmSystemTools::FileExists(cxxFile.c_str())) {
+            if (cmSystemTools::FileExists(cxxFile)) {
               found = true;
             }
             for (std::string path : this->IncludeDirectories) {
               path = path + "/";
               path = path + cxxFile;
-              if (cmSystemTools::FileExists(path.c_str())) {
+              if (cmSystemTools::FileExists(path)) {
                 found = true;
               }
             }
@@ -294,8 +292,8 @@ protected:
     // Make sure we don't visit the same file more than once.
     info->DependDone = true;
 
-    const char* path = info->FullPath.c_str();
-    if (!path) {
+    const std::string& path = info->FullPath;
+    if (path.empty()) {
       cmSystemTools::Error(
         "Attempt to find dependencies for file without path!");
       return;
@@ -340,7 +338,7 @@ protected:
         } else {
           // try to guess which include path to use
           for (std::string incpath : this->IncludeDirectories) {
-            if (!incpath.empty() && incpath[incpath.size() - 1] != '/') {
+            if (!incpath.empty() && incpath.back() != '/') {
               incpath = incpath + "/";
             }
             incpath = incpath + path;
@@ -356,9 +354,8 @@ protected:
 
     if (!found) {
       // Couldn't find any dependency information.
-      if (this->ComplainFileRegularExpression.find(
-            info->IncludeName.c_str())) {
-        cmSystemTools::Error("error cannot find dependencies for ", path);
+      if (this->ComplainFileRegularExpression.find(info->IncludeName)) {
+        cmSystemTools::Error("error cannot find dependencies for " + path);
       } else {
         // Destroy the name of the file so that it won't be output as a
         // dependency.
@@ -422,11 +419,11 @@ protected:
     }
 
     for (std::string path : this->IncludeDirectories) {
-      if (!path.empty() && path[path.size() - 1] != '/') {
+      if (!path.empty() && path.back() != '/') {
         path = path + "/";
       }
       path = path + fname;
-      if (cmSystemTools::FileExists(path.c_str(), true) &&
+      if (cmSystemTools::FileExists(path, true) &&
           !cmSystemTools::FileIsDirectory(path)) {
         std::string fp = cmSystemTools::CollapseFullPath(path);
         this->DirectoryToFileToPathMap[extraPath ? extraPath : ""][fname] = fp;
@@ -436,11 +433,11 @@ protected:
 
     if (extraPath) {
       std::string path = extraPath;
-      if (!path.empty() && path[path.size() - 1] != '/') {
+      if (!path.empty() && path.back() != '/') {
         path = path + "/";
       }
       path = path + fname;
-      if (cmSystemTools::FileExists(path.c_str(), true) &&
+      if (cmSystemTools::FileExists(path, true) &&
           !cmSystemTools::FileIsDirectory(path)) {
         std::string fp = cmSystemTools::CollapseFullPath(path);
         this->DirectoryToFileToPathMap[extraPath][fname] = fp;

@@ -1,89 +1,90 @@
 # Distributed under the OSI-approved BSD 3-Clause License.  See accompanying
 # file Copyright.txt or https://cmake.org/licensing for details.
 
-#.rst:
-# FindICU
-# -------
-#
-# Find the International Components for Unicode (ICU) libraries and
-# programs.
-#
-# This module supports multiple components.
-# Components can include any of: ``data``, ``i18n``, ``io``, ``le``,
-# ``lx``, ``test``, ``tu`` and ``uc``.
-#
-# Note that on Windows ``data`` is named ``dt`` and ``i18n`` is named
-# ``in``; any of the names may be used, and the appropriate
-# platform-specific library name will be automatically selected.
-#
-# This module reports information about the ICU installation in
-# several variables.  General variables::
-#
-#   ICU_VERSION - ICU release version
-#   ICU_FOUND - true if the main programs and libraries were found
-#   ICU_LIBRARIES - component libraries to be linked
-#   ICU_INCLUDE_DIRS - the directories containing the ICU headers
-#
-# Imported targets::
-#
-#   ICU::<C>
-#
-# Where ``<C>`` is the name of an ICU component, for example
-# ``ICU::i18n``.
-#
-# ICU programs are reported in::
-#
-#   ICU_GENCNVAL_EXECUTABLE - path to gencnval executable
-#   ICU_ICUINFO_EXECUTABLE - path to icuinfo executable
-#   ICU_GENBRK_EXECUTABLE - path to genbrk executable
-#   ICU_ICU-CONFIG_EXECUTABLE - path to icu-config executable
-#   ICU_GENRB_EXECUTABLE - path to genrb executable
-#   ICU_GENDICT_EXECUTABLE - path to gendict executable
-#   ICU_DERB_EXECUTABLE - path to derb executable
-#   ICU_PKGDATA_EXECUTABLE - path to pkgdata executable
-#   ICU_UCONV_EXECUTABLE - path to uconv executable
-#   ICU_GENCFU_EXECUTABLE - path to gencfu executable
-#   ICU_MAKECONV_EXECUTABLE - path to makeconv executable
-#   ICU_GENNORM2_EXECUTABLE - path to gennorm2 executable
-#   ICU_GENCCODE_EXECUTABLE - path to genccode executable
-#   ICU_GENSPREP_EXECUTABLE - path to gensprep executable
-#   ICU_ICUPKG_EXECUTABLE - path to icupkg executable
-#   ICU_GENCMN_EXECUTABLE - path to gencmn executable
-#
-# ICU component libraries are reported in::
-#
-#   ICU_<C>_FOUND - ON if component was found
-#   ICU_<C>_LIBRARIES - libraries for component
-#
-# ICU datafiles are reported in::
-#
-#   ICU_MAKEFILE_INC - Makefile.inc
-#   ICU_PKGDATA_INC - pkgdata.inc
-#
-# Note that ``<C>`` is the uppercased name of the component.
-#
-# This module reads hints about search results from::
-#
-#   ICU_ROOT - the root of the ICU installation
-#
-# The environment variable ``ICU_ROOT`` may also be used; the
-# ICU_ROOT variable takes precedence.
-#
-# The following cache variables may also be set::
-#
-#   ICU_<P>_EXECUTABLE - the path to executable <P>
-#   ICU_INCLUDE_DIR - the directory containing the ICU headers
-#   ICU_<C>_LIBRARY - the library for component <C>
-#
-# .. note::
-#
-#   In most cases none of the above variables will require setting,
-#   unless multiple ICU versions are available and a specific version
-#   is required.
-#
-# Other variables one may set to control this module are::
-#
-#   ICU_DEBUG - Set to ON to enable debug output from FindICU.
+#[=======================================================================[.rst:
+FindICU
+-------
+
+Find the International Components for Unicode (ICU) libraries and
+programs.
+
+This module supports multiple components.
+Components can include any of: ``data``, ``i18n``, ``io``, ``le``,
+``lx``, ``test``, ``tu`` and ``uc``.
+
+Note that on Windows ``data`` is named ``dt`` and ``i18n`` is named
+``in``; any of the names may be used, and the appropriate
+platform-specific library name will be automatically selected.
+
+This module reports information about the ICU installation in
+several variables.  General variables::
+
+  ICU_VERSION - ICU release version
+  ICU_FOUND - true if the main programs and libraries were found
+  ICU_LIBRARIES - component libraries to be linked
+  ICU_INCLUDE_DIRS - the directories containing the ICU headers
+
+Imported targets::
+
+  ICU::<C>
+
+Where ``<C>`` is the name of an ICU component, for example
+``ICU::i18n``.
+
+ICU programs are reported in::
+
+  ICU_GENCNVAL_EXECUTABLE - path to gencnval executable
+  ICU_ICUINFO_EXECUTABLE - path to icuinfo executable
+  ICU_GENBRK_EXECUTABLE - path to genbrk executable
+  ICU_ICU-CONFIG_EXECUTABLE - path to icu-config executable
+  ICU_GENRB_EXECUTABLE - path to genrb executable
+  ICU_GENDICT_EXECUTABLE - path to gendict executable
+  ICU_DERB_EXECUTABLE - path to derb executable
+  ICU_PKGDATA_EXECUTABLE - path to pkgdata executable
+  ICU_UCONV_EXECUTABLE - path to uconv executable
+  ICU_GENCFU_EXECUTABLE - path to gencfu executable
+  ICU_MAKECONV_EXECUTABLE - path to makeconv executable
+  ICU_GENNORM2_EXECUTABLE - path to gennorm2 executable
+  ICU_GENCCODE_EXECUTABLE - path to genccode executable
+  ICU_GENSPREP_EXECUTABLE - path to gensprep executable
+  ICU_ICUPKG_EXECUTABLE - path to icupkg executable
+  ICU_GENCMN_EXECUTABLE - path to gencmn executable
+
+ICU component libraries are reported in::
+
+  ICU_<C>_FOUND - ON if component was found
+  ICU_<C>_LIBRARIES - libraries for component
+
+ICU datafiles are reported in::
+
+  ICU_MAKEFILE_INC - Makefile.inc
+  ICU_PKGDATA_INC - pkgdata.inc
+
+Note that ``<C>`` is the uppercased name of the component.
+
+This module reads hints about search results from::
+
+  ICU_ROOT - the root of the ICU installation
+
+The environment variable ``ICU_ROOT`` may also be used; the
+ICU_ROOT variable takes precedence.
+
+The following cache variables may also be set::
+
+  ICU_<P>_EXECUTABLE - the path to executable <P>
+  ICU_INCLUDE_DIR - the directory containing the ICU headers
+  ICU_<C>_LIBRARY - the library for component <C>
+
+.. note::
+
+  In most cases none of the above variables will require setting,
+  unless multiple ICU versions are available and a specific version
+  is required.
+
+Other variables one may set to control this module are::
+
+  ICU_DEBUG - Set to ON to enable debug output from FindICU.
+#]=======================================================================]
 
 # Written by Roger Leigh <rleigh@codelibre.net>
 
@@ -156,15 +157,18 @@ function(_ICU_FIND)
 
 
   # Find all ICU programs
-  list(APPEND icu_binary_suffixes "${_bin64}" "bin")
+  list(APPEND icu_binary_suffixes "${_bin64}" "bin" "sbin")
   foreach(program ${icu_programs})
     string(TOUPPER "${program}" program_upcase)
     set(cache_var "ICU_${program_upcase}_EXECUTABLE")
     set(program_var "ICU_${program_upcase}_EXECUTABLE")
-    find_program("${cache_var}" "${program}"
+    find_program("${cache_var}"
+      NAMES "${program}"
       HINTS ${icu_roots}
       PATH_SUFFIXES ${icu_binary_suffixes}
-      DOC "ICU ${program} executable")
+      DOC "ICU ${program} executable"
+      NO_PACKAGE_ROOT_PATH
+      )
     mark_as_advanced(cache_var)
     set("${program_var}" "${${cache_var}}" PARENT_SCOPE)
   endforeach()
@@ -172,6 +176,11 @@ function(_ICU_FIND)
   # Find all ICU libraries
   list(APPEND icu_library_suffixes "${_lib64}" "lib")
   set(ICU_REQUIRED_LIBS_FOUND ON)
+  set(static_prefix )
+  # static icu libraries compiled with MSVC have the prefix 's'
+  if(MSVC)
+    set(static_prefix "s")
+  endif()
   foreach(component ${ICU_FIND_COMPONENTS})
     string(TOUPPER "${component}" component_upcase)
     set(component_cache "ICU_${component_upcase}_LIBRARY")
@@ -206,14 +215,34 @@ function(_ICU_FIND)
       list(APPEND component_debug_libnames "icui18nd")
     endif()
 
-    find_library("${component_cache_release}" ${component_libnames}
+    if(static_prefix)
+      unset(static_component_libnames)
+      unset(static_component_debug_libnames)
+      foreach(component_libname ${component_libnames})
+        list(APPEND static_component_libnames
+          ${static_prefix}${component_libname})
+      endforeach()
+      foreach(component_libname ${component_debug_libnames})
+        list(APPEND static_component_debug_libnames
+          ${static_prefix}${component_libname})
+      endforeach()
+      list(APPEND component_libnames ${static_component_libnames})
+      list(APPEND component_debug_libnames ${static_component_debug_libnames})
+    endif()
+    find_library("${component_cache_release}"
+      NAMES ${component_libnames}
       HINTS ${icu_roots}
       PATH_SUFFIXES ${icu_library_suffixes}
-      DOC "ICU ${component} library (release)")
-    find_library("${component_cache_debug}" ${component_debug_libnames}
+      DOC "ICU ${component} library (release)"
+      NO_PACKAGE_ROOT_PATH
+      )
+    find_library("${component_cache_debug}"
+      NAMES ${component_debug_libnames}
       HINTS ${icu_roots}
       PATH_SUFFIXES ${icu_library_suffixes}
-      DOC "ICU ${component} library (debug)")
+      DOC "ICU ${component} library (debug)"
+      NO_PACKAGE_ROOT_PATH
+      )
     include(${CMAKE_CURRENT_LIST_DIR}/SelectLibraryConfigurations.cmake)
     select_library_configurations(ICU_${component_upcase})
     mark_as_advanced("${component_cache_release}" "${component_cache_debug}")
@@ -260,7 +289,8 @@ function(_ICU_FIND)
     string(REPLACE "." "_" data_upcase "${data_upcase}")
     set(cache_var "ICU_${data_upcase}")
     set(data_var "ICU_${data_upcase}")
-    find_file("${cache_var}" "${data}"
+    find_file("${cache_var}"
+      NAMES "${data}"
       HINTS ${icu_roots}
       PATH_SUFFIXES ${icu_data_suffixes}
       DOC "ICU ${data} data file")
@@ -342,6 +372,10 @@ if(ICU_FOUND)
           set_target_properties(${_ICU_imported_target} PROPERTIES
             IMPORTED_LINK_INTERFACE_LANGUAGES_DEBUG "CXX"
             IMPORTED_LOCATION_DEBUG "${${_ICU_component_cache_debug}}")
+        endif()
+        if(CMAKE_DL_LIBS AND _ICU_component STREQUAL "uc")
+          set_target_properties(${_ICU_imported_target} PROPERTIES
+            INTERFACE_LINK_LIBRARIES "${CMAKE_DL_LIBS}")
         endif()
       endif()
     endif()

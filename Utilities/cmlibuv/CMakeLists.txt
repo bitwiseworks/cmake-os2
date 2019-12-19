@@ -2,7 +2,7 @@ project(libuv C)
 
 # Disable warnings to avoid changing 3rd party code.
 if(CMAKE_C_COMPILER_ID MATCHES
-    "^(GNU|Clang|AppleClang|XL|VisualAge|SunPro|MIPSpro|HP|Intel)$")
+    "^(GNU|Clang|AppleClang|XLClang|XL|VisualAge|SunPro|HP|Intel)$")
   set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -w")
 elseif(CMAKE_C_COMPILER_ID STREQUAL "PathScale")
   set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -woffall")
@@ -14,18 +14,24 @@ set(uv_libraries ${CMAKE_THREAD_LIBS_INIT})
 set(uv_includes include src)
 set(uv_headers
   include/uv.h
-  include/uv-errno.h
-  include/uv-threadpool.h
-  include/uv-version.h
+  include/uv/errno.h
+  include/uv/threadpool.h
+  include/uv/version.h
   )
 set(uv_sources
   src/fs-poll.c
   src/heap-inl.h
+  src/idna.c
+  src/idna.h
   src/inet.c
   src/queue.h
+  src/strscpy.c
+  src/strscpy.h
   src/threadpool.c
+  src/timer.c
   src/uv-common.c
   src/uv-common.h
+  src/uv-data-getter-setters.c
   src/version.c
   )
 if(WIN32)
@@ -44,7 +50,7 @@ if(WIN32)
     _WIN32_WINNT=0x0600
     )
   list(APPEND uv_headers
-    include/uv-win.h
+    include/uv/win.h
     include/tree.h
     )
   list(APPEND uv_sources
@@ -66,7 +72,6 @@ if(WIN32)
     src/win/poll.c
     src/win/process-stdio.c
     src/win/process.c
-    src/win/req.c
     src/win/req-inl.h
     src/win/signal.c
     src/win/snprintf.c
@@ -74,7 +79,6 @@ if(WIN32)
     src/win/stream-inl.h
     src/win/tcp.c
     src/win/thread.c
-    src/win/timer.c
     src/win/tty.c
     src/win/udp.c
     src/win/util.c
@@ -88,7 +92,7 @@ else()
     src/unix
     )
   list(APPEND uv_headers
-    include/uv-unix.h
+    include/uv/unix.h
     )
   list(APPEND uv_sources
     src/unix/async.c
@@ -109,7 +113,6 @@ else()
     src/unix/stream.c
     src/unix/tcp.c
     src/unix/thread.c
-    src/unix/timer.c
     src/unix/tty.c
     src/unix/udp.c
     )
@@ -120,7 +123,7 @@ if(CMAKE_SYSTEM_NAME STREQUAL "AIX")
     perfstat
     )
   list(APPEND uv_headers
-    include/uv-aix.h
+    include/uv/aix.h
     )
   list(APPEND uv_defines
     _ALL_SOURCE
@@ -130,6 +133,7 @@ if(CMAKE_SYSTEM_NAME STREQUAL "AIX")
     )
   list(APPEND uv_sources
     src/unix/aix.c
+    src/unix/aix-common.c
     )
 endif()
 
@@ -137,7 +141,7 @@ if(CMAKE_SYSTEM_NAME MATCHES "CYGWIN")
   list(APPEND uv_libraries
     )
   list(APPEND uv_headers
-    include/uv-posix.h
+    include/uv/posix.h
     )
   list(APPEND uv_defines
     )
@@ -156,8 +160,7 @@ endif()
 
 if(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
   list(APPEND uv_headers
-    include/uv-darwin.h
-    include/pthread-barrier.h
+    include/uv/darwin.h
     )
   list(APPEND uv_defines
     _DARWIN_USE_64_BIT_INODE=1
@@ -170,14 +173,13 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
     src/unix/fsevents.c
     src/unix/kqueue.c
     src/unix/proctitle.c
-    src/unix/pthread-barrier.c
     )
 endif()
 
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
   list(APPEND uv_libraries dl rt)
   list(APPEND uv_headers
-    include/uv-linux.h
+    include/uv/linux.h
     )
   list(APPEND uv_defines _GNU_SOURCE)
   list(APPEND uv_sources
@@ -197,10 +199,28 @@ if(CMAKE_SYSTEM_NAME STREQUAL "FreeBSD")
     kvm
     )
   list(APPEND uv_headers
-    include/uv-bsd.h
+    include/uv/bsd.h
     )
   list(APPEND uv_sources
     src/unix/bsd-ifaddrs.c
+    src/unix/bsd-proctitle.c
+    src/unix/freebsd.c
+    src/unix/kqueue.c
+    src/unix/posix-hrtime.c
+    )
+endif()
+
+if(CMAKE_SYSTEM_NAME STREQUAL "kFreeBSD")
+  list(APPEND uv_libraries
+    freebsd-glue
+    kvm
+    )
+  list(APPEND uv_headers
+    include/uv/bsd.h
+    )
+  list(APPEND uv_sources
+    src/unix/bsd-ifaddrs.c
+    src/unix/bsd-proctitle.c
     src/unix/freebsd.c
     src/unix/kqueue.c
     src/unix/posix-hrtime.c
@@ -212,10 +232,11 @@ if(CMAKE_SYSTEM_NAME STREQUAL "NetBSD")
     kvm
     )
   list(APPEND uv_headers
-    include/uv-bsd.h
+    include/uv/bsd.h
     )
   list(APPEND uv_sources
     src/unix/bsd-ifaddrs.c
+    src/unix/bsd-proctitle.c
     src/unix/netbsd.c
     src/unix/kqueue.c
     src/unix/posix-hrtime.c
@@ -227,10 +248,11 @@ if(CMAKE_SYSTEM_NAME STREQUAL "OpenBSD")
     kvm
     )
   list(APPEND uv_headers
-    include/uv-bsd.h
+    include/uv/bsd.h
     )
   list(APPEND uv_sources
     src/unix/bsd-ifaddrs.c
+    src/unix/bsd-proctitle.c
     src/unix/openbsd.c
     src/unix/kqueue.c
     src/unix/posix-hrtime.c
@@ -246,7 +268,7 @@ if(CMAKE_SYSTEM_NAME STREQUAL "SunOS")
     rt
     )
   list(APPEND uv_headers
-    include/uv-sunos.h
+    include/uv/sunos.h
     )
   list(APPEND uv_defines
     __EXTENSIONS__

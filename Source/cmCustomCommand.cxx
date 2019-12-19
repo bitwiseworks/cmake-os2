@@ -2,36 +2,25 @@
    file Copyright.txt or https://cmake.org/licensing for details.  */
 #include "cmCustomCommand.h"
 
+#include "cmAlgorithms.h"
 #include "cmMakefile.h"
 
-cmCustomCommand::cmCustomCommand()
-  : Backtrace()
-{
-  this->HaveComment = false;
-  this->EscapeOldStyle = true;
-  this->EscapeAllowMakeVars = false;
-  this->UsesTerminal = false;
-  this->CommandExpandLists = false;
-}
+#include <utility>
 
 cmCustomCommand::cmCustomCommand(cmMakefile const* mf,
-                                 const std::vector<std::string>& outputs,
-                                 const std::vector<std::string>& byproducts,
-                                 const std::vector<std::string>& depends,
-                                 const cmCustomCommandLines& commandLines,
+                                 std::vector<std::string> outputs,
+                                 std::vector<std::string> byproducts,
+                                 std::vector<std::string> depends,
+                                 cmCustomCommandLines commandLines,
                                  const char* comment,
                                  const char* workingDirectory)
-  : Outputs(outputs)
-  , Byproducts(byproducts)
-  , Depends(depends)
-  , CommandLines(commandLines)
-  , Backtrace()
+  : Outputs(std::move(outputs))
+  , Byproducts(std::move(byproducts))
+  , Depends(std::move(depends))
+  , CommandLines(std::move(commandLines))
   , Comment(comment ? comment : "")
   , WorkingDirectory(workingDirectory ? workingDirectory : "")
   , HaveComment(comment != nullptr)
-  , EscapeAllowMakeVars(false)
-  , EscapeOldStyle(true)
-  , CommandExpandLists(false)
 {
   if (mf) {
     this->Backtrace = mf->GetBacktrace();
@@ -66,13 +55,12 @@ const char* cmCustomCommand::GetComment() const
 
 void cmCustomCommand::AppendCommands(const cmCustomCommandLines& commandLines)
 {
-  this->CommandLines.insert(this->CommandLines.end(), commandLines.begin(),
-                            commandLines.end());
+  cmAppend(this->CommandLines, commandLines);
 }
 
 void cmCustomCommand::AppendDepends(const std::vector<std::string>& depends)
 {
-  this->Depends.insert(this->Depends.end(), depends.begin(), depends.end());
+  cmAppend(this->Depends, depends);
 }
 
 bool cmCustomCommand::GetEscapeOldStyle() const
@@ -113,8 +101,7 @@ void cmCustomCommand::SetImplicitDepends(ImplicitDependsList const& l)
 
 void cmCustomCommand::AppendImplicitDepends(ImplicitDependsList const& l)
 {
-  this->ImplicitDepends.insert(this->ImplicitDepends.end(), l.begin(),
-                               l.end());
+  cmAppend(this->ImplicitDepends, l);
 }
 
 bool cmCustomCommand::GetUsesTerminal() const
@@ -145,4 +132,14 @@ const std::string& cmCustomCommand::GetDepfile() const
 void cmCustomCommand::SetDepfile(const std::string& depfile)
 {
   this->Depfile = depfile;
+}
+
+const std::string& cmCustomCommand::GetJobPool() const
+{
+  return this->JobPool;
+}
+
+void cmCustomCommand::SetJobPool(const std::string& job_pool)
+{
+  this->JobPool = job_pool;
 }

@@ -1,5 +1,6 @@
-cmake_minimum_required(VERSION 3.8)
-project(macos-fw-test)
+cmake_minimum_required(VERSION 3.10)
+project(MacOsFW)
+include("../AutogenGuiTest.cmake")
 
 find_package(Qt5Test REQUIRED)
 

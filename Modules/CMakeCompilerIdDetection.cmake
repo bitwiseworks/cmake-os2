@@ -57,12 +57,14 @@ function(compiler_id_detection outvar lang)
       HP
       Compaq
       zOS
+      XLClang
       XL
       VisualAge
       PGI
       Cray
       TI
       Fujitsu
+      GHS
     )
     if (lang STREQUAL C)
       list(APPEND ordered_compilers
@@ -72,21 +74,20 @@ function(compiler_id_detection outvar lang)
     endif()
     list(APPEND ordered_compilers
       SCO
+      ARMCC
       AppleClang
+      ARMClang
       Clang
       GNU
       MSVC
       ADSP
       IAR
-      ARMCC
     )
     if (lang STREQUAL C)
       list(APPEND ordered_compilers
         SDCC
       )
     endif()
-    list(APPEND ordered_compilers
-      MIPSpro)
 
     #Currently the only CUDA compilers are NVIDIA
     if(lang STREQUAL CUDA)
@@ -97,6 +98,8 @@ function(compiler_id_detection outvar lang)
       foreach(Id ${ordered_compilers})
         string(APPEND CMAKE_${lang}_COMPILER_ID_CONTENT "# define ${CID_PREFIX}COMPILER_IS_${Id} 0\n")
       endforeach()
+      # Hard-code definitions for compilers that are no longer supported.
+      string(APPEND CMAKE_${lang}_COMPILER_ID_CONTENT "# define ${CID_PREFIX}COMPILER_IS_MIPSpro 0\n")
     endif()
 
     set(pp_if "#if")
@@ -135,9 +138,6 @@ function(compiler_id_detection outvar lang)
 /* These compilers are either not known or too old to define an
   identification macro.  Try to identify the platform and guess that
   it is the native compiler.  */
-#elif defined(__sgi)
-# define ${CID_PREFIX}COMPILER_ID \"MIPSpro\"
-
 #elif defined(__hpux) || defined(__hpua)
 # define ${CID_PREFIX}COMPILER_ID \"HP\"
 

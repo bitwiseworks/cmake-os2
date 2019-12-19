@@ -3,7 +3,7 @@ cmake_host_system_information
 
 Query host system specific information.
 
-::
+.. code-block:: cmake
 
   cmake_host_system_information(RESULT <variable> QUERY <key> ...)
 
@@ -20,20 +20,20 @@ Key                           Description
 ``NUMBER_OF_PHYSICAL_CORES``  Number of physical cores
 ``HOSTNAME``                  Hostname
 ``FQDN``                      Fully qualified domain name
-``TOTAL_VIRTUAL_MEMORY``      Total virtual memory in megabytes
-``AVAILABLE_VIRTUAL_MEMORY``  Available virtual memory in megabytes
-``TOTAL_PHYSICAL_MEMORY``     Total physical memory in megabytes
-``AVAILABLE_PHYSICAL_MEMORY`` Available physical memory in megabytes
+``TOTAL_VIRTUAL_MEMORY``      Total virtual memory in MiB [#mebibytes]_
+``AVAILABLE_VIRTUAL_MEMORY``  Available virtual memory in MiB [#mebibytes]_
+``TOTAL_PHYSICAL_MEMORY``     Total physical memory in MiB [#mebibytes]_
+``AVAILABLE_PHYSICAL_MEMORY`` Available physical memory in MiB [#mebibytes]_
 ``IS_64BIT``                  One if processor is 64Bit
 ``HAS_FPU``                   One if processor has floating point unit
 ``HAS_MMX``                   One if processor supports MMX instructions
-``HAS_MMX_PLUS``              One if porcessor supports Ext. MMX instructions
-``HAS_SSE``                   One if porcessor supports SSE instructions
-``HAS_SSE2``                  One if porcessor supports SSE2 instructions
-``HAS_SSE_FP``                One if porcessor supports SSE FP instructions
-``HAS_SSE_MMX``               One if porcessor supports SSE MMX instructions
-``HAS_AMD_3DNOW``             One if porcessor supports 3DNow instructions
-``HAS_AMD_3DNOW_PLUS``        One if porcessor supports 3DNow+ instructions
+``HAS_MMX_PLUS``              One if processor supports Ext. MMX instructions
+``HAS_SSE``                   One if processor supports SSE instructions
+``HAS_SSE2``                  One if processor supports SSE2 instructions
+``HAS_SSE_FP``                One if processor supports SSE FP instructions
+``HAS_SSE_MMX``               One if processor supports SSE MMX instructions
+``HAS_AMD_3DNOW``             One if processor supports 3DNow instructions
+``HAS_AMD_3DNOW_PLUS``        One if processor supports 3DNow+ instructions
 ``HAS_IA64``                  One if IA64 processor emulating x86
 ``HAS_SERIAL_NUMBER``         One if processor has serial number
 ``PROCESSOR_SERIAL_NUMBER``   Processor serial number
@@ -44,3 +44,7 @@ Key                           Description
 ``OS_VERSION``                The OS build ID
 ``OS_PLATFORM``               See :variable:`CMAKE_HOST_SYSTEM_PROCESSOR`
 ============================= ================================================
+
+.. rubric:: Footnotes
+
+.. [#mebibytes] One MiB (mebibyte) is equal to 1024x1024 bytes.

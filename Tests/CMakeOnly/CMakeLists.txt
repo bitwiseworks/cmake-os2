@@ -33,7 +33,7 @@ add_CMakeOnly_test(CompilerIdCXX)
 if(CMAKE_Fortran_COMPILER)
   add_CMakeOnly_test(CompilerIdFortran)
 endif()
-if(CMAKE_GENERATOR MATCHES "Visual Studio ([^89]|[89][0-9])")
+if(CMAKE_GENERATOR MATCHES "Visual Studio ([^9]|9[0-9])")
   add_CMakeOnly_test(CompilerIdCSharp)
 endif()
 
@@ -56,7 +56,19 @@ add_test(CMakeOnly.ProjectInclude ${CMAKE_CMAKE_COMMAND}
   -P ${CMAKE_CURRENT_BINARY_DIR}/Test.cmake
   )
 
-include(${CMAKE_SOURCE_DIR}/Modules/CMakeParseArguments.cmake)
+add_test(CMakeOnly.ProjectIncludeAny ${CMAKE_CMAKE_COMMAND}
+  -DTEST=ProjectIncludeAny
+  -DCMAKE_ARGS=-DCMAKE_PROJECT_INCLUDE=${CMAKE_CURRENT_SOURCE_DIR}/ProjectInclude/include.cmake
+  -P ${CMAKE_CURRENT_BINARY_DIR}/Test.cmake
+  )
+
+add_test(CMakeOnly.ProjectIncludeBefore ${CMAKE_CMAKE_COMMAND}
+  -DTEST=ProjectIncludeBefore
+  -DCMAKE_ARGS=-DCMAKE_PROJECT_INCLUDE_BEFORE=${CMAKE_CURRENT_SOURCE_DIR}/ProjectIncludeBefore/include.cmake
+  -P ${CMAKE_CURRENT_BINARY_DIR}/Test.cmake
+  )
+
+include(CMakeParseArguments)
 
 function(add_major_test module)
   cmake_parse_arguments(MAJOR_TEST "NOLANG" "VERSION_VAR" "VERSIONS" ${ARGN})

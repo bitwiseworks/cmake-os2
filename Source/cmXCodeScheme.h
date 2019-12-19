@@ -20,7 +20,7 @@ class cmXCodeScheme
 public:
   typedef std::vector<const cmXCodeObject*> TestObjects;
 
-  cmXCodeScheme(cmXCodeObject* xcObj, const TestObjects& tests,
+  cmXCodeScheme(cmXCodeObject* xcObj, TestObjects tests,
                 const std::vector<std::string>& configList,
                 unsigned int xcVersion);
 
@@ -41,6 +41,16 @@ private:
                        const std::string& container);
   void WriteLaunchAction(cmXMLWriter& xout, const std::string& configuration,
                          const std::string& container);
+
+  bool WriteLaunchActionAttribute(cmXMLWriter& xout,
+                                  const std::string& attrName,
+                                  const std::string& varName);
+
+  bool WriteLaunchActionAdditionalOption(cmXMLWriter& xout,
+                                         const std::string& attrName,
+                                         const std::string& value,
+                                         const std::string& varName);
+
   void WriteProfileAction(cmXMLWriter& xout, const std::string& configuration);
   void WriteAnalyzeAction(cmXMLWriter& xout, const std::string& configuration);
   void WriteArchiveAction(cmXMLWriter& xout, const std::string& configuration);

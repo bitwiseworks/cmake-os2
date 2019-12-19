@@ -1,7 +1,6 @@
 # Distributed under the OSI-approved BSD 3-Clause License.  See accompanying
 # file Copyright.txt or https://cmake.org/licensing for details.
 
-
 if(CMAKE_Swift_COMPILER_FORCED)
   # The compiler configuration was forced by the user.
   # Assume the user has configured all compiler information.
@@ -16,14 +15,13 @@ include(CMakeTestCompilerCommon)
 unset(CMAKE_Swift_COMPILER_WORKS CACHE)
 
 # This file is used by EnableLanguage in cmGlobalGenerator to
-# determine that that selected C++ compiler can actually compile
+# determine that the selected C++ compiler can actually compile
 # and link the most basic of programs.   If not, a fatal error
 # is set and cmake stops processing commands and will not generate
 # any makefiles or projects.
 if(NOT CMAKE_Swift_COMPILER_WORKS)
   PrintTestCompilerStatus("Swift" "")
   file(WRITE ${CMAKE_BINARY_DIR}${CMAKE_FILES_DIRECTORY}/CMakeTmp/main.swift
-    "import Foundation\n"
     "print(\"CMake\")\n")
   try_compile(CMAKE_Swift_COMPILER_WORKS ${CMAKE_BINARY_DIR}
     ${CMAKE_BINARY_DIR}${CMAKE_FILES_DIRECTORY}/CMakeTmp/main.swift
@@ -51,6 +49,11 @@ else()
       "Determining if the Swift compiler works passed with "
       "the following output:\n${__CMAKE_Swift_COMPILER_OUTPUT}\n\n")
   endif()
+
+  # Re-configure to save learned information.
+  configure_file(${CMAKE_ROOT}/Modules/CMakeSwiftCompiler.cmake.in
+                 ${CMAKE_PLATFORM_INFO_DIR}/CMakeSwiftCompiler.cmake @ONLY)
+  include(${CMAKE_PLATFORM_INFO_DIR}/CMakeSwiftCompiler.cmake)
 endif()
 
 unset(__CMAKE_Swift_COMPILER_OUTPUT)

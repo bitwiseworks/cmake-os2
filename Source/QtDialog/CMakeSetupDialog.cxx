@@ -21,6 +21,11 @@
 #include <QToolButton>
 #include <QUrl>
 
+#ifdef QT_WINEXTRAS
+#  include <QWinTaskbarButton>
+#  include <QWinTaskbarProgress>
+#endif
+
 #include "AddCacheEntry.h"
 #include "FirstConfigure.h"
 #include "QCMake.h"
@@ -108,7 +113,7 @@ CMakeSetupDialog::CMakeSetupDialog()
 
   QMenu* ToolsMenu = this->menuBar()->addMenu(tr("&Tools"));
   this->ConfigureAction = ToolsMenu->addAction(tr("&Configure"));
-  // prevent merging with Preferences menu item on Mac OS X
+  // prevent merging with Preferences menu item on macOS
   this->ConfigureAction->setMenuRole(QAction::NoRole);
   QObject::connect(this->ConfigureAction, SIGNAL(triggered(bool)), this,
                    SLOT(doConfigure()));
@@ -188,6 +193,9 @@ CMakeSetupDialog::CMakeSetupDialog()
   connect(this->Output, SIGNAL(customContextMenuRequested(const QPoint&)),
           this, SLOT(doOutputContextMenu(const QPoint&)));
 
+  // disable open project button
+  this->OpenProjectButton->setDisabled(true);
+
   // start the cmake worker thread
   this->CMakeThread = new QCMakeThread(this);
   QObject::connect(this->CMakeThread, SIGNAL(cmakeInitialized()), this,
@@ -249,6 +257,10 @@ void CMakeSetupDialog::initialize()
                    SIGNAL(outputMessage(QString)), this,
                    SLOT(message(QString)));
 
+  QObject::connect(this->CMakeThread->cmakeInstance(),
+                   SIGNAL(openPossible(bool)), this->OpenProjectButton,
+                   SLOT(setEnabled(bool)));
+
   QObject::connect(this->groupedCheck, SIGNAL(toggled(bool)), this,
                    SLOT(setGroupedView(bool)));
   QObject::connect(this->advancedCheck, SIGNAL(toggled(bool)), this,
@@ -287,6 +299,11 @@ void CMakeSetupDialog::initialize()
   } else {
     this->onBinaryDirectoryChanged(this->BinaryDirectory->lineEdit()->text());
   }
+
+#ifdef QT_WINEXTRAS
+  this->TaskbarButton = new QWinTaskbarButton(this);
+  this->TaskbarButton->setWindow(this->windowHandle());
+#endif
 }
 
 CMakeSetupDialog::~CMakeSetupDialog()
@@ -374,6 +391,10 @@ void CMakeSetupDialog::doConfigure()
     this->CacheValues->scrollToTop();
   }
   this->ProgressBar->reset();
+
+#ifdef QT_WINEXTRAS
+  this->TaskbarButton->progress()->reset();
+#endif
 }
 
 bool CMakeSetupDialog::doConfigureInternal()
@@ -488,28 +509,17 @@ void CMakeSetupDialog::doGenerate()
 
   this->enterState(ReadyConfigure);
   this->ProgressBar->reset();
+#ifdef QT_WINEXTRAS
+  this->TaskbarButton->progress()->reset();
+#endif
 
   this->ConfigureNeeded = true;
 }
 
-QString CMakeSetupDialog::getProjectFilename()
-{
-  QStringList nameFilter;
-  nameFilter << "*.sln"
-             << "*.xcodeproj";
-  QDir directory(this->BinaryDirectory->currentText());
-  QStringList nlnFile = directory.entryList(nameFilter);
-
-  if (nlnFile.count() == 1) {
-    return this->BinaryDirectory->currentText() + "/" + nlnFile.at(0);
-  }
-
-  return QString();
-}
-
 void CMakeSetupDialog::doOpenProject()
 {
-  QDesktopServices::openUrl(QUrl::fromLocalFile(this->getProjectFilename()));
+  QMetaObject::invokeMethod(this->CMakeThread->cmakeInstance(), "open",
+                            Qt::QueuedConnection);
 }
 
 void CMakeSetupDialog::closeEvent(QCloseEvent* e)
@@ -630,11 +640,6 @@ void CMakeSetupDialog::updateBinaryDirectory(const QString& dir)
     this->BinaryDirectory->setEditText(dir);
     this->BinaryDirectory->blockSignals(false);
   }
-  if (!this->getProjectFilename().isEmpty()) {
-    this->OpenProjectButton->setEnabled(true);
-  } else {
-    this->OpenProjectButton->setEnabled(false);
-  }
 }
 
 void CMakeSetupDialog::doBinaryBrowse()
@@ -686,6 +691,12 @@ void CMakeSetupDialog::showProgress(const QString& /*msg*/, float percent)
 {
   percent = (percent * ProgressFactor) + ProgressOffset;
   this->ProgressBar->setValue(qRound(percent * 100));
+
+#ifdef QT_WINEXTRAS
+  QWinTaskbarProgress* progress = this->TaskbarButton->progress();
+  progress->setVisible(true);
+  progress->setValue(qRound(percent * 100));
+#endif
 }
 
 void CMakeSetupDialog::error(const QString& msg)
@@ -739,6 +750,7 @@ bool CMakeSetupDialog::setupFirstConfigure()
   if (dialog.exec() == QDialog::Accepted) {
     dialog.saveToSettings();
     this->CMakeThread->cmakeInstance()->setGenerator(dialog.getGenerator());
+    this->CMakeThread->cmakeInstance()->setPlatform(dialog.getPlatform());
     this->CMakeThread->cmakeInstance()->setToolset(dialog.getToolset());
 
     QCMakeCacheModel* m = this->CacheValues->cacheModel();
@@ -850,11 +862,11 @@ void CMakeSetupDialog::doAbout()
     "built using Qt %2 (qt-project.org).\n"
 #ifdef USE_LGPL
     "\n"
-    "The Qt Toolkit is Copyright (C) Digia Plc and/or its subsidiary(-ies).\n"
+    "The Qt Toolkit is Copyright (C) The Qt Company Ltd.\n"
     "Qt is licensed under terms of the GNU LGPLv" USE_LGPL ", available at:\n"
     " \"%3\""
 #endif
-    );
+  );
   msg = msg.arg(cmVersion::GetCMakeVersion());
   msg = msg.arg(qVersion());
 #ifdef USE_LGPL
@@ -1001,8 +1013,9 @@ void CMakeSetupDialog::removeSelectedCacheEntries()
 void CMakeSetupDialog::selectionChanged()
 {
   QModelIndexList idxs = this->CacheValues->selectionModel()->selectedRows();
-  if (idxs.count() && (this->CurrentState == ReadyConfigure ||
-                       this->CurrentState == ReadyGenerate)) {
+  if (idxs.count() &&
+      (this->CurrentState == ReadyConfigure ||
+       this->CurrentState == ReadyGenerate)) {
     this->RemoveEntry->setEnabled(true);
   } else {
     this->RemoveEntry->setEnabled(false);
@@ -1039,9 +1052,6 @@ void CMakeSetupDialog::enterState(CMakeSetupDialog::State s)
     this->GenerateButton->setEnabled(true);
     this->GenerateAction->setEnabled(true);
     this->ConfigureButton->setEnabled(true);
-    if (!this->getProjectFilename().isEmpty()) {
-      this->OpenProjectButton->setEnabled(true);
-    }
     this->ConfigureButton->setText(tr("&Configure"));
     this->GenerateButton->setText(tr("&Generate"));
   } else if (s == ReadyGenerate) {
@@ -1049,9 +1059,6 @@ void CMakeSetupDialog::enterState(CMakeSetupDialog::State s)
     this->GenerateButton->setEnabled(true);
     this->GenerateAction->setEnabled(true);
     this->ConfigureButton->setEnabled(true);
-    if (!this->getProjectFilename().isEmpty()) {
-      this->OpenProjectButton->setEnabled(true);
-    }
     this->ConfigureButton->setText(tr("&Configure"));
     this->GenerateButton->setText(tr("&Generate"));
   }

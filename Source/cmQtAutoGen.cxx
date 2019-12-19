@@ -1,27 +1,18 @@
 /* Distributed under the OSI-approved BSD 3-Clause License.  See accompanying
    file Copyright.txt or https://cmake.org/licensing for details.  */
 #include "cmQtAutoGen.h"
+
 #include "cmAlgorithms.h"
+#include "cmDuration.h"
 #include "cmProcessOutput.h"
 #include "cmSystemTools.h"
-
 #include "cmsys/FStream.hxx"
 #include "cmsys/RegularExpression.hxx"
 
 #include <algorithm>
+#include <array>
 #include <sstream>
-#include <stddef.h>
-
-// - Static variables
-
-std::string const genNameGen = "AutoGen";
-std::string const genNameMoc = "AutoMoc";
-std::string const genNameUic = "AutoUic";
-std::string const genNameRcc = "AutoRcc";
-
-std::string const mcNameSingle = "SINGLE";
-std::string const mcNameWrap = "WRAP";
-std::string const mcNameFull = "FULL";
+#include <utility>
 
 // - Static functions
 
@@ -61,8 +52,9 @@ void MergeOptions(std::vector<std::string>& baseOpts,
           }
         }
         // Test if this is a value option and change the existing value
-        if (!optName.empty() && (std::find(valueOpts.begin(), valueOpts.end(),
-                                           optName) != valueOpts.end())) {
+        if (!optName.empty() &&
+            (std::find(valueOpts.begin(), valueOpts.end(), optName) !=
+             valueOpts.end())) {
           const Iter existItNext(existIt + 1);
           const CIter fitNext(fit + 1);
           if ((existItNext != baseOpts.end()) && (fitNext != fitEnd)) {
@@ -76,238 +68,137 @@ void MergeOptions(std::vector<std::string>& baseOpts,
     }
   }
   // Append options
-  baseOpts.insert(baseOpts.end(), extraOpts.begin(), extraOpts.end());
-}
-
-static std::string utilStripCR(std::string const& line)
-{
-  // Strip CR characters rcc may have printed (possibly more than one!).
-  std::string::size_type cr = line.find('\r');
-  if (cr != std::string::npos) {
-    return line.substr(0, cr);
-  }
-  return line;
-}
-
-/// @brief Reads the resource files list from from a .qrc file - Qt4 version
-/// @return True if the .qrc file was successfully parsed
-static bool RccListInputsQt4(std::string const& fileName,
-                             std::vector<std::string>& files,
-                             std::string* errorMessage)
-{
-  bool allGood = true;
-  // Read qrc file content into string
-  std::string qrcContents;
-  {
-    cmsys::ifstream ifs(fileName.c_str());
-    if (ifs) {
-      std::ostringstream osst;
-      osst << ifs.rdbuf();
-      qrcContents = osst.str();
-    } else {
-      if (errorMessage != nullptr) {
-        std::ostringstream ost;
-        ost << "rcc file not readable:\n"
-            << "  " << cmQtAutoGen::Quoted(fileName) << "\n";
-        *errorMessage = ost.str();
-      }
-      allGood = false;
-    }
-  }
-  if (allGood) {
-    // qrc file directory
-    std::string qrcDir(cmSystemTools::GetFilenamePath(fileName));
-    if (!qrcDir.empty()) {
-      qrcDir += '/';
-    }
-
-    cmsys::RegularExpression fileMatchRegex("(<file[^<]+)");
-    cmsys::RegularExpression fileReplaceRegex("(^<file[^>]*>)");
-
-    size_t offset = 0;
-    while (fileMatchRegex.find(qrcContents.c_str() + offset)) {
-      std::string qrcEntry = fileMatchRegex.match(1);
-      offset += qrcEntry.size();
-      {
-        fileReplaceRegex.find(qrcEntry);
-        std::string tag = fileReplaceRegex.match(1);
-        qrcEntry = qrcEntry.substr(tag.size());
-      }
-      if (!cmSystemTools::FileIsFullPath(qrcEntry.c_str())) {
-        qrcEntry = qrcDir + qrcEntry;
-      }
-      files.push_back(qrcEntry);
-    }
-  }
-  return allGood;
-}
-
-/// @brief Reads the resource files list from from a .qrc file - Qt5 version
-/// @return True if the .qrc file was successfully parsed
-static bool RccListInputsQt5(std::string const& rccCommand,
-                             std::string const& fileName,
-                             std::vector<std::string>& files,
-                             std::string* errorMessage)
-{
-  if (rccCommand.empty()) {
-    cmSystemTools::Error("rcc executable not available");
-    return false;
-  }
-
-  // Read rcc features
-  bool hasDashDashList = false;
-  {
-    std::vector<std::string> command;
-    command.push_back(rccCommand);
-    command.push_back("--help");
-    std::string rccStdOut;
-    std::string rccStdErr;
-    int retVal = 0;
-    bool result = cmSystemTools::RunSingleCommand(
-      command, &rccStdOut, &rccStdErr, &retVal, nullptr,
-      cmSystemTools::OUTPUT_NONE, 0.0, cmProcessOutput::Auto);
-    if (result && retVal == 0 &&
-        rccStdOut.find("--list") != std::string::npos) {
-      hasDashDashList = true;
-    }
-  }
-
-  std::string const fileDir = cmSystemTools::GetFilenamePath(fileName);
-  std::string const fileNameName = cmSystemTools::GetFilenameName(fileName);
-
-  // Run rcc list command
-  bool result = false;
-  int retVal = 0;
-  std::string rccStdOut;
-  std::string rccStdErr;
-  {
-    std::vector<std::string> command;
-    command.push_back(rccCommand);
-    command.push_back(hasDashDashList ? "--list" : "-list");
-    command.push_back(fileNameName);
-    result = cmSystemTools::RunSingleCommand(
-      command, &rccStdOut, &rccStdErr, &retVal, fileDir.c_str(),
-      cmSystemTools::OUTPUT_NONE, 0.0, cmProcessOutput::Auto);
-  }
-  if (!result || retVal) {
-    if (errorMessage != nullptr) {
-      std::ostringstream ost;
-      ost << "rcc list process failed for\n  " << cmQtAutoGen::Quoted(fileName)
-          << "\n"
-          << rccStdOut << "\n"
-          << rccStdErr << "\n";
-      *errorMessage = ost.str();
-    }
-    return false;
-  }
-
-  // Parse rcc std output
-  {
-    std::istringstream ostr(rccStdOut);
-    std::string oline;
-    while (std::getline(ostr, oline)) {
-      oline = utilStripCR(oline);
-      if (!oline.empty()) {
-        files.push_back(oline);
-      }
-    }
-  }
-  // Parse rcc error output
-  {
-    std::istringstream estr(rccStdErr);
-    std::string eline;
-    while (std::getline(estr, eline)) {
-      eline = utilStripCR(eline);
-      if (cmHasLiteralPrefix(eline, "RCC: Error in")) {
-        static std::string searchString = "Cannot find file '";
-
-        std::string::size_type pos = eline.find(searchString);
-        if (pos == std::string::npos) {
-          if (errorMessage != nullptr) {
-            std::ostringstream ost;
-            ost << "rcc lists unparsable output:\n"
-                << cmQtAutoGen::Quoted(eline) << "\n";
-            *errorMessage = ost.str();
-          }
-          return false;
-        }
-        pos += searchString.length();
-        std::string::size_type sz = eline.size() - pos - 1;
-        files.push_back(eline.substr(pos, sz));
-      }
-    }
-  }
-
-  // Convert relative paths to absolute paths
-  for (std::string& resFile : files) {
-    resFile = cmSystemTools::CollapseCombinedPath(fileDir, resFile);
-  }
-
-  return true;
+  cmAppend(baseOpts, extraOpts);
 }
 
 // - Class definitions
 
-std::string const cmQtAutoGen::listSep = "<<<S>>>";
+unsigned int const cmQtAutoGen::ParallelMax = 64;
+std::string const cmQtAutoGen::ListSep = "<<<S>>>";
 
-std::string const& cmQtAutoGen::GeneratorName(Generator type)
+std::string const& cmQtAutoGen::GeneratorName(GenT genType)
 {
-  switch (type) {
-    case Generator::GEN:
-      return genNameGen;
-    case Generator::MOC:
-      return genNameMoc;
-    case Generator::UIC:
-      return genNameUic;
-    case Generator::RCC:
-      return genNameRcc;
+  static const std::string AutoGen("AutoGen");
+  static const std::string AutoMoc("AutoMoc");
+  static const std::string AutoUic("AutoUic");
+  static const std::string AutoRcc("AutoRcc");
+
+  switch (genType) {
+    case GenT::GEN:
+      return AutoGen;
+    case GenT::MOC:
+      return AutoMoc;
+    case GenT::UIC:
+      return AutoUic;
+    case GenT::RCC:
+      return AutoRcc;
   }
-  return genNameGen;
+  return AutoGen;
 }
 
-std::string cmQtAutoGen::GeneratorNameUpper(Generator genType)
+std::string const& cmQtAutoGen::GeneratorNameUpper(GenT genType)
 {
-  return cmSystemTools::UpperCase(cmQtAutoGen::GeneratorName(genType));
+  static const std::string AUTOGEN("AUTOGEN");
+  static const std::string AUTOMOC("AUTOMOC");
+  static const std::string AUTOUIC("AUTOUIC");
+  static const std::string AUTORCC("AUTORCC");
+
+  switch (genType) {
+    case GenT::GEN:
+      return AUTOGEN;
+    case GenT::MOC:
+      return AUTOMOC;
+    case GenT::UIC:
+      return AUTOUIC;
+    case GenT::RCC:
+      return AUTORCC;
+  }
+  return AUTOGEN;
 }
 
-std::string const& cmQtAutoGen::MultiConfigName(MultiConfig config)
+std::string cmQtAutoGen::Tools(bool moc, bool uic, bool rcc)
 {
-  switch (config) {
-    case MultiConfig::SINGLE:
-      return mcNameSingle;
-    case MultiConfig::WRAP:
-      return mcNameWrap;
-    case MultiConfig::FULL:
-      return mcNameFull;
+  std::string res;
+  std::vector<std::string> lst;
+  if (moc) {
+    lst.emplace_back("AUTOMOC");
   }
-  return mcNameWrap;
-}
-
-cmQtAutoGen::MultiConfig cmQtAutoGen::MultiConfigType(std::string const& name)
-{
-  if (name == mcNameSingle) {
-    return MultiConfig::SINGLE;
+  if (uic) {
+    lst.emplace_back("AUTOUIC");
   }
-  if (name == mcNameFull) {
-    return MultiConfig::FULL;
+  if (rcc) {
+    lst.emplace_back("AUTORCC");
   }
-  return MultiConfig::WRAP;
+  switch (lst.size()) {
+    case 1:
+      res += lst.at(0);
+      break;
+    case 2:
+      res += lst.at(0);
+      res += " and ";
+      res += lst.at(1);
+      break;
+    case 3:
+      res += lst.at(0);
+      res += ", ";
+      res += lst.at(1);
+      res += " and ";
+      res += lst.at(2);
+      break;
+    default:
+      break;
+  }
+  return res;
 }
 
 std::string cmQtAutoGen::Quoted(std::string const& text)
 {
-  static const char* rep[18] = { "\\", "\\\\", "\"", "\\\"", "\a", "\\a",
-                                 "\b", "\\b",  "\f", "\\f",  "\n", "\\n",
-                                 "\r", "\\r",  "\t", "\\t",  "\v", "\\v" };
+  const std::array<std::pair<const char*, const char*>, 9> replaces = {
+    { { "\\", "\\\\" },
+      { "\"", "\\\"" },
+      { "\a", "\\a" },
+      { "\b", "\\b" },
+      { "\f", "\\f" },
+      { "\n", "\\n" },
+      { "\r", "\\r" },
+      { "\t", "\\t" },
+      { "\v", "\\v" } }
+  };
 
   std::string res = text;
-  for (const char* const* it = cmArrayBegin(rep); it != cmArrayEnd(rep);
-       it += 2) {
-    cmSystemTools::ReplaceString(res, *it, *(it + 1));
+  for (auto const& pair : replaces) {
+    cmSystemTools::ReplaceString(res, pair.first, pair.second);
   }
   res = '"' + res;
   res += '"';
   return res;
+}
+
+std::string cmQtAutoGen::QuotedCommand(std::vector<std::string> const& command)
+{
+  std::string res;
+  for (std::string const& item : command) {
+    if (!res.empty()) {
+      res.push_back(' ');
+    }
+    std::string const cesc = cmQtAutoGen::Quoted(item);
+    if (item.empty() || (cesc.size() > (item.size() + 2)) ||
+        (cesc.find(' ') != std::string::npos)) {
+      res += cesc;
+    } else {
+      res += item;
+    }
+  }
+  return res;
+}
+
+std::string cmQtAutoGen::SubDirPrefix(std::string const& filename)
+{
+  std::string::size_type slash_pos = filename.rfind('/');
+  if (slash_pos == std::string::npos) {
+    return std::string();
+  }
+  return filename.substr(0, slash_pos + 1);
 }
 
 std::string cmQtAutoGen::AppendFilenameSuffix(std::string const& filename,
@@ -349,26 +240,171 @@ void cmQtAutoGen::RccMergeOptions(std::vector<std::string>& baseOpts,
   MergeOptions(baseOpts, newOpts, valueOpts, isQt5);
 }
 
-bool cmQtAutoGen::RccListInputs(std::string const& qtMajorVersion,
-                                std::string const& rccCommand,
-                                std::string const& fileName,
-                                std::vector<std::string>& files,
-                                std::string* errorMessage)
+static void RccListParseContent(std::string const& content,
+                                std::vector<std::string>& files)
 {
-  bool allGood = false;
-  if (cmSystemTools::FileExists(fileName.c_str())) {
-    if (qtMajorVersion == "4") {
-      allGood = RccListInputsQt4(fileName, files, errorMessage);
-    } else {
-      allGood = RccListInputsQt5(rccCommand, fileName, files, errorMessage);
-    }
-  } else {
-    if (errorMessage != nullptr) {
-      std::ostringstream ost;
-      ost << "rcc file does not exist:\n"
-          << "  " << cmQtAutoGen::Quoted(fileName) << "\n";
-      *errorMessage = ost.str();
+  cmsys::RegularExpression fileMatchRegex("(<file[^<]+)");
+  cmsys::RegularExpression fileReplaceRegex("(^<file[^>]*>)");
+
+  const char* contentChars = content.c_str();
+  while (fileMatchRegex.find(contentChars)) {
+    std::string const qrcEntry = fileMatchRegex.match(1);
+    contentChars += qrcEntry.size();
+    {
+      fileReplaceRegex.find(qrcEntry);
+      std::string const tag = fileReplaceRegex.match(1);
+      files.push_back(qrcEntry.substr(tag.size()));
     }
   }
-  return allGood;
+}
+
+static bool RccListParseOutput(std::string const& rccStdOut,
+                               std::string const& rccStdErr,
+                               std::vector<std::string>& files,
+                               std::string& error)
+{
+  // Lambda to strip CR characters
+  auto StripCR = [](std::string& line) {
+    std::string::size_type cr = line.find('\r');
+    if (cr != std::string::npos) {
+      line = line.substr(0, cr);
+    }
+  };
+
+  // Parse rcc std output
+  {
+    std::istringstream ostr(rccStdOut);
+    std::string oline;
+    while (std::getline(ostr, oline)) {
+      StripCR(oline);
+      if (!oline.empty()) {
+        files.push_back(oline);
+      }
+    }
+  }
+  // Parse rcc error output
+  {
+    std::istringstream estr(rccStdErr);
+    std::string eline;
+    while (std::getline(estr, eline)) {
+      StripCR(eline);
+      if (cmHasLiteralPrefix(eline, "RCC: Error in")) {
+        static std::string const searchString = "Cannot find file '";
+
+        std::string::size_type pos = eline.find(searchString);
+        if (pos == std::string::npos) {
+          error = "rcc lists unparsable output:\n";
+          error += cmQtAutoGen::Quoted(eline);
+          error += "\n";
+          return false;
+        }
+        pos += searchString.length();
+        std::string::size_type sz = eline.size() - pos - 1;
+        files.push_back(eline.substr(pos, sz));
+      }
+    }
+  }
+
+  return true;
+}
+
+cmQtAutoGen::RccLister::RccLister() = default;
+
+cmQtAutoGen::RccLister::RccLister(std::string rccExecutable,
+                                  std::vector<std::string> listOptions)
+  : RccExcutable_(std::move(rccExecutable))
+  , ListOptions_(std::move(listOptions))
+{
+}
+
+bool cmQtAutoGen::RccLister::list(std::string const& qrcFile,
+                                  std::vector<std::string>& files,
+                                  std::string& error, bool verbose) const
+{
+  error.clear();
+
+  if (!cmSystemTools::FileExists(qrcFile, true)) {
+    error = "The resource file ";
+    error += Quoted(qrcFile);
+    error += " does not exist.";
+    return false;
+  }
+
+  // Run rcc list command in the directory of the qrc file with the pathless
+  // qrc file name argument.  This way rcc prints relative paths.
+  // This avoids issues on Windows when the qrc file is in a path that
+  // contains non-ASCII characters.
+  std::string const fileDir = cmSystemTools::GetFilenamePath(qrcFile);
+
+  if (!this->RccExcutable_.empty() &&
+      cmSystemTools::FileExists(this->RccExcutable_, true) &&
+      !this->ListOptions_.empty()) {
+
+    bool result = false;
+    int retVal = 0;
+    std::string rccStdOut;
+    std::string rccStdErr;
+    {
+      std::vector<std::string> cmd;
+      cmd.emplace_back(this->RccExcutable_);
+      cmAppend(cmd, this->ListOptions_);
+      cmd.emplace_back(cmSystemTools::GetFilenameName(qrcFile));
+
+      // Log command
+      if (verbose) {
+        std::string msg = "Running command:\n";
+        msg += QuotedCommand(cmd);
+        msg += '\n';
+        cmSystemTools::Stdout(msg);
+      }
+
+      result = cmSystemTools::RunSingleCommand(
+        cmd, &rccStdOut, &rccStdErr, &retVal, fileDir.c_str(),
+        cmSystemTools::OUTPUT_NONE, cmDuration::zero(), cmProcessOutput::Auto);
+    }
+    if (!result || retVal) {
+      error = "The rcc list process failed for ";
+      error += Quoted(qrcFile);
+      error += "\n";
+      if (!rccStdOut.empty()) {
+        error += rccStdOut;
+        error += "\n";
+      }
+      if (!rccStdErr.empty()) {
+        error += rccStdErr;
+        error += "\n";
+      }
+      return false;
+    }
+    if (!RccListParseOutput(rccStdOut, rccStdErr, files, error)) {
+      return false;
+    }
+  } else {
+    // We can't use rcc for the file listing.
+    // Read the qrc file content into string and parse it.
+    {
+      std::string qrcContents;
+      {
+        cmsys::ifstream ifs(qrcFile.c_str());
+        if (ifs) {
+          std::ostringstream osst;
+          osst << ifs.rdbuf();
+          qrcContents = osst.str();
+        } else {
+          error = "The resource file ";
+          error += Quoted(qrcFile);
+          error += " is not readable\n";
+          return false;
+        }
+      }
+      // Parse string content
+      RccListParseContent(qrcContents, files);
+    }
+  }
+
+  // Convert relative paths to absolute paths
+  for (std::string& entry : files) {
+    entry = cmSystemTools::CollapseFullPath(entry, fileDir);
+  }
+  return true;
 }

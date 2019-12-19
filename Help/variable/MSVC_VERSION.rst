@@ -2,6 +2,9 @@ MSVC_VERSION
 ------------
 
 The version of Microsoft Visual C/C++ being used if any.
+If a compiler simulating Visual C++ is being used, this variable is set
+to the toolset version simulated as given by the ``_MSC_VER``
+preprocessor definition.
 
 Known version numbers are::
 
@@ -15,5 +18,7 @@ Known version numbers are::
   1800      = VS 12.0 (v120 toolset)
   1900      = VS 14.0 (v140 toolset)
   1910-1919 = VS 15.0 (v141 toolset)
+  1920-1929 = VS 16.0 (v142 toolset)
 
-See also the  :variable:`CMAKE_<LANG>_COMPILER_VERSION` variable.
+See also the  :variable:`CMAKE_<LANG>_COMPILER_VERSION` and
+:variable:`MSVC_TOOLSET_VERSION` variable.

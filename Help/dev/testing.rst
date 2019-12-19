@@ -16,7 +16,7 @@ welcome to provide testing machines in order to help keep support for their
 platforms working.
 
 The `CMake Dashboard Scripts Repository`_ provides CTest scripts to drive
-nightly, continous, and experimental testing of CMake.  Use the following
+nightly, continuous, and experimental testing of CMake.  Use the following
 commands to set up a new integration testing client:
 
 .. code-block:: console
@@ -26,13 +26,14 @@ commands to set up a new integration testing client:
   $ git clone https://gitlab.kitware.com/cmake/dashboard-scripts.git CMakeScripts
   $ cd CMakeScripts
 
-The ``cmake_common.cmake`` script contains comments at the top with
+The `cmake_common.cmake`_ script contains comments at the top with
 instructions to set up a testing client.  As it instructs, create a
 CTest script with local settings and include ``cmake_common.cmake``.
 
 .. _`CMake Review Process`: review.rst
 .. _`CMake CDash Page`: https://open.cdash.org/index.php?project=CMake
 .. _`CMake Dashboard Scripts Repository`: https://gitlab.kitware.com/cmake/dashboard-scripts
+.. _`cmake_common.cmake`: https://gitlab.kitware.com/cmake/dashboard-scripts/blob/master/cmake_common.cmake
 
 Nightly Start Time
 ------------------

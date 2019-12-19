@@ -14,13 +14,19 @@ Overview
 ^^^^^^^^
 
 This command has several signatures as detailed in subsections below.
-All of them have the general form::
+All of them have the general form
+
+.. code-block:: cmake
 
   target_link_libraries(<target> ... <item>... ...)
 
-The named ``<target>`` must have been created in the current directory by
-a command such as :command:`add_executable` or :command:`add_library`.
-Repeated calls for the same ``<target>`` append items in the order called.
+The named ``<target>`` must have been created by a command such as
+:command:`add_executable` or :command:`add_library` and must not be an
+:ref:`ALIAS target <Alias Targets>`.  If policy :policy:`CMP0079` is not
+set to ``NEW`` then the target must have been created in the current
+directory.  Repeated calls for the same ``<target>`` append items in
+the order called.
+
 Each ``<item>`` may be:
 
 * **A library target name**: The generated link line will have the
@@ -39,6 +45,9 @@ Each ``<item>`` may be:
   the library instead of using the full path
   (e.g. ``/usr/lib/libfoo.so`` becomes ``-lfoo``).
 
+  The full path to the target's artifact will be quoted/escaped for
+  the shell automatically.
+
 * **A full path to a library file**: The generated link line will
   normally preserve the full path to the file. The buildsystem will
   have a dependency to re-link ``<target>`` if the library file changes.
@@ -48,7 +57,7 @@ Each ``<item>`` may be:
   as when a shared library is detected to have no ``SONAME`` field.
   See policy :policy:`CMP0060` for discussion of another case.
 
-  If the library file is in a Mac OSX framework, the ``Headers`` directory
+  If the library file is in a macOS framework, the ``Headers`` directory
   of the framework will also be processed as a
   :ref:`usage requirement <Target Usage Requirements>`.  This has the same
   effect as passing the framework directory as an include directory.
@@ -58,8 +67,14 @@ Each ``<item>`` may be:
   imported into generated project files.  This is not supported by other
   generators.
 
+  The full path to the library file will be quoted/escaped for
+  the shell automatically.
+
 * **A plain library name**: The generated link line will ask the linker
   to search for the library (e.g. ``foo`` becomes ``-lfoo`` or ``foo.lib``).
+
+  The library name/flag is treated as a command-line string fragment and
+  will be used with no extra quoting or escaping.
 
 * **A link flag**: Item names starting with ``-``, but not ``-l`` or
   ``-framework``, are treated as linker flags.  Note that such flags will
@@ -69,9 +84,27 @@ Each ``<item>`` may be:
 
   Link flags specified here are inserted into the link command in the same
   place as the link libraries. This might not be correct, depending on
-  the linker. Use the :prop_tgt:`LINK_FLAGS` target property to add link
+  the linker. Use the :prop_tgt:`LINK_OPTIONS` target property or
+  :command:`target_link_options` command to add link
   flags explicitly. The flags will then be placed at the toolchain-defined
   flag position in the link command.
+
+  The link flag is treated as a command-line string fragment and
+  will be used with no extra quoting or escaping.
+
+* **A generator expression**: A ``$<...>`` :manual:`generator expression
+  <cmake-generator-expressions(7)>` may evaluate to any of the above
+  items or to a :ref:`semicolon-separated list <CMake Language Lists>` of them.
+  If the ``...`` contains any ``;`` characters, e.g. after evaluation
+  of a ``${list}`` variable, be sure to use an explicitly quoted
+  argument ``"$<...>"`` so that this command receives it as a
+  single ``<item>``.
+
+  Additionally, a generator expression may be used as a fragment of
+  any of the above items, e.g. ``foo$<1:_d>``.
+
+  Note that generator expressions will not be used in OLD handling of
+  policy :policy:`CMP0003` or policy :policy:`CMP0004`.
 
 * A ``debug``, ``optimized``, or ``general`` keyword immediately followed
   by another ``<item>``.  The item following such a keyword will be used
@@ -83,23 +116,21 @@ Each ``<item>`` may be:
   optional.  Higher granularity may be achieved for per-configuration
   rules by creating and linking to
   :ref:`IMPORTED library targets <Imported Targets>`.
+  These keywords are interpreted immediately by this command and therefore
+  have no special meaning when produced by a generator expression.
 
 Items containing ``::``, such as ``Foo::Bar``, are assumed to be
 :ref:`IMPORTED <Imported Targets>` or :ref:`ALIAS <Alias Targets>` library
 target names and will cause an error if no such target exists.
 See policy :policy:`CMP0028`.
 
-Arguments to ``target_link_libraries`` may use "generator expressions"
-with the syntax ``$<...>``.  Note however, that generator expressions
-will not be used in OLD handling of :policy:`CMP0003` or :policy:`CMP0004`.
-See the :manual:`cmake-generator-expressions(7)` manual for available
-expressions.  See the :manual:`cmake-buildsystem(7)` manual for more on
-defining buildsystem properties.
+See the :manual:`cmake-buildsystem(7)` manual for more on defining
+buildsystem properties.
 
 Libraries for a Target and/or its Dependents
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-::
+.. code-block:: cmake
 
   target_link_libraries(<target>
                         <PRIVATE|PUBLIC|INTERFACE> <item>...
@@ -116,7 +147,7 @@ used for linking ``<target>``.
 Libraries for both a Target and its Dependents
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-::
+.. code-block:: cmake
 
   target_link_libraries(<target> <item>...)
 
@@ -134,7 +165,7 @@ exclusively by this signature private.
 Libraries for a Target and/or its Dependents (Legacy)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-::
+.. code-block:: cmake
 
   target_link_libraries(<target>
                         <LINK_PRIVATE|LINK_PUBLIC> <lib>...
@@ -156,7 +187,7 @@ made part of the :prop_tgt:`INTERFACE_LINK_LIBRARIES`.  If policy
 Libraries for Dependents Only (Legacy)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-::
+.. code-block:: cmake
 
   target_link_libraries(<target> LINK_INTERFACE_LIBRARIES <item>...)
 
@@ -181,6 +212,70 @@ is not ``NEW``, they are also appended to the
 :prop_tgt:`LINK_INTERFACE_LIBRARIES` property.  Libraries specified as
 ``general`` (or without any keyword) are treated as if specified for both
 ``debug`` and ``optimized``.
+
+Linking Object Libraries
+^^^^^^^^^^^^^^^^^^^^^^^^
+
+:ref:`Object Libraries` may be used as the ``<target>`` (first) argument
+of ``target_link_libraries`` to specify dependencies of their sources
+on other libraries.  For example, the code
+
+.. code-block:: cmake
+
+  add_library(A SHARED a.c)
+  target_compile_definitions(A PUBLIC A)
+
+  add_library(obj OBJECT obj.c)
+  target_compile_definitions(obj PUBLIC OBJ)
+  target_link_libraries(obj PUBLIC A)
+
+compiles ``obj.c`` with ``-DA -DOBJ`` and establishes usage requirements
+for ``obj`` that propagate to its dependents.
+
+Normal libraries and executables may link to :ref:`Object Libraries`
+to get their objects and usage requirements.  Continuing the above
+example, the code
+
+.. code-block:: cmake
+
+  add_library(B SHARED b.c)
+  target_link_libraries(B PUBLIC obj)
+
+compiles ``b.c`` with ``-DA -DOBJ``, creates shared library ``B``
+with object files from ``b.c`` and ``obj.c``, and links ``B`` to ``A``.
+Furthermore, the code
+
+.. code-block:: cmake
+
+  add_executable(main main.c)
+  target_link_libraries(main B)
+
+compiles ``main.c`` with ``-DA -DOBJ`` and links executable ``main``
+to ``B`` and ``A``.  The object library's usage requirements are
+propagated transitively through ``B``, but its object files are not.
+
+:ref:`Object Libraries` may "link" to other object libraries to get
+usage requirements, but since they do not have a link step nothing
+is done with their object files.  Continuing from the above example,
+the code:
+
+.. code-block:: cmake
+
+  add_library(obj2 OBJECT obj2.c)
+  target_link_libraries(obj2 PUBLIC obj)
+
+  add_executable(main2 main2.c)
+  target_link_libraries(main2 obj2)
+
+compiles ``obj2.c`` with ``-DA -DOBJ``, creates executable ``main2``
+with object files from ``main2.c`` and ``obj2.c``, and links ``main2``
+to ``A``.
+
+In other words, when :ref:`Object Libraries` appear in a target's
+:prop_tgt:`INTERFACE_LINK_LIBRARIES` property they will be
+treated as :ref:`Interface Libraries`, but when they appear in
+a target's :prop_tgt:`LINK_LIBRARIES` property their object files
+will be included in the link too.
 
 Cyclic Dependencies of Static Libraries
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

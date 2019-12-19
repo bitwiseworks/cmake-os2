@@ -4,8 +4,10 @@
 
 #include <ostream>
 #include <string>
+#include <utility>
 #include <vector>
 
+#include "cmAlgorithms.h"
 #include "cmGeneratedFileStream.h"
 #include "cmGeneratorTarget.h"
 #include "cmGlobalUnixMakefileGenerator3.h"
@@ -20,14 +22,12 @@ cmMakefileUtilityTargetGenerator::cmMakefileUtilityTargetGenerator(
 {
   this->CustomCommandDriver = OnUtility;
   this->OSXBundleGenerator =
-    new cmOSXBundleGenerator(target, this->ConfigName);
+    cm::make_unique<cmOSXBundleGenerator>(target, this->ConfigName);
   this->OSXBundleGenerator->SetMacContentFolders(&this->MacContentFolders);
 }
 
-cmMakefileUtilityTargetGenerator::~cmMakefileUtilityTargetGenerator()
-{
-  delete this->OSXBundleGenerator;
-}
+cmMakefileUtilityTargetGenerator::~cmMakefileUtilityTargetGenerator() =
+  default;
 
 void cmMakefileUtilityTargetGenerator::WriteRuleFiles()
 {
@@ -45,11 +45,9 @@ void cmMakefileUtilityTargetGenerator::WriteRuleFiles()
       << "# Include the progress variables for this target.\n"
       << this->GlobalGenerator->IncludeDirective << " " << root
       << cmSystemTools::ConvertToOutputPath(
-           this->LocalGenerator
-             ->MaybeConvertToRelativePath(
-               this->LocalGenerator->GetBinaryDirectory(),
-               this->ProgressFileNameFull)
-             .c_str())
+           this->LocalGenerator->MaybeConvertToRelativePath(
+             this->LocalGenerator->GetBinaryDirectory(),
+             this->ProgressFileNameFull))
       << "\n\n";
   }
 
@@ -90,7 +88,7 @@ void cmMakefileUtilityTargetGenerator::WriteRuleFiles()
   if (depends.empty() && commands.empty()) {
     std::string hack = this->GlobalGenerator->GetEmptyRuleHackDepends();
     if (!hack.empty()) {
-      depends.push_back(hack);
+      depends.push_back(std::move(hack));
     }
   }
 

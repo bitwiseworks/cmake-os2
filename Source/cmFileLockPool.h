@@ -13,33 +13,34 @@ class cmFileLockResult;
 
 class cmFileLockPool
 {
-  CM_DISABLE_COPY(cmFileLockPool)
-
 public:
   cmFileLockPool();
   ~cmFileLockPool();
 
+  cmFileLockPool(cmFileLockPool const&) = delete;
+  cmFileLockPool& operator=(cmFileLockPool const&) = delete;
+
   //@{
   /**
-    * @brief Function scope control.
-    */
+   * @brief Function scope control.
+   */
   void PushFunctionScope();
   void PopFunctionScope();
   //@}
 
   //@{
   /**
-    * @brief File scope control.
-    */
+   * @brief File scope control.
+   */
   void PushFileScope();
   void PopFileScope();
   //@}
 
   //@{
   /**
-    * @brief Lock the file in given scope.
-    * @param timeoutSec Lock timeout. If -1 try until success or fatal error.
-    */
+   * @brief Lock the file in given scope.
+   * @param timeoutSec Lock timeout. If -1 try until success or fatal error.
+   */
   cmFileLockResult LockFunctionScope(const std::string& filename,
                                      unsigned long timeoutSec);
   cmFileLockResult LockFileScope(const std::string& filename,
@@ -49,8 +50,8 @@ public:
   //@}
 
   /**
-    * @brief Unlock the file explicitly.
-    */
+   * @brief Unlock the file explicitly.
+   */
   cmFileLockResult Release(const std::string& filename);
 
 private:
@@ -58,11 +59,12 @@ private:
 
   class ScopePool
   {
-    CM_DISABLE_COPY(ScopePool)
-
   public:
     ScopePool();
     ~ScopePool();
+
+    ScopePool(ScopePool const&) = delete;
+    ScopePool& operator=(ScopePool const&) = delete;
 
     cmFileLockResult Lock(const std::string& filename,
                           unsigned long timeoutSec);

@@ -5,6 +5,7 @@
 
 #include "cmConfigure.h" // IWYU pragma: keep
 
+#include <map>
 #include <string>
 
 #include "cmLocalGenerator.h"
@@ -12,6 +13,7 @@
 class cmGeneratorTarget;
 class cmGlobalGenerator;
 class cmMakefile;
+class cmSourceFile;
 
 /** \class cmLocalCommonGenerator
  * \brief Common infrastructure for Makefile and Ninja local generators.
@@ -20,7 +22,7 @@ class cmLocalCommonGenerator : public cmLocalGenerator
 {
 public:
   cmLocalCommonGenerator(cmGlobalGenerator* gg, cmMakefile* mf,
-                         std::string const& wd);
+                         std::string wd);
   ~cmLocalCommonGenerator() override;
 
   std::string const& GetConfigName() { return this->ConfigName; }
@@ -29,6 +31,10 @@ public:
 
   std::string GetTargetFortranFlags(cmGeneratorTarget const* target,
                                     std::string const& config) override;
+
+  void ComputeObjectFilenames(
+    std::map<cmSourceFile const*, std::string>& mapping,
+    cmGeneratorTarget const* gt = nullptr) override;
 
 protected:
   std::string WorkingDirectory;

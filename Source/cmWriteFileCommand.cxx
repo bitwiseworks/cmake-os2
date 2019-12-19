@@ -33,7 +33,7 @@ bool cmWriteFileCommand::InitialPass(std::vector<std::string> const& args,
     }
   }
 
-  if (!this->Makefile->CanIWriteThisFile(fileName.c_str())) {
+  if (!this->Makefile->CanIWriteThisFile(fileName)) {
     std::string e =
       "attempted to write a file: " + fileName + " into a source directory.";
     this->SetError(e);
@@ -42,19 +42,23 @@ bool cmWriteFileCommand::InitialPass(std::vector<std::string> const& args,
   }
 
   std::string dir = cmSystemTools::GetFilenamePath(fileName);
-  cmSystemTools::MakeDirectory(dir.c_str());
+  cmSystemTools::MakeDirectory(dir);
 
   mode_t mode = 0;
+  bool writable = false;
 
   // Set permissions to writable
   if (cmSystemTools::GetPermissions(fileName.c_str(), mode)) {
-    cmSystemTools::SetPermissions(fileName.c_str(),
 #if defined(_MSC_VER) || defined(__MINGW32__)
-                                  mode | S_IWRITE
+    writable = (mode & S_IWRITE) != 0;
+    mode_t newMode = mode | S_IWRITE;
 #else
-                                  mode | S_IWUSR | S_IWGRP
+    writable = mode & S_IWUSR;
+    mode_t newMode = mode | S_IWUSR | S_IWGRP;
 #endif
-                                  );
+    if (!writable) {
+      cmSystemTools::SetPermissions(fileName.c_str(), newMode);
+    }
   }
   // If GetPermissions fails, pretend like it is ok. File open will fail if
   // the file is not writable
@@ -69,7 +73,7 @@ bool cmWriteFileCommand::InitialPass(std::vector<std::string> const& args,
   }
   file << message << std::endl;
   file.close();
-  if (mode) {
+  if (mode && !writable) {
     cmSystemTools::SetPermissions(fileName.c_str(), mode);
   }
 

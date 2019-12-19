@@ -26,13 +26,13 @@ built-in variables, such as
 :variable:`CMAKE_CXX_COMPILER_ID <CMAKE_<LANG>_COMPILER_ID>` etc are set by
 invoking the :command:`project` command.  If no project command
 is in the top-level CMakeLists file, one will be implicitly generated. By default
-the enabled languages are C and CXX:
+the enabled languages are ``C`` and ``CXX``:
 
 .. code-block:: cmake
 
   project(C_Only C)
 
-A special value of NONE can also be used with the :command:`project` command
+A special value of ``NONE`` can also be used with the :command:`project` command
 to enable no languages:
 
 .. code-block:: cmake
@@ -100,6 +100,14 @@ If :manual:`cmake(1)` is invoked with the command line parameter
 values for the compilers.
 The :variable:`CMAKE_CROSSCOMPILING` variable is set to true when CMake is
 cross-compiling.
+
+Note that using the :variable:`CMAKE_SOURCE_DIR` or :variable:`CMAKE_BINARY_DIR`
+variables inside a toolchain file is typically undesirable.  The toolchain
+file is used in contexts where these variables have different values when used
+in different places (e.g. as part of a call to :command:`try_compile`).  In most
+cases, where there is a need to evaluate paths inside a toolchain file, the more
+appropriate variable to use would be :variable:`CMAKE_CURRENT_LIST_DIR`, since
+it always has an unambiguous, predictable value.
 
 Cross Compiling for Linux
 -------------------------
@@ -468,10 +476,10 @@ The following variables will be computed and provided automatically:
   The Android ABI detected from the standalone toolchain.
 
 :variable:`CMAKE_<LANG>_ANDROID_TOOLCHAIN_PREFIX`
-  The absolute path prefix to the binutils in the standalone toolchain.
+  The absolute path prefix to the ``binutils`` in the standalone toolchain.
 
 :variable:`CMAKE_<LANG>_ANDROID_TOOLCHAIN_SUFFIX`
-  The host platform suffix of the binutils in the standalone toolchain.
+  The host platform suffix of the ``binutils`` in the standalone toolchain.
 
 For example, a toolchain file might contain:
 
@@ -522,3 +530,132 @@ See also target properties:
 * :prop_tgt:`ANDROID_SECURE_PROPS_PATH`
 * :prop_tgt:`ANDROID_SKIP_ANT_STEP`
 * :prop_tgt:`ANDROID_STL_TYPE`
+
+.. _`Cross Compiling for iOS, tvOS, or watchOS`:
+
+Cross Compiling for iOS, tvOS, or watchOS
+-----------------------------------------
+
+For cross-compiling to iOS, tvOS, or watchOS, the :generator:`Xcode`
+generator is recommended.  The :generator:`Unix Makefiles` or
+:generator:`Ninja` generators can also be used, but they require the
+project to handle more areas like target CPU selection and code signing.
+
+Any of the three systems can be targeted by setting the
+:variable:`CMAKE_SYSTEM_NAME` variable to a value from the table below.
+By default, the latest Device SDK is chosen.  As for all Apple platforms,
+a different SDK (e.g. a simulator) can be selected by setting the
+:variable:`CMAKE_OSX_SYSROOT` variable, although this should rarely be
+necessary (see :ref:`Switching Between Device and Simulator` below).
+A list of available SDKs can be obtained by running ``xcodebuild -showsdks``.
+
+=======  ================= ==================== ================
+OS       CMAKE_SYSTEM_NAME Device SDK (default) Simulator SDK
+=======  ================= ==================== ================
+iOS      iOS               iphoneos             iphonesimulator
+tvOS     tvOS              appletvos            appletvsimulator
+watchOS  watchOS           watchos              watchsimulator
+=======  ================= ==================== ================
+
+For example, to create a CMake configuration for iOS, the following
+command is sufficient:
+
+.. code-block:: console
+
+  cmake .. -GXcode -DCMAKE_SYSTEM_NAME=iOS
+
+Variable :variable:`CMAKE_OSX_ARCHITECTURES` can be used to set architectures
+for both device and simulator. Variable :variable:`CMAKE_OSX_DEPLOYMENT_TARGET`
+can be used to set an iOS/tvOS/watchOS deployment target.
+
+Next configuration will install fat 5 architectures iOS library
+and add the ``-miphoneos-version-min=9.3``/``-mios-simulator-version-min=9.3``
+flags to the compiler:
+
+.. code-block:: console
+
+  $ cmake -S. -B_builds -GXcode \
+      -DCMAKE_SYSTEM_NAME=iOS \
+      "-DCMAKE_OSX_ARCHITECTURES=armv7;armv7s;arm64;i386;x86_64" \
+      -DCMAKE_OSX_DEPLOYMENT_TARGET=9.3 \
+      -DCMAKE_INSTALL_PREFIX=`pwd`/_install \
+      -DCMAKE_XCODE_ATTRIBUTE_ONLY_ACTIVE_ARCH=NO \
+      -DCMAKE_IOS_INSTALL_COMBINED=YES
+
+Example:
+
+.. code-block:: cmake
+
+  # CMakeLists.txt
+  cmake_minimum_required(VERSION 3.14)
+  project(foo)
+  add_library(foo foo.cpp)
+  install(TARGETS foo DESTINATION lib)
+
+Install:
+
+.. code-block:: console
+
+    $ cmake --build _builds --config Release --target install
+
+Check library:
+
+.. code-block:: console
+
+    $ lipo -info _install/lib/libfoo.a
+    Architectures in the fat file: _install/lib/libfoo.a are: i386 armv7 armv7s x86_64 arm64
+
+.. code-block:: console
+
+    $ otool -l _install/lib/libfoo.a | grep -A2 LC_VERSION_MIN_IPHONEOS
+          cmd LC_VERSION_MIN_IPHONEOS
+      cmdsize 16
+      version 9.3
+
+Code Signing
+^^^^^^^^^^^^
+
+Some build artifacts for the embedded Apple platforms require mandatory
+code signing.  If the :generator:`Xcode` generator is being used and
+code signing is required or desired, the development team ID can be
+specified via the ``CMAKE_XCODE_ATTRIBUTE_DEVELOPMENT_TEAM`` CMake variable.
+This team ID will then be included in the generated Xcode project.
+By default, CMake avoids the need for code signing during the internal
+configuration phase (i.e compiler ID and feature detection).
+
+.. _`Switching Between Device and Simulator`:
+
+Switching Between Device and Simulator
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+When configuring for any of the embedded platforms, one can target either
+real devices or the simulator.  Both have their own separate SDK, but CMake
+only supports specifying a single SDK for the configuration phase.  This
+means the developer must select one or the other at configuration time.
+When using the :generator:`Xcode` generator, this is less of a limitation
+because Xcode still allows you to build for either a device or a simulator,
+even though configuration was only performed for one of the two.  From
+within the Xcode IDE, builds are performed for the selected "destination"
+platform.  When building from the command line, the desired sdk can be
+specified directly by passing a ``-sdk`` option to the underlying build
+tool (``xcodebuild``).  For example:
+
+.. code-block:: console
+
+  $ cmake --build ... -- -sdk iphonesimulator
+
+Please note that checks made during configuration were performed against
+the configure-time SDK and might not hold true for other SDKs.  Commands
+like :command:`find_package`, :command:`find_library`, etc. store and use
+details only for the configured SDK/platform, so they can be problematic
+if wanting to switch between device and simulator builds. You can follow
+the next rules to make device + simulator configuration work:
+
+- Use explicit ``-l`` linker flag,
+  e.g. ``target_link_libraries(foo PUBLIC "-lz")``
+
+- Use explicit ``-framework`` linker flag,
+  e.g. ``target_link_libraries(foo PUBLIC "-framework CoreFoundation")``
+
+- Use :command:`find_package` only for libraries installed with
+  :variable:`CMAKE_IOS_INSTALL_COMBINED` feature

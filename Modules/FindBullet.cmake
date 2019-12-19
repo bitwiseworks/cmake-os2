@@ -1,39 +1,40 @@
 # Distributed under the OSI-approved BSD 3-Clause License.  See accompanying
 # file Copyright.txt or https://cmake.org/licensing for details.
 
-#.rst:
-# FindBullet
-# ----------
-#
-# Try to find the Bullet physics engine
-#
-#
-#
-# ::
-#
-#   This module defines the following variables
-#
-#
-#
-# ::
-#
-#   BULLET_FOUND - Was bullet found
-#   BULLET_INCLUDE_DIRS - the Bullet include directories
-#   BULLET_LIBRARIES - Link to this, by default it includes
-#                      all bullet components (Dynamics,
-#                      Collision, LinearMath, & SoftBody)
-#
-#
-#
-# ::
-#
-#   This module accepts the following variables
-#
-#
-#
-# ::
-#
-#   BULLET_ROOT - Can be set to bullet install path or Windows build path
+#[=======================================================================[.rst:
+FindBullet
+----------
+
+Try to find the Bullet physics engine
+
+
+
+::
+
+  This module defines the following variables
+
+
+
+::
+
+  BULLET_FOUND - Was bullet found
+  BULLET_INCLUDE_DIRS - the Bullet include directories
+  BULLET_LIBRARIES - Link to this, by default it includes
+                     all bullet components (Dynamics,
+                     Collision, LinearMath, & SoftBody)
+
+
+
+::
+
+  This module accepts the following variables
+
+
+
+::
+
+  BULLET_ROOT - Can be set to bullet install path or Windows build path
+#]=======================================================================]
 
 macro(_FIND_BULLET_LIBRARY _var)
   find_library(${_var}
@@ -51,12 +52,12 @@ macro(_FIND_BULLET_LIBRARY _var)
 endmacro()
 
 macro(_BULLET_APPEND_LIBRARIES _list _release)
-   set(_debug ${_release}_DEBUG)
-   if(${_debug})
-      set(${_list} ${${_list}} optimized ${${_release}} debug ${${_debug}})
-   else()
-      set(${_list} ${${_list}} ${${_release}})
-   endif()
+  set(_debug ${_release}_DEBUG)
+  if(${_debug})
+    set(${_list} ${${_list}} optimized ${${_release}} debug ${${_debug}})
+  else()
+    set(${_list} ${${_list}} ${${_release}})
+  endif()
 endmacro()
 
 find_path(BULLET_INCLUDE_DIR NAMES btBulletCollisionCommon.h

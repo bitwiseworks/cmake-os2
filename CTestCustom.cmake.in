@@ -2,6 +2,7 @@ list(APPEND CTEST_CUSTOM_ERROR_MATCH
   "ERROR:")
 
 list(APPEND CTEST_CUSTOM_WARNING_EXCEPTION
+  "warning: cast from 'char\\*' to 'cmCursesWidget\\*' increases required alignment of target type" # Occurs when using Solaris's system libform
   "xtree.[0-9]+. : warning C4702: unreachable code"
   "warning LNK4221"
   "warning LNK4204" # Occurs by race condition with objects in small libs
@@ -51,6 +52,7 @@ list(APPEND CTEST_CUSTOM_WARNING_EXCEPTION
   "(Lexer|Parser).*warning.*conversion.*may (alter its value|change the sign)"
   "(Lexer|Parser).*warning.*(statement is unreachable|will never be executed)"
   "(Lexer|Parser).*warning.*variable.*was set but never used"
+  "LexerParser.*warning.*empty expression statement has no effect; remove unnecessary"
   "PGC-W-0095-Type cast required for this conversion.*ProcessUNIX.c"
   "[Qq]t([Cc]ore|[Gg]ui|[Ww]idgets).*warning.*conversion.*may alter its value"
   "warning:.*is.*very unsafe.*consider using.*"
@@ -92,6 +94,7 @@ list(APPEND CTEST_CUSTOM_WARNING_EXCEPTION
   "cmFortranLexer.cxx:[0-9]+:[0-9]+: warning: Call to 'realloc' has an allocation size of 0 bytes"
   "testProcess.*warning: Dereference of null pointer .loaded from variable .invalidAddress.."
   "liblzma/simple/x86.c:[0-9]+:[0-9]+: warning: The result of the '<<' expression is undefined"
+  "liblzma/common/index_encoder.c:[0-9]+:[0-9]+: warning: Value stored to .* during its initialization is never read"
   "libuv/src/.*:[0-9]+:[0-9]+: warning: Dereference of null pointer"
   "libuv/src/.*:[0-9]+:[0-9]+: warning: The left operand of '==' is a garbage value"
   )
@@ -99,12 +102,6 @@ list(APPEND CTEST_CUSTOM_WARNING_EXCEPTION
 if(NOT "@CMAKE_GENERATOR@" MATCHES "Xcode")
   list(APPEND CTEST_CUSTOM_COVERAGE_EXCLUDE
     "XCode"
-    )
-endif ()
-
-if(NOT "@CMAKE_GENERATOR@" MATCHES "KDevelop")
-  list(APPEND CTEST_CUSTOM_COVERAGE_EXCLUDE
-    "Kdevelop"
     )
 endif ()
 

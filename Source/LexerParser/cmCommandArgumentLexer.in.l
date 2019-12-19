@@ -18,15 +18,24 @@ Modify cmCommandArgumentLexer.cxx:
 
 /* IWYU pragma: no_forward_declare yyguts_t */
 
+#ifndef __clang_analyzer__ /* Suppress clang scan-build warnings */
+
 #include "cmCommandArgumentParserHelper.h"
 
 /* Replace the lexer input function.  */
 #undef YY_INPUT
 #define YY_INPUT(buf, result, max_size) \
-  { result = yyextra->LexInput(buf, max_size); }
+  do { result = yyextra->LexInput(buf, max_size); } while (0)
 
 /* Include the set of tokens from the parser.  */
 #include "cmCommandArgumentParserTokens.h"
+
+static const char *DCURLYVariable = "${";
+static const char *RCURLYVariable = "}";
+static const char *ATVariable = "@";
+static const char *DOLLARVariable = "$";
+static const char *LCURLYVariable = "{";
+static const char *BSLASHVariable = "\\";
 
 /*--------------------------------------------------------------------------*/
 %}
@@ -63,21 +72,21 @@ Modify cmCommandArgumentLexer.cxx:
 "${" {
   //std::cerr << __LINE__ << " here: [" << yytext << "]" << std::endl;
   //yyextra->AllocateParserType(yylvalp, yytext, strlen(yytext));
-  yylvalp->str = yyextra->DCURLYVariable;
+  yylvalp->str = DCURLYVariable;
   return cal_DCURLY;
 }
 
 "}" {
   //std::cerr << __LINE__ << " here: [" << yytext << "]" << std::endl;
   //yyextra->AllocateParserType(yylvalp, yytext, strlen(yytext));
-  yylvalp->str = yyextra->RCURLYVariable;
+  yylvalp->str = RCURLYVariable;
   return cal_RCURLY;
 }
 
 "@" {
   //std::cerr << __LINE__ << " here: [" << yytext << "]" << std::endl;
   //yyextra->AllocateParserType(yylvalp, yytext, strlen(yytext));
-  yylvalp->str = yyextra->ATVariable;
+  yylvalp->str = ATVariable;
   return cal_AT;
 }
 
@@ -103,25 +112,25 @@ Modify cmCommandArgumentLexer.cxx:
 
 "$" {
   //yyextra->AllocateParserType(yylvalp, yytext, strlen(yytext));
-  yylvalp->str = yyextra->DOLLARVariable;
+  yylvalp->str = DOLLARVariable;
   return cal_DOLLAR;
 }
 
 "{" {
   //yyextra->AllocateParserType(yylvalp, yytext, strlen(yytext));
-  yylvalp->str = yyextra->LCURLYVariable;
+  yylvalp->str = LCURLYVariable;
   return cal_LCURLY;
 }
 
 <ESCAPES>"\\" {
   //yyextra->AllocateParserType(yylvalp, yytext, strlen(yytext));
-  yylvalp->str = yyextra->BSLASHVariable;
+  yylvalp->str = BSLASHVariable;
   return cal_BSLASH;
 }
 
 <NOESCAPES>"\\" {
   //yyextra->AllocateParserType(yylvalp, yytext, strlen(yytext));
-  yylvalp->str = yyextra->BSLASHVariable;
+  yylvalp->str = BSLASHVariable;
   return cal_SYMBOL;
 }
 
@@ -138,3 +147,5 @@ void cmCommandArgument_SetupEscapes(yyscan_t yyscanner, bool noEscapes)
     BEGIN(ESCAPES);
   }
 }
+
+#endif /* __clang_analyzer__ */

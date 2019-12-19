@@ -12,6 +12,9 @@
 #include <string>
 #include <vector>
 
+#include "cmUVHandlePtr.h"
+#include "cm_uv.h"
+
 class cmCTest;
 class cmCTestRunTest;
 
@@ -23,6 +26,7 @@ class cmCTestRunTest;
 class cmCTestMultiProcessHandler
 {
   friend class TestComparator;
+  friend class cmCTestRunTest;
 
 public:
   struct TestSet : public std::set<int>
@@ -47,6 +51,7 @@ public:
   void SetParallelLevel(size_t);
   void SetTestLoad(unsigned long load);
   virtual void RunTests();
+  void PrintOutputAsJson();
   void PrintTestList();
   void PrintLabels();
 
@@ -71,11 +76,12 @@ public:
   cmCTestTestHandler* GetTestHandler() { return this->TestHandler; }
 
   void SetQuiet(bool b) { this->Quiet = b; }
+
 protected:
   // Start the next test or tests as many as are allowed by
   // ParallelLevel
   void StartNextTests();
-  void StartTestProcess(int test);
+  bool StartTestProcess(int test);
   bool StartTest(int test);
   // Mark the checkpoint for the given test
   void WriteCheckpoint(int index);
@@ -95,9 +101,10 @@ protected:
   // Removes the checkpoint file
   void MarkFinished();
   void EraseTest(int index);
-  // Return true if there are still tests running
-  // check all running processes for output and exit case
-  bool CheckOutput();
+  void FinishTestProcess(cmCTestRunTest* runner, bool started);
+
+  static void OnTestLoadRetryCB(uv_timer_t* timer);
+
   void RemoveTest(int index);
   // Check if we need to resume an interrupted test set
   void CheckResume();
@@ -106,6 +113,9 @@ protected:
   int FindMaxIndex();
   inline size_t GetProcessorsUsed(int index);
   std::string GetName(int index);
+
+  bool CheckStopTimePassed();
+  void SetStopTimePassed();
 
   void LockResources(int index);
   void UnlockResources(int index);
@@ -117,7 +127,9 @@ protected:
   // Number of tests that are complete
   size_t Completed;
   size_t RunningCount;
-  bool StopTimePassed;
+  std::set<size_t> ProcessorsAvailable;
+  size_t HaveAffinity;
+  bool StopTimePassed = false;
   // list of test properties (indices concurrent to the test map)
   PropertiesMap Properties;
   std::map<int, bool> TestRunningMap;
@@ -130,7 +142,9 @@ protected:
   std::vector<cmCTestTestHandler::cmCTestTestResult>* TestResults;
   size_t ParallelLevel; // max number of process that can be run at once
   unsigned long TestLoad;
-  std::set<cmCTestRunTest*> RunningTests; // current running tests
+  unsigned long FakeLoadForTesting;
+  uv_loop_t Loop;
+  cm::uv_timer_ptr TestLoadRetryTimer;
   cmCTestTestHandler* TestHandler;
   cmCTest* CTest;
   bool HasCycles;

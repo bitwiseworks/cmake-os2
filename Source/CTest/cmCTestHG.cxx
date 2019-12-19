@@ -2,6 +2,7 @@
    file Copyright.txt or https://cmake.org/licensing for details.  */
 #include "cmCTestHG.h"
 
+#include "cmAlgorithms.h"
 #include "cmCTest.h"
 #include "cmCTestVC.h"
 #include "cmProcessTools.h"
@@ -18,9 +19,7 @@ cmCTestHG::cmCTestHG(cmCTest* ct, std::ostream& log)
   this->PriorRev = this->Unknown;
 }
 
-cmCTestHG::~cmCTestHG()
-{
-}
+cmCTestHG::~cmCTestHG() = default;
 
 class cmCTestHG::IdentifyParser : public cmCTestVC::LineParser
 {
@@ -107,8 +106,9 @@ std::string cmCTestHG::GetWorkingRevision()
 bool cmCTestHG::NoteOldRevision()
 {
   this->OldRevision = this->GetWorkingRevision();
-  cmCTestLog(this->CTest, HANDLER_OUTPUT, "   Old revision of repository is: "
-               << this->OldRevision << "\n");
+  cmCTestLog(this->CTest, HANDLER_OUTPUT,
+             "   Old revision of repository is: " << this->OldRevision
+                                                  << "\n");
   this->PriorRev.Rev = this->OldRevision;
   return true;
 }
@@ -116,8 +116,9 @@ bool cmCTestHG::NoteOldRevision()
 bool cmCTestHG::NoteNewRevision()
 {
   this->NewRevision = this->GetWorkingRevision();
-  cmCTestLog(this->CTest, HANDLER_OUTPUT, "   New revision of repository is: "
-               << this->NewRevision << "\n");
+  cmCTestLog(this->CTest, HANDLER_OUTPUT,
+             "   New revision of repository is: " << this->NewRevision
+                                                  << "\n");
   return true;
 }
 
@@ -144,7 +145,7 @@ bool cmCTestHG::UpdateImpl()
   if (opts.empty()) {
     opts = this->CTest->GetCTestConfiguration("HGUpdateOptions");
   }
-  std::vector<std::string> args = cmSystemTools::ParseArguments(opts.c_str());
+  std::vector<std::string> args = cmSystemTools::ParseArguments(opts);
   for (std::string const& arg : args) {
     hg_update.push_back(arg.c_str());
   }
@@ -157,8 +158,9 @@ bool cmCTestHG::UpdateImpl()
   return this->RunUpdateCommand(&hg_update[0], &out, &err);
 }
 
-class cmCTestHG::LogParser : public cmCTestVC::OutputLogger,
-                             private cmXMLParser
+class cmCTestHG::LogParser
+  : public cmCTestVC::OutputLogger
+  , private cmXMLParser
 {
 public:
   LogParser(cmCTestHG* hg, const char* prefix)
@@ -168,6 +170,7 @@ public:
     this->InitializeParser();
   }
   ~LogParser() override { this->CleanupParser(); }
+
 private:
   cmCTestHG* HG;
 
@@ -190,7 +193,8 @@ private:
     this->CData.clear();
     if (name == "logentry") {
       this->Rev = Revision();
-      if (const char* rev = this->FindAttribute(atts, "revision")) {
+      if (const char* rev =
+            cmCTestHG::LogParser::FindAttribute(atts, "revision")) {
         this->Rev.Rev = rev;
       }
       this->Changes.clear();
@@ -199,7 +203,7 @@ private:
 
   void CharacterDataHandler(const char* data, int length) override
   {
-    this->CData.insert(this->CData.end(), data, data + length);
+    cmAppend(this->CData, data, data + length);
   }
 
   void EndElement(const std::string& name) override

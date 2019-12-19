@@ -6,6 +6,7 @@
 #include "cmConfigure.h" // IWYU pragma: keep
 
 #include "cmGeneratorExpression.h"
+#include "cmStateTypes.h"
 #include "cmVersion.h"
 #include "cmVersionConfig.h"
 
@@ -41,7 +42,7 @@ class cmExportFileGenerator
 {
 public:
   cmExportFileGenerator();
-  virtual ~cmExportFileGenerator() {}
+  virtual ~cmExportFileGenerator() = default;
 
   /** Set the full path to the export file to generate.  */
   void SetExportFile(const char* mainFile);
@@ -76,7 +77,8 @@ protected:
   virtual void GenerateImportFooterCode(std::ostream& os);
   void GenerateImportVersionCode(std::ostream& os);
   virtual void GenerateImportTargetCode(std::ostream& os,
-                                        cmGeneratorTarget const* target);
+                                        cmGeneratorTarget const* target,
+                                        cmStateEnums::TargetType targetType);
   virtual void GenerateImportPropertyCode(std::ostream& os,
                                           const std::string& config,
                                           cmGeneratorTarget const* target,
@@ -145,6 +147,14 @@ protected:
     cmTargetExport* target,
     cmGeneratorExpression::PreprocessContext preprocessRule,
     ImportPropertyMap& properties, std::vector<std::string>& missingTargets);
+  void PopulateLinkDirectoriesInterface(
+    cmTargetExport* target,
+    cmGeneratorExpression::PreprocessContext preprocessRule,
+    ImportPropertyMap& properties, std::vector<std::string>& missingTargets);
+  void PopulateLinkDependsInterface(
+    cmTargetExport* target,
+    cmGeneratorExpression::PreprocessContext preprocessRule,
+    ImportPropertyMap& properties, std::vector<std::string>& missingTargets);
 
   void SetImportLinkInterface(
     const std::string& config, std::string const& suffix,
@@ -165,6 +175,10 @@ protected:
 
   virtual void GenerateRequiredCMakeVersion(std::ostream& os,
                                             const char* versionString);
+
+  bool PopulateExportProperties(cmGeneratorTarget* gte,
+                                ImportPropertyMap& properties,
+                                std::string& errorMessage);
 
   // The namespace in which the exports are placed in the generated file.
   std::string Namespace;

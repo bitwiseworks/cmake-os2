@@ -83,10 +83,22 @@ set_property(TARGET testLib7 PROPERTY OUTPUT_NAME testLib7-$<CONFIG>)
 add_library(testLib8 OBJECT testLib8A.c testLib8B.c sub/testLib8C.c)
 
 if(NOT CMAKE_GENERATOR STREQUAL "Xcode" OR NOT CMAKE_OSX_ARCHITECTURES MATCHES "[;$]")
-  set(maybe_testLib8 testLib8)
+  set(maybe_OBJECTS_DESTINATION OBJECTS DESTINATION $<1:lib>)
 else()
-  set(maybe_testLib8 "")
+  set(maybe_OBJECTS_DESTINATION "")
 endif()
+
+cmake_policy(PUSH)
+cmake_policy(SET CMP0022 NEW)
+add_library(testLib9ObjPub OBJECT testLib9ObjPub.c)
+target_compile_definitions(testLib9ObjPub INTERFACE testLib9ObjPub_USED)
+add_library(testLib9ObjPriv OBJECT testLib9ObjPriv.c)
+target_compile_definitions(testLib9ObjPriv INTERFACE testLib9ObjPriv_USED)
+add_library(testLib9ObjIface OBJECT testLib9ObjIface.c)
+target_compile_definitions(testLib9ObjIface INTERFACE testLib9ObjIface_USED)
+add_library(testLib9 STATIC testLib9.c)
+target_link_libraries(testLib9 INTERFACE testLib9ObjIface PUBLIC testLib9ObjPub PRIVATE testLib9ObjPriv)
+cmake_policy(POP)
 
 # Test using the target_link_libraries command to set the
 # LINK_INTERFACE_LIBRARIES* properties.  We construct two libraries
@@ -141,6 +153,13 @@ add_library(testLibDepends testLibDepends.c)
 target_link_libraries(testLibDepends LINK_PUBLIC testLibRequired)
 add_library(testStaticLibRequiredPrivate testStaticLibRequiredPrivate.c)
 target_link_libraries(testLibDepends PRIVATE testStaticLibRequiredPrivate)
+cmake_policy(POP)
+
+cmake_policy(PUSH)
+cmake_policy(SET CMP0079 NEW)
+add_library(TopDirLib STATIC testTopDirLib.c)
+add_subdirectory(SubDirLinkA)
+add_subdirectory(SubDirLinkB)
 cmake_policy(POP)
 
 macro(add_include_lib _libName)
@@ -344,6 +363,14 @@ install(FILES
 
 set_property(TARGET testLib2 APPEND PROPERTY INTERFACE_COMPILE_DEFINITIONS USING_TESTLIB2)
 set_property(TARGET testLib3 APPEND PROPERTY INTERFACE_COMPILE_DEFINITIONS USING_TESTLIB3)
+set_target_properties(testLib3 PROPERTIES
+  EXPORT_PROPERTIES "EXPORTED_PROPERTY1"
+  EXPORTED_PROPERTY1 "EXPORTING_TESTLIB3")
+set_target_properties(testLib4 PROPERTIES
+  EXPORTED_PROPERTY2 "EXPORTING_TESTLIB4_1"
+  EXPORTED_PROPERTY3 "EXPORTING_TESTLIB4_2")
+set_property(TARGET testLib4 PROPERTY
+  EXPORT_PROPERTIES EXPORTED_PROPERTY2 EXPORTED_PROPERTY3)
 
 set_property(TARGET cmp0022NEW APPEND PROPERTY INTERFACE_LINK_LIBRARIES testLib2)
 # set_property(TARGET cmp0022NEW APPEND PROPERTY LINK_INTERFACE_LIBRARIES testLibIncludeRequired2) # TODO: Test for error
@@ -483,18 +510,25 @@ install(
   TARGETS
   testExe1 testLib1 testLib2 testExe2 testLib3 testLib4 testExe3 testExe4
   testExe2lib testLib4lib testLib4libdbg testLib4libopt
-  testLib6 testLib7 ${maybe_testLib8}
+  testLib6 testLib7 testLib8
+  testLib9
   testLibCycleA testLibCycleB
   testLibNoSONAME
   cmp0022NEW cmp0022OLD
+  TopDirLib SubDirLinkA
   systemlib
   EXPORT exp
-  RUNTIME DESTINATION $<1:bin>
-  LIBRARY DESTINATION $<1:lib> NAMELINK_SKIP
-  ARCHIVE DESTINATION $<1:lib>
-  OBJECTS DESTINATION $<1:lib>
+  RUNTIME DESTINATION $<1:bin>$<0:/wrong>
+  LIBRARY DESTINATION $<1:lib>$<0:/wrong> NAMELINK_SKIP
+  ARCHIVE DESTINATION $<1:lib>$<0:/wrong>
+  ${maybe_OBJECTS_DESTINATION}
   FRAMEWORK DESTINATION Frameworks
   BUNDLE DESTINATION Applications
+  )
+install(
+  TARGETS
+  testLib9ObjPub testLib9ObjPriv testLib9ObjIface
+  EXPORT exp
   )
 if (APPLE)
   file(COPY testLib4.h DESTINATION ${CMAKE_CURRENT_BINARY_DIR}/testLib4.framework/Headers)
@@ -540,12 +574,14 @@ export(TARGETS testExe1 testLib1 testLib2 testLib3
   testSharedLibRequired testSharedLibRequiredUser testSharedLibRequiredUser2
   testSharedLibDepends renamed_on_export
   cmp0022NEW cmp0022OLD
+  TopDirLib SubDirLinkA
   systemlib
   NAMESPACE bld_
   FILE ExportBuildTree.cmake
   )
 export(TARGETS testExe2 testLib4 testLib5 testLib6 testLib7 testExe3 testExe4 testExe2lib
-  ${maybe_testLib8}
+  testLib8
+  testLib9 testLib9ObjPub testLib9ObjPriv testLib9ObjIface
   testLib4lib testLib4libdbg testLib4libopt
   testLibCycleA testLibCycleB
   testLibNoSONAME
@@ -570,3 +606,39 @@ install(
   )
 install(DIRECTORY $<1:include/abs>$<0:/wrong> DESTINATION $<1:include>$<0:/wrong>)
 install(EXPORT expAbs NAMESPACE expAbs_ DESTINATION ${CMAKE_INSTALL_PREFIX}/lib/expAbs)
+
+
+#------------------------------------------------------------------------------
+# test export of INTERFACE_LINK_OPTIONS
+add_library(testLinkOptions INTERFACE)
+target_link_options(testLinkOptions INTERFACE INTERFACE_FLAG)
+
+install(TARGETS testLinkOptions
+        EXPORT RequiredExp DESTINATION lib)
+export(TARGETS testLinkOptions NAMESPACE bld_ APPEND FILE ExportBuildTree.cmake)
+
+
+#------------------------------------------------------------------------------
+# test export of INTERFACE_LINK_DIRECTORIES
+add_library(testLinkDirectories INTERFACE)
+target_link_directories(testLinkDirectories INTERFACE
+  $<BUILD_INTERFACE:/interface/build>
+  $<INSTALL_INTERFACE:interface/install>)
+
+install(TARGETS testLinkDirectories
+        EXPORT RequiredExp DESTINATION lib)
+export(TARGETS testLinkDirectories NAMESPACE bld_ APPEND FILE ExportBuildTree.cmake)
+
+
+#------------------------------------------------------------------------------
+# test export of INTERFACE_LINK_DEPENDS
+if(CMAKE_GENERATOR MATCHES "Make|Ninja")
+  add_library(testLinkDepends INTERFACE)
+  set_property(TARGET testLinkDepends PROPERTY INTERFACE_LINK_DEPENDS
+    $<BUILD_INTERFACE:BUILD_LINK_DEPENDS>
+    $<INSTALL_INTERFACE:INSTALL_LINK_DEPENDS>)
+
+  install(TARGETS testLinkDepends
+    EXPORT RequiredExp DESTINATION lib)
+  export(TARGETS testLinkDepends NAMESPACE bld_ APPEND FILE ExportBuildTree.cmake)
+endif()

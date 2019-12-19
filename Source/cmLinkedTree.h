@@ -6,7 +6,6 @@
 #include "cmConfigure.h" // IWYU pragma: keep
 
 #include <assert.h>
-#include <iterator>
 #include <vector>
 
 /**
@@ -33,7 +32,7 @@ class cmLinkedTree
   typedef T& ReferenceType;
 
 public:
-  class iterator : public std::iterator<std::forward_iterator_tag, T>
+  class iterator
   {
     friend class cmLinkedTree;
     cmLinkedTree* Tree;
@@ -137,7 +136,7 @@ public:
 
   iterator Push(iterator it) { return Push_impl(it, T()); }
 
-  iterator Push(iterator it, T t) { return Push_impl(it, t); }
+  iterator Push(iterator it, T t) { return Push_impl(it, std::move(t)); }
 
   bool IsLast(iterator it) { return it.Position == this->Data.size(); }
 
@@ -177,12 +176,12 @@ private:
 
   T* GetPointer(PositionType pos) { return &this->Data[pos]; }
 
-  iterator Push_impl(iterator it, T t)
+  iterator Push_impl(iterator it, T&& t)
   {
     assert(this->UpPositions.size() == this->Data.size());
     assert(it.Position <= this->UpPositions.size());
     this->UpPositions.push_back(it.Position);
-    this->Data.push_back(t);
+    this->Data.push_back(std::move(t));
     return iterator(this, this->UpPositions.size());
   }
 

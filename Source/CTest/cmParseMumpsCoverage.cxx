@@ -9,6 +9,7 @@
 #include <map>
 #include <string>
 #include <utility>
+#include <vector>
 
 cmParseMumpsCoverage::cmParseMumpsCoverage(
   cmCTestCoverageHandlerContainer& cont, cmCTest* ctest)
@@ -17,9 +18,7 @@ cmParseMumpsCoverage::cmParseMumpsCoverage(
 {
 }
 
-cmParseMumpsCoverage::~cmParseMumpsCoverage()
-{
-}
+cmParseMumpsCoverage::~cmParseMumpsCoverage() = default;
 
 bool cmParseMumpsCoverage::ReadCoverageFile(const char* file)
 {
@@ -114,7 +113,7 @@ bool cmParseMumpsCoverage::LoadPackages(const char* d)
   for (std::string& file : glob.GetFiles()) {
     std::string name = cmSystemTools::GetFilenameName(file);
     this->RoutineToDirectory[name.substr(0, name.size() - 2)] = file;
-    // initialze each file, this is left out until CDash is fixed
+    // initialize each file, this is left out until CDash is fixed
     // to handle large numbers of files
     this->InitializeMumpsFile(file);
   }

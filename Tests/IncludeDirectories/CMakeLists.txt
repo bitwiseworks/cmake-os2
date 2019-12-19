@@ -2,7 +2,7 @@ cmake_minimum_required (VERSION 2.6)
 project(IncludeDirectories)
 
 if (((CMAKE_C_COMPILER_ID STREQUAL GNU AND CMAKE_C_COMPILER_VERSION VERSION_GREATER 4.4)
-    OR CMAKE_C_COMPILER_ID STREQUAL Clang OR CMAKE_C_COMPILER_ID STREQUAL AppleClang)
+    OR (CMAKE_C_COMPILER_ID STREQUAL Clang AND NOT "x${CMAKE_CXX_SIMULATE_ID}" STREQUAL "xMSVC") OR CMAKE_C_COMPILER_ID STREQUAL AppleClang)
     AND (CMAKE_GENERATOR STREQUAL "Unix Makefiles"
       OR CMAKE_GENERATOR STREQUAL "Ninja"
       OR (CMAKE_GENERATOR STREQUAL "Xcode" AND NOT XCODE_VERSION VERSION_LESS 6.0)))
@@ -64,6 +64,10 @@ else()
   set_target_properties(IncludeDirectories
     PROPERTIES COMPILE_FLAGS "-ITarProp")
 endif()
+
+add_library(ordertest ordertest.cpp)
+target_include_directories(ordertest SYSTEM PUBLIC SystemIncludeDirectories/systemlib)
+target_include_directories(ordertest PUBLIC SystemIncludeDirectories/userlib)
 
 add_subdirectory(StandardIncludeDirectories)
 add_subdirectory(TargetIncludeDirectories)

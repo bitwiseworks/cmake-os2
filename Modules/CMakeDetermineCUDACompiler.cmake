@@ -6,7 +6,7 @@ include(${CMAKE_ROOT}/Modules//CMakeParseImplicitLinkInfo.cmake)
 
 if( NOT ( ("${CMAKE_GENERATOR}" MATCHES "Make") OR
           ("${CMAKE_GENERATOR}" MATCHES "Ninja") OR
-          ("${CMAKE_GENERATOR}" MATCHES "Visual Studio (1|[89][0-9])") ) )
+          ("${CMAKE_GENERATOR}" MATCHES "Visual Studio (1|[9][0-9])") ) )
   message(FATAL_ERROR "CUDA language not currently supported by \"${CMAKE_GENERATOR}\" generator")
 endif()
 
@@ -40,7 +40,6 @@ else()
 endif()
 
 #Allow the user to specify a host compiler
-set(CMAKE_CUDA_HOST_COMPILER "" CACHE FILEPATH "Host compiler to be used by nvcc")
 if(NOT $ENV{CUDAHOSTCXX} STREQUAL "")
   get_filename_component(CMAKE_CUDA_HOST_COMPILER $ENV{CUDAHOSTCXX} PROGRAM)
   if(NOT EXISTS ${CMAKE_CUDA_HOST_COMPILER})
@@ -73,7 +72,10 @@ if(NOT CMAKE_CUDA_COMPILER_ID_RUN)
   CMAKE_DETERMINE_COMPILER_ID(CUDA CUDAFLAGS CMakeCUDACompilerId.cu)
 endif()
 
+set(_CMAKE_PROCESSING_LANGUAGE "CUDA")
 include(CMakeFindBinUtils)
+unset(_CMAKE_PROCESSING_LANGUAGE)
+
 if(MSVC_CUDA_ARCHITECTURE_ID)
   set(SET_MSVC_CUDA_ARCHITECTURE_ID
     "set(MSVC_CUDA_ARCHITECTURE_ID ${MSVC_CUDA_ARCHITECTURE_ID})")
@@ -109,10 +111,15 @@ elseif(CMAKE_CUDA_COMPILER_ID STREQUAL NVIDIA)
   if(_nvcc_libraries)
     # Remove variable assignments.
     string(REGEX REPLACE "#\\\$ *[^= ]+=[^\n]*\n" "" _nvcc_output "${_nvcc_output_orig}")
+    # Encode [] characters that break list expansion.
+    string(REPLACE "[" "{==={" _nvcc_output "${_nvcc_output}")
+    string(REPLACE "]" "}===}" _nvcc_output "${_nvcc_output}")
     # Split lines.
     string(REGEX REPLACE "\n+(#\\\$ )?" ";" _nvcc_output "${_nvcc_output}")
     foreach(line IN LISTS _nvcc_output)
       set(_nvcc_output_line "${line}")
+      string(REPLACE "{==={" "[" _nvcc_output_line "${_nvcc_output_line}")
+      string(REPLACE "}===}" "]" _nvcc_output_line "${_nvcc_output_line}")
       string(APPEND _nvcc_log "  considering line: [${_nvcc_output_line}]\n")
       if("${_nvcc_output_line}" MATCHES "^ *nvlink")
         string(APPEND _nvcc_log "    ignoring nvlink line\n")

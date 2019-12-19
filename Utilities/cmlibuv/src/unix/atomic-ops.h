@@ -20,7 +20,6 @@
 
 #if defined(__SUNPRO_C) || defined(__SUNPRO_CC)
 #include <atomic.h>
-#define __sync_val_compare_and_swap(p, o, n) atomic_cas_ptr(p, o, n)
 #endif
 
 UV_UNUSED(static int cmpxchgi(int* ptr, int oldval, int newval));
@@ -38,7 +37,7 @@ UV_UNUSED(static int cmpxchgi(int* ptr, int oldval, int newval)) {
                         : "r" (newval), "0" (oldval)
                         : "memory");
   return out;
-#elif defined(_AIX) && defined(__xlC__)
+#elif defined(_AIX) && (defined(__xlC__) || defined(__ibmxl__))
   const int out = (*(volatile int*) ptr);
   __compare_and_swap(ptr, &oldval, newval);
   return out;
@@ -49,6 +48,8 @@ UV_UNUSED(static int cmpxchgi(int* ptr, int oldval, int newval)) {
     return oldval;
   else
     return op4;
+#elif defined(__SUNPRO_C) || defined(__SUNPRO_CC)
+  return atomic_cas_uint(ptr, oldval, newval);
 #else
   return __sync_val_compare_and_swap(ptr, oldval, newval);
 #endif
@@ -62,7 +63,7 @@ UV_UNUSED(static long cmpxchgl(long* ptr, long oldval, long newval)) {
                         : "r" (newval), "0" (oldval)
                         : "memory");
   return out;
-#elif defined(_AIX) && defined(__xlC__)
+#elif defined(_AIX) && (defined(__xlC__) || defined(__ibmxl__))
   const long out = (*(volatile int*) ptr);
 # if defined(__64BIT__)
   __compare_and_swaplp(ptr, &oldval, newval);
@@ -83,6 +84,8 @@ UV_UNUSED(static long cmpxchgl(long* ptr, long oldval, long newval)) {
     return oldval;
   else
     return op4;
+#elif defined(__SUNPRO_C) || defined(__SUNPRO_CC)
+  return atomic_cas_ulong(ptr, oldval, newval);
 #else
   return __sync_val_compare_and_swap(ptr, oldval, newval);
 #endif

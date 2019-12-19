@@ -97,8 +97,6 @@ Functions
 
 #]=======================================================================]
 
-include(CMakeParseArguments)
-
 function(_FS_GET_FEATURE_SUMMARY _property _var _includeQuiet)
 
   get_property(_fsPkgTypes GLOBAL PROPERTY FeatureSummary_PKG_TYPES)
@@ -493,7 +491,7 @@ endfunction()
     by the project when available at buildtime, but it also work without.
     ``RECOMMENDED`` is similar to ``OPTIONAL``, i.e.  the project will build if
     the package is not present, but the functionality of the resulting
-    binaries will be severly limited.  If a ``REQUIRED`` package is not
+    binaries will be severely limited.  If a ``REQUIRED`` package is not
     available at buildtime, the project may not even build.  This can be
     combined with the ``FATAL_ON_MISSING_REQUIRED_PACKAGES`` argument for
     ``feature_summary()``.  Last, a ``RUNTIME`` package is a package which is

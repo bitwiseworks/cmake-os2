@@ -1,9 +1,13 @@
 /* Distributed under the OSI-approved BSD 3-Clause License.  See accompanying
    file Copyright.txt or https://cmake.org/licensing for details.  */
+#define _SCL_SECURE_NO_WARNINGS
+
 #include "cmStringCommand.h"
 
 #include "cmsys/RegularExpression.hxx"
+#include <algorithm>
 #include <ctype.h>
+#include <iterator>
 #include <memory> // IWYU pragma: keep
 #include <sstream>
 #include <stdio.h>
@@ -13,6 +17,9 @@
 #include "cmCryptoHash.h"
 #include "cmGeneratorExpression.h"
 #include "cmMakefile.h"
+#include "cmMessageType.h"
+#include "cmRange.h"
+#include "cmStringReplaceHelper.h"
 #include "cmSystemTools.h"
 #include "cmTimestamp.h"
 #include "cmUuid.h"
@@ -68,11 +75,17 @@ bool cmStringCommand::InitialPass(std::vector<std::string> const& args,
   if (subCommand == "CONCAT") {
     return this->HandleConcatCommand(args);
   }
+  if (subCommand == "JOIN") {
+    return this->HandleJoinCommand(args);
+  }
   if (subCommand == "SUBSTRING") {
     return this->HandleSubstringCommand(args);
   }
   if (subCommand == "STRIP") {
     return this->HandleStripCommand(args);
+  }
+  if (subCommand == "REPEAT") {
+    return this->HandleRepeatCommand(args);
   }
   if (subCommand == "RANDOM") {
     return this->HandleRandomCommand(args);
@@ -152,7 +165,7 @@ bool cmStringCommand::HandleAsciiCommand(std::vector<std::string> const& args)
     return false;
   }
   std::string::size_type cc;
-  std::string const& outvar = args[args.size() - 1];
+  std::string const& outvar = args.back();
   std::string output;
   for (cc = 1; cc < args.size() - 1; cc++) {
     int ch = atoi(args[cc].c_str());
@@ -269,7 +282,7 @@ bool cmStringCommand::RegexMatch(std::vector<std::string> const& args)
 
   // Scan through the input for all matches.
   std::string output;
-  if (re.find(input.c_str())) {
+  if (re.find(input)) {
     this->Makefile->StoreMatches(re);
     std::string::size_type l = re.start();
     std::string::size_type r = re.end();
@@ -341,46 +354,17 @@ bool cmStringCommand::RegexReplace(std::vector<std::string> const& args)
   std::string const& regex = args[2];
   std::string const& replace = args[3];
   std::string const& outvar = args[4];
+  cmStringReplaceHelper replaceHelper(regex, replace, this->Makefile);
 
-  // Pull apart the replace expression to find the escaped [0-9] values.
-  std::vector<RegexReplacement> replacement;
-  std::string::size_type l = 0;
-  while (l < replace.length()) {
-    std::string::size_type r = replace.find('\\', l);
-    if (r == std::string::npos) {
-      r = replace.length();
-      replacement.push_back(replace.substr(l, r - l));
-    } else {
-      if (r - l > 0) {
-        replacement.push_back(replace.substr(l, r - l));
-      }
-      if (r == (replace.length() - 1)) {
-        this->SetError("sub-command REGEX, mode REPLACE: "
-                       "replace-expression ends in a backslash.");
-        return false;
-      }
-      if ((replace[r + 1] >= '0') && (replace[r + 1] <= '9')) {
-        replacement.push_back(replace[r + 1] - '0');
-      } else if (replace[r + 1] == 'n') {
-        replacement.push_back("\n");
-      } else if (replace[r + 1] == '\\') {
-        replacement.push_back("\\");
-      } else {
-        std::string e = "sub-command REGEX, mode REPLACE: Unknown escape \"";
-        e += replace.substr(r, 2);
-        e += "\" in replace-expression.";
-        this->SetError(e);
-        return false;
-      }
-      r += 2;
-    }
-    l = r;
+  if (!replaceHelper.IsReplaceExpressionValid()) {
+    this->SetError(
+      "sub-command REGEX, mode REPLACE: " + replaceHelper.GetError() + ".");
+    return false;
   }
 
   this->Makefile->ClearMatches();
-  // Compile the regular expression.
-  cmsys::RegularExpression re;
-  if (!re.compile(regex.c_str())) {
+
+  if (!replaceHelper.IsRegularExpressionValid()) {
     std::string e =
       "sub-command REGEX, mode REPLACE failed to compile regex \"" + regex +
       "\".";
@@ -389,59 +373,15 @@ bool cmStringCommand::RegexReplace(std::vector<std::string> const& args)
   }
 
   // Concatenate all the last arguments together.
-  std::string input = cmJoin(cmMakeRange(args).advance(5), std::string());
-
-  // Scan through the input for all matches.
+  const std::string input =
+    cmJoin(cmMakeRange(args).advance(5), std::string());
   std::string output;
-  std::string::size_type base = 0;
-  while (re.find(input.c_str() + base)) {
-    this->Makefile->ClearMatches();
-    this->Makefile->StoreMatches(re);
-    std::string::size_type l2 = re.start();
-    std::string::size_type r = re.end();
 
-    // Concatenate the part of the input that was not matched.
-    output += input.substr(base, l2);
-
-    // Make sure the match had some text.
-    if (r - l2 == 0) {
-      std::string e = "sub-command REGEX, mode REPLACE regex \"" + regex +
-        "\" matched an empty string.";
-      this->SetError(e);
-      return false;
-    }
-
-    // Concatenate the replacement for the match.
-    for (RegexReplacement const& i : replacement) {
-      if (i.number < 0) {
-        // This is just a plain-text part of the replacement.
-        output += i.value;
-      } else {
-        // Replace with part of the match.
-        int n = i.number;
-        std::string::size_type start = re.start(n);
-        std::string::size_type end = re.end(n);
-        std::string::size_type len = input.length() - base;
-        if ((start != std::string::npos) && (end != std::string::npos) &&
-            (start <= len) && (end <= len)) {
-          output += input.substr(base + start, end - start);
-        } else {
-          std::string e =
-            "sub-command REGEX, mode REPLACE: replace expression \"" +
-            replace + "\" contains an out-of-range escape for regex \"" +
-            regex + "\".";
-          this->SetError(e);
-          return false;
-        }
-      }
-    }
-
-    // Move past the match.
-    base += r;
+  if (!replaceHelper.Replace(input, output)) {
+    this->SetError(
+      "sub-command REGEX, mode REPLACE: " + replaceHelper.GetError() + ".");
+    return false;
   }
-
-  // Concatenate the text after the last match.
-  output += input.substr(base, input.length() - base);
 
   // Store the output in the provided variable.
   this->Makefile->AddDefinition(outvar, output.c_str());
@@ -677,8 +617,26 @@ bool cmStringCommand::HandleConcatCommand(std::vector<std::string> const& args)
     return false;
   }
 
-  std::string const& variableName = args[1];
-  std::string value = cmJoin(cmMakeRange(args).advance(2), std::string());
+  return this->joinImpl(args, std::string(), 1);
+}
+
+bool cmStringCommand::HandleJoinCommand(std::vector<std::string> const& args)
+{
+  if (args.size() < 3) {
+    this->SetError("sub-command JOIN requires at least two arguments.");
+    return false;
+  }
+
+  return this->joinImpl(args, args[1], 2);
+}
+
+bool cmStringCommand::joinImpl(std::vector<std::string> const& args,
+                               std::string const& glue, const size_t varIdx)
+{
+  std::string const& variableName = args[varIdx];
+  // NOTE Items to concat/join placed right after the variable for
+  // both `CONCAT` and `JOIN` sub-commands.
+  std::string value = cmJoin(cmMakeRange(args).advance(varIdx + 1), glue);
 
   this->Makefile->AddDefinition(variableName, value.c_str());
   return true;
@@ -759,6 +717,59 @@ bool cmStringCommand::HandleStripCommand(std::vector<std::string> const& args)
   return true;
 }
 
+bool cmStringCommand::HandleRepeatCommand(std::vector<std::string> const& args)
+{
+  // `string(REPEAT "<str>" <times> OUTPUT_VARIABLE)`
+  enum ArgPos : std::size_t
+  {
+    SUB_COMMAND,
+    VALUE,
+    TIMES,
+    OUTPUT_VARIABLE,
+    TOTAL_ARGS
+  };
+
+  if (args.size() != ArgPos::TOTAL_ARGS) {
+    this->Makefile->IssueMessage(
+      MessageType::FATAL_ERROR,
+      "sub-command REPEAT requires three arguments.");
+    return true;
+  }
+
+  unsigned long times;
+  if (!cmSystemTools::StringToULong(args[ArgPos::TIMES].c_str(), &times)) {
+    this->Makefile->IssueMessage(MessageType::FATAL_ERROR,
+                                 "repeat count is not a positive number.");
+    return true;
+  }
+
+  const auto& stringValue = args[ArgPos::VALUE];
+  const auto& variableName = args[ArgPos::OUTPUT_VARIABLE];
+  const auto inStringLength = stringValue.size();
+
+  std::string result;
+  switch (inStringLength) {
+    case 0u:
+      // Nothing to do for zero length input strings
+      break;
+    case 1u:
+      // NOTE If the string to repeat consists of the only character,
+      // use the appropriate constructor.
+      result = std::string(times, stringValue[0]);
+      break;
+    default:
+      result = std::string(inStringLength * times, char{});
+      for (auto i = 0u; i < times; ++i) {
+        std::copy(cm::cbegin(stringValue), cm::cend(stringValue),
+                  &result[i * inStringLength]);
+      }
+      break;
+  }
+
+  this->Makefile->AddDefinition(variableName, result.c_str());
+  return true;
+}
+
 bool cmStringCommand::HandleRandomCommand(std::vector<std::string> const& args)
 {
   if (args.size() < 2 || args.size() == 3 || args.size() == 5) {
@@ -806,7 +817,7 @@ bool cmStringCommand::HandleRandomCommand(std::vector<std::string> const& args)
     this->SetError("sub-command RANDOM invoked with bad length.");
     return false;
   }
-  const std::string& variableName = args[args.size() - 1];
+  const std::string& variableName = args.back();
 
   std::vector<char> result;
 
@@ -816,14 +827,13 @@ bool cmStringCommand::HandleRandomCommand(std::vector<std::string> const& args)
   }
 
   const char* alphaPtr = alphabet.c_str();
-  int cc;
-  for (cc = 0; cc < length; cc++) {
+  for (int cc = 0; cc < length; cc++) {
     int idx = static_cast<int>(sizeofAlphabet * rand() / (RAND_MAX + 1.0));
     result.push_back(*(alphaPtr + idx));
   }
   result.push_back(0);
 
-  this->Makefile->AddDefinition(variableName, &*result.begin());
+  this->Makefile->AddDefinition(variableName, result.data());
   return true;
 }
 

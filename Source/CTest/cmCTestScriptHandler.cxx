@@ -5,6 +5,7 @@
 #include "cmsys/Directory.hxx"
 #include "cmsys/Process.h"
 #include <map>
+#include <ratio>
 #include <sstream>
 #include <stdio.h>
 #include <stdlib.h>
@@ -26,6 +27,7 @@
 #include "cmCTestTestCommand.h"
 #include "cmCTestUpdateCommand.h"
 #include "cmCTestUploadCommand.h"
+#include "cmDuration.h"
 #include "cmFunctionBlocker.h"
 #include "cmGeneratedFileStream.h"
 #include "cmGlobalGenerator.h"
@@ -37,9 +39,9 @@
 #include "cmake.h"
 
 #ifdef _WIN32
-#include <windows.h>
+#  include <windows.h>
 #else
-#include <unistd.h>
+#  include <unistd.h>
 #endif
 
 class cmExecutionStatus;
@@ -51,8 +53,6 @@ struct cmListFileFunction;
 class cmCTestScriptFunctionBlocker : public cmFunctionBlocker
 {
 public:
-  cmCTestScriptFunctionBlocker() {}
-  ~cmCTestScriptFunctionBlocker() override {}
   bool IsFunctionBlocked(const cmListFileFunction& lff, cmMakefile& mf,
                          cmExecutionStatus& /*status*/) override;
   // virtual bool ShouldRemove(const cmListFileFunction& lff, cmMakefile &mf);
@@ -76,12 +76,13 @@ cmCTestScriptHandler::cmCTestScriptHandler()
   this->EmptyBinDir = false;
   this->EmptyBinDirOnce = false;
   this->Makefile = nullptr;
+  this->ParentMakefile = nullptr;
   this->CMake = nullptr;
   this->GlobalGenerator = nullptr;
 
-  this->ScriptStartTime = 0;
+  this->ScriptStartTime = std::chrono::steady_clock::time_point();
 
-  // the *60 is becuase the settings are in minutes but GetTime is seconds
+  // the *60 is because the settings are in minutes but GetTime is seconds
   this->MinimumInterval = 30 * 60;
   this->ContinuousDuration = -1;
 }
@@ -111,10 +112,11 @@ void cmCTestScriptHandler::Initialize()
   this->ContinuousDuration = -1;
 
   // what time in seconds did this script start running
-  this->ScriptStartTime = 0;
+  this->ScriptStartTime = std::chrono::steady_clock::time_point();
 
   delete this->Makefile;
   this->Makefile = nullptr;
+  this->ParentMakefile = nullptr;
 
   delete this->GlobalGenerator;
   this->GlobalGenerator = nullptr;
@@ -133,7 +135,7 @@ cmCTestScriptHandler::~cmCTestScriptHandler()
 void cmCTestScriptHandler::AddConfigurationScript(const char* script,
                                                   bool pscope)
 {
-  this->ConfigurationScripts.push_back(script);
+  this->ConfigurationScripts.emplace_back(script);
   this->ScriptProcessScope.push_back(pscope);
 }
 
@@ -158,11 +160,10 @@ void cmCTestScriptHandler::UpdateElapsedTime()
 {
   if (this->Makefile) {
     // set the current elapsed time
-    char timeString[20];
-    int itime = static_cast<unsigned int>(cmSystemTools::GetTime() -
-                                          this->ScriptStartTime);
-    sprintf(timeString, "%i", itime);
-    this->Makefile->AddDefinition("CTEST_ELAPSED_TIME", timeString);
+    auto itime = cmDurationTo<unsigned int>(std::chrono::steady_clock::now() -
+                                            this->ScriptStartTime);
+    auto timeString = std::to_string(itime);
+    this->Makefile->AddDefinition("CTEST_ELAPSED_TIME", timeString.c_str());
   }
 }
 
@@ -183,8 +184,9 @@ int cmCTestScriptHandler::ExecuteScript(const std::string& total_script_arg)
   argv.push_back("-SR");
   argv.push_back(total_script_arg.c_str());
 
-  cmCTestLog(this->CTest, HANDLER_VERBOSE_OUTPUT, "Executable for CTest is: "
-               << cmSystemTools::GetCTestCommand() << "\n");
+  cmCTestLog(this->CTest, HANDLER_VERBOSE_OUTPUT,
+             "Executable for CTest is: " << cmSystemTools::GetCTestCommand()
+                                         << "\n");
 
   // now pass through all the other arguments
   std::vector<std::string>& initArgs =
@@ -197,7 +199,7 @@ int cmCTestScriptHandler::ExecuteScript(const std::string& total_script_arg)
 
   // Now create process object
   cmsysProcess* cp = cmsysProcess_New();
-  cmsysProcess_SetCommand(cp, &*argv.begin());
+  cmsysProcess_SetCommand(cp, argv.data());
   // cmsysProcess_SetWorkingDirectory(cp, dir);
   cmsysProcess_SetOption(cp, cmsysProcess_Option_HideWindow, 1);
   // cmsysProcess_SetTimeout(cp, timeout);
@@ -206,16 +208,18 @@ int cmCTestScriptHandler::ExecuteScript(const std::string& total_script_arg)
   std::vector<char> out;
   std::vector<char> err;
   std::string line;
-  int pipe = cmSystemTools::WaitForLine(cp, line, 100.0, out, err);
+  int pipe =
+    cmSystemTools::WaitForLine(cp, line, std::chrono::seconds(100), out, err);
   while (pipe != cmsysProcess_Pipe_None) {
-    cmCTestLog(this->CTest, HANDLER_VERBOSE_OUTPUT, "Output: " << line
-                                                               << "\n");
+    cmCTestLog(this->CTest, HANDLER_VERBOSE_OUTPUT,
+               "Output: " << line << "\n");
     if (pipe == cmsysProcess_Pipe_STDERR) {
       cmCTestLog(this->CTest, ERROR_MESSAGE, line << "\n");
     } else if (pipe == cmsysProcess_Pipe_STDOUT) {
       cmCTestLog(this->CTest, HANDLER_VERBOSE_OUTPUT, line << "\n");
     }
-    pipe = cmSystemTools::WaitForLine(cp, line, 100, out, err);
+    pipe = cmSystemTools::WaitForLine(cp, line, std::chrono::seconds(100), out,
+                                      err);
   }
 
   // Properly handle output of the build command
@@ -227,17 +231,19 @@ int cmCTestScriptHandler::ExecuteScript(const std::string& total_script_arg)
     retVal = cmsysProcess_GetExitValue(cp);
   } else if (result == cmsysProcess_State_Exception) {
     retVal = cmsysProcess_GetExitException(cp);
-    cmCTestLog(this->CTest, ERROR_MESSAGE, "\tThere was an exception: "
+    cmCTestLog(this->CTest, ERROR_MESSAGE,
+               "\tThere was an exception: "
                  << cmsysProcess_GetExceptionString(cp) << " " << retVal
                  << std::endl);
     failed = true;
   } else if (result == cmsysProcess_State_Expired) {
-    cmCTestLog(this->CTest, ERROR_MESSAGE, "\tThere was a timeout"
-                 << std::endl);
+    cmCTestLog(this->CTest, ERROR_MESSAGE,
+               "\tThere was a timeout" << std::endl);
     failed = true;
   } else if (result == cmsysProcess_State_Error) {
-    cmCTestLog(this->CTest, ERROR_MESSAGE, "\tError executing ctest: "
-                 << cmsysProcess_GetErrorString(cp) << std::endl);
+    cmCTestLog(this->CTest, ERROR_MESSAGE,
+               "\tError executing ctest: " << cmsysProcess_GetErrorString(cp)
+                                           << std::endl);
     failed = true;
   }
   cmsysProcess_Delete(cp);
@@ -250,20 +256,11 @@ int cmCTestScriptHandler::ExecuteScript(const std::string& total_script_arg)
         message << arg << " ";
       }
     }
-    cmCTestLog(this->CTest, ERROR_MESSAGE, message.str() << argv[0]
-                                                         << std::endl);
+    cmCTestLog(this->CTest, ERROR_MESSAGE,
+               message.str() << argv[0] << std::endl);
     return -1;
   }
   return retVal;
-}
-
-static void ctestScriptProgressCallback(const char* m, float /*unused*/,
-                                        void* cd)
-{
-  cmCTest* ctest = static_cast<cmCTest*>(cd);
-  if (m && *m) {
-    cmCTestLog(ctest, HANDLER_OUTPUT, "-- " << m << std::endl);
-  }
 }
 
 void cmCTestScriptHandler::CreateCMake()
@@ -274,7 +271,7 @@ void cmCTestScriptHandler::CreateCMake()
     delete this->GlobalGenerator;
     delete this->Makefile;
   }
-  this->CMake = new cmake(cmake::RoleScript);
+  this->CMake = new cmake(cmake::RoleScript, cmState::CTest);
   this->CMake->SetHomeDirectory("");
   this->CMake->SetHomeOutputDirectory("");
   this->CMake->GetCurrentSnapshot().SetDefaultDefinitions();
@@ -286,8 +283,17 @@ void cmCTestScriptHandler::CreateCMake()
   snapshot.GetDirectory().SetCurrentSource(cwd);
   snapshot.GetDirectory().SetCurrentBinary(cwd);
   this->Makefile = new cmMakefile(this->GlobalGenerator, snapshot);
+  if (this->ParentMakefile) {
+    this->Makefile->SetRecursionDepth(
+      this->ParentMakefile->GetRecursionDepth());
+  }
 
-  this->CMake->SetProgressCallback(ctestScriptProgressCallback, this->CTest);
+  this->CMake->SetProgressCallback(
+    [this](const std::string& m, float /*unused*/) {
+      if (!m.empty()) {
+        cmCTestLog(this->CTest, HANDLER_OUTPUT, "-- " << m << std::endl);
+      }
+    });
 
   this->AddCTestCommand("ctest_build", new cmCTestBuildCommand);
   this->AddCTestCommand("ctest_configure", new cmCTestConfigureCommand);
@@ -324,8 +330,8 @@ int cmCTestScriptHandler::ReadInScript(const std::string& total_script_arg)
     script_arg = total_script_arg.substr(comma_pos + 1);
   }
   // make sure the file exists
-  if (!cmSystemTools::FileExists(script.c_str())) {
-    cmSystemTools::Error("Cannot find file: ", script.c_str());
+  if (!cmSystemTools::FileExists(script)) {
+    cmSystemTools::Error("Cannot find file: " + script);
     return 1;
   }
 
@@ -343,6 +349,7 @@ int cmCTestScriptHandler::ReadInScript(const std::string& total_script_arg)
   this->Makefile->AddDefinition("CMAKE_EXECUTABLE_NAME",
                                 cmSystemTools::GetCMakeCommand().c_str());
   this->Makefile->AddDefinition("CTEST_RUN_CURRENT_SCRIPT", true);
+  this->SetRunCurrentScript(true);
   this->UpdateElapsedTime();
 
   // add the script arg if defined
@@ -366,10 +373,10 @@ int cmCTestScriptHandler::ReadInScript(const std::string& total_script_arg)
   ctest scripting easier. */
   std::string systemFile =
     this->Makefile->GetModulesFile("CTestScriptMode.cmake");
-  if (!this->Makefile->ReadListFile(systemFile.c_str()) ||
+  if (!this->Makefile->ReadListFile(systemFile) ||
       cmSystemTools::GetErrorOccuredFlag()) {
-    cmCTestLog(this->CTest, ERROR_MESSAGE, "Error in read:" << systemFile
-                                                            << "\n");
+    cmCTestLog(this->CTest, ERROR_MESSAGE,
+               "Error in read:" << systemFile << "\n");
     return 2;
   }
 
@@ -381,7 +388,7 @@ int cmCTestScriptHandler::ReadInScript(const std::string& total_script_arg)
   }
 
   // finally read in the script
-  if (!this->Makefile->ReadListFile(script.c_str()) ||
+  if (!this->Makefile->ReadListFile(script) ||
       cmSystemTools::GetErrorOccuredFlag()) {
     // Reset the error flag so that it can run more than
     // one script with an error when you use ctest_run_script.
@@ -440,10 +447,11 @@ int cmCTestScriptHandler::ExtractVariables()
     if (updateVal) {
       if (this->UpdateCmd.empty()) {
         cmSystemTools::Error(
-          updateVar, " specified without specifying CTEST_CVS_COMMAND.");
+          std::string(updateVar) +
+          " specified without specifying CTEST_CVS_COMMAND.");
         return 12;
       }
-      this->ExtraUpdates.push_back(updateVal);
+      this->ExtraUpdates.emplace_back(updateVal);
     }
   }
 
@@ -464,8 +472,8 @@ int cmCTestScriptHandler::ExtractVariables()
     msg += "\nCTEST_COMMAND = ";
     msg += (!this->CTestCmd.empty()) ? this->CTestCmd.c_str() : "(Null)";
     cmSystemTools::Error(
-      "Some required settings in the configuration file were missing:\n",
-      msg.c_str());
+      "Some required settings in the configuration file were missing:\n" +
+      msg);
     return 4;
   }
 
@@ -507,7 +515,7 @@ int cmCTestScriptHandler::RunConfigurationScript(
 
   int result;
 
-  this->ScriptStartTime = cmSystemTools::GetTime();
+  this->ScriptStartTime = std::chrono::steady_clock::now();
 
   // read in the script
   if (pscope) {
@@ -523,8 +531,9 @@ int cmCTestScriptHandler::RunConfigurationScript(
     return result;
   }
 
-  // only run the curent script if we should
-  if (this->Makefile && this->Makefile->IsOn("CTEST_RUN_CURRENT_SCRIPT")) {
+  // only run the current script if we should
+  if (this->Makefile && this->Makefile->IsOn("CTEST_RUN_CURRENT_SCRIPT") &&
+      this->ShouldRunCurrentScript) {
     return this->RunCurrentScript();
   }
   return result;
@@ -535,7 +544,7 @@ int cmCTestScriptHandler::RunCurrentScript()
   int result;
 
   // do not run twice
-  this->Makefile->AddDefinition("CTEST_RUN_CURRENT_SCRIPT", false);
+  this->SetRunCurrentScript(false);
 
   // no popup widows
   cmSystemTools::SetRunCommandHideConsole(true);
@@ -555,25 +564,28 @@ int cmCTestScriptHandler::RunCurrentScript()
 
   // now that we have done most of the error checking finally run the
   // dashboard, we may be asked to repeatedly run this dashboard, such as
-  // for a continuous, do we ned to run it more than once?
+  // for a continuous, do we need to run it more than once?
   if (this->ContinuousDuration >= 0) {
     this->UpdateElapsedTime();
-    double ending_time = cmSystemTools::GetTime() + this->ContinuousDuration;
+    auto ending_time =
+      std::chrono::steady_clock::now() + cmDuration(this->ContinuousDuration);
     if (this->EmptyBinDirOnce) {
       this->EmptyBinDir = true;
     }
     do {
-      double interval = cmSystemTools::GetTime();
+      auto startOfInterval = std::chrono::steady_clock::now();
       result = this->RunConfigurationDashboard();
-      interval = cmSystemTools::GetTime() - interval;
-      if (interval < this->MinimumInterval) {
-        this->SleepInSeconds(
-          static_cast<unsigned int>(this->MinimumInterval - interval));
+      auto interval = std::chrono::steady_clock::now() - startOfInterval;
+      auto minimumInterval = cmDuration(this->MinimumInterval);
+      if (interval < minimumInterval) {
+        auto sleepTime =
+          cmDurationTo<unsigned int>(minimumInterval - interval);
+        this->SleepInSeconds(sleepTime);
       }
       if (this->EmptyBinDirOnce) {
         this->EmptyBinDir = false;
       }
-    } while (cmSystemTools::GetTime() < ending_time);
+    } while (std::chrono::steady_clock::now() < ending_time);
   }
   // otherwise just run it once
   else {
@@ -590,18 +602,17 @@ int cmCTestScriptHandler::CheckOutSourceDir()
   int retVal;
   bool res;
 
-  if (!cmSystemTools::FileExists(this->SourceDir.c_str()) &&
+  if (!cmSystemTools::FileExists(this->SourceDir) &&
       !this->CVSCheckOut.empty()) {
     // we must now checkout the src dir
     output.clear();
     cmCTestLog(this->CTest, HANDLER_VERBOSE_OUTPUT,
                "Run cvs: " << this->CVSCheckOut << std::endl);
     res = cmSystemTools::RunSingleCommand(
-      this->CVSCheckOut.c_str(), &output, &output, &retVal,
-      this->CTestRoot.c_str(), this->HandlerVerbose, 0 /*this->TimeOut*/);
+      this->CVSCheckOut, &output, &output, &retVal, this->CTestRoot.c_str(),
+      this->HandlerVerbose, cmDuration::zero() /*this->TimeOut*/);
     if (!res || retVal != 0) {
-      cmSystemTools::Error("Unable to perform cvs checkout:\n",
-                           output.c_str());
+      cmSystemTools::Error("Unable to perform cvs checkout:\n" + output);
       return 6;
     }
   }
@@ -621,10 +632,10 @@ int cmCTestScriptHandler::BackupDirectories()
   // backup the binary and src directories if requested
   if (this->Backup) {
     // if for some reason those directories exist then first delete them
-    if (cmSystemTools::FileExists(this->BackupSourceDir.c_str())) {
+    if (cmSystemTools::FileExists(this->BackupSourceDir)) {
       cmSystemTools::RemoveADirectory(this->BackupSourceDir);
     }
-    if (cmSystemTools::FileExists(this->BackupBinaryDir.c_str())) {
+    if (cmSystemTools::FileExists(this->BackupBinaryDir)) {
       cmSystemTools::RemoveADirectory(this->BackupBinaryDir);
     }
 
@@ -664,11 +675,11 @@ int cmCTestScriptHandler::PerformExtraUpdates()
       cmCTestLog(this->CTest, HANDLER_VERBOSE_OUTPUT,
                  "Run Update: " << fullCommand << std::endl);
       res = cmSystemTools::RunSingleCommand(
-        fullCommand.c_str(), &output, &output, &retVal, cvsArgs[0].c_str(),
-        this->HandlerVerbose, 0 /*this->TimeOut*/);
+        fullCommand, &output, &output, &retVal, cvsArgs[0].c_str(),
+        this->HandlerVerbose, cmDuration::zero() /*this->TimeOut*/);
       if (!res || retVal != 0) {
-        cmSystemTools::Error("Unable to perform extra updates:\n", eu.c_str(),
-                             "\nWith output:\n", output.c_str());
+        cmSystemTools::Error("Unable to perform extra updates:\n" + eu +
+                             "\nWith output:\n" + output);
         return 0;
       }
     }
@@ -707,11 +718,11 @@ int cmCTestScriptHandler::RunConfigurationDashboard()
   }
 
   // make sure the binary directory exists if it isn't the srcdir
-  if (!cmSystemTools::FileExists(this->BinaryDir.c_str()) &&
+  if (!cmSystemTools::FileExists(this->BinaryDir) &&
       this->SourceDir != this->BinaryDir) {
-    if (!cmSystemTools::MakeDirectory(this->BinaryDir.c_str())) {
-      cmSystemTools::Error("Unable to create the binary directory:\n",
-                           this->BinaryDir.c_str());
+    if (!cmSystemTools::MakeDirectory(this->BinaryDir)) {
+      cmSystemTools::Error("Unable to create the binary directory:\n" +
+                           this->BinaryDir);
       this->RestoreBackupDirectories();
       return 7;
     }
@@ -748,8 +759,8 @@ int cmCTestScriptHandler::RunConfigurationDashboard()
 
   // put the initial cache into the bin dir
   if (!this->InitialCache.empty()) {
-    if (!this->WriteInitialCache(this->BinaryDir.c_str(),
-                                 this->InitialCache.c_str())) {
+    if (!cmCTestScriptHandler::WriteInitialCache(this->BinaryDir.c_str(),
+                                                 this->InitialCache.c_str())) {
       this->RestoreBackupDirectories();
       return 9;
     }
@@ -768,19 +779,19 @@ int cmCTestScriptHandler::RunConfigurationDashboard()
     cmCTestLog(this->CTest, HANDLER_VERBOSE_OUTPUT,
                "Run cmake command: " << command << std::endl);
     res = cmSystemTools::RunSingleCommand(
-      command.c_str(), &output, &output, &retVal, this->BinaryDir.c_str(),
-      this->HandlerVerbose, 0 /*this->TimeOut*/);
+      command, &output, &output, &retVal, this->BinaryDir.c_str(),
+      this->HandlerVerbose, cmDuration::zero() /*this->TimeOut*/);
 
     if (!this->CMOutFile.empty()) {
       std::string cmakeOutputFile = this->CMOutFile;
-      if (!cmSystemTools::FileIsFullPath(cmakeOutputFile.c_str())) {
+      if (!cmSystemTools::FileIsFullPath(cmakeOutputFile)) {
         cmakeOutputFile = this->BinaryDir + "/" + cmakeOutputFile;
       }
 
       cmCTestLog(this->CTest, HANDLER_VERBOSE_OUTPUT,
                  "Write CMake output to file: " << cmakeOutputFile
                                                 << std::endl);
-      cmGeneratedFileStream fout(cmakeOutputFile.c_str());
+      cmGeneratedFileStream fout(cmakeOutputFile);
       if (fout) {
         fout << output.c_str();
       } else {
@@ -807,8 +818,8 @@ int cmCTestScriptHandler::RunConfigurationDashboard()
     cmCTestLog(this->CTest, HANDLER_VERBOSE_OUTPUT,
                "Run ctest command: " << command << std::endl);
     res = cmSystemTools::RunSingleCommand(
-      command.c_str(), &output, &output, &retVal, this->BinaryDir.c_str(),
-      this->HandlerVerbose, 0 /*this->TimeOut*/);
+      command, &output, &output, &retVal, this->BinaryDir.c_str(),
+      this->HandlerVerbose, cmDuration::zero() /*this->TimeOut*/);
 
     // did something critical fail in ctest
     if (!res || cmakeFailed || retVal & cmCTest::BUILD_ERRORS) {
@@ -830,7 +841,7 @@ int cmCTestScriptHandler::RunConfigurationDashboard()
     }
   }
 
-  // if all was succesful, delete the backup dirs to free up disk space
+  // if all was successful, delete the backup dirs to free up disk space
   if (this->Backup) {
     cmSystemTools::RemoveADirectory(this->BackupSourceDir);
     cmSystemTools::RemoveADirectory(this->BackupBinaryDir);
@@ -844,7 +855,7 @@ bool cmCTestScriptHandler::WriteInitialCache(const char* directory,
 {
   std::string cacheFile = directory;
   cacheFile += "/CMakeCache.txt";
-  cmGeneratedFileStream fout(cacheFile.c_str());
+  cmGeneratedFileStream fout(cacheFile);
   if (!fout) {
     return false;
   }
@@ -867,10 +878,10 @@ void cmCTestScriptHandler::RestoreBackupDirectories()
   // the backed up dirs
   if (this->Backup) {
     // if for some reason those directories exist then first delete them
-    if (cmSystemTools::FileExists(this->SourceDir.c_str())) {
+    if (cmSystemTools::FileExists(this->SourceDir)) {
       cmSystemTools::RemoveADirectory(this->SourceDir);
     }
-    if (cmSystemTools::FileExists(this->BinaryDir.c_str())) {
+    if (cmSystemTools::FileExists(this->BinaryDir)) {
       cmSystemTools::RemoveADirectory(this->BinaryDir);
     }
     // rename the src and binary directories
@@ -879,11 +890,13 @@ void cmCTestScriptHandler::RestoreBackupDirectories()
   }
 }
 
-bool cmCTestScriptHandler::RunScript(cmCTest* ctest, const char* sname,
-                                     bool InProcess, int* returnValue)
+bool cmCTestScriptHandler::RunScript(cmCTest* ctest, cmMakefile* mf,
+                                     const char* sname, bool InProcess,
+                                     int* returnValue)
 {
   cmCTestScriptHandler* sh = new cmCTestScriptHandler();
   sh->SetCTestInstance(ctest);
+  sh->ParentMakefile = mf;
   sh->AddConfigurationScript(sname, InProcess);
   int res = sh->ProcessHandler();
   if (returnValue) {
@@ -909,7 +922,7 @@ bool cmCTestScriptHandler::EmptyBinaryDirectory(const char* sname)
   std::string check = sname;
   check += "/CMakeCache.txt";
 
-  if (!cmSystemTools::FileExists(check.c_str())) {
+  if (!cmSystemTools::FileExists(check)) {
     return false;
   }
 
@@ -955,19 +968,26 @@ bool cmCTestScriptHandler::TryToRemoveBinaryDirectoryOnce(
   return cmSystemTools::RemoveADirectory(directoryPath);
 }
 
-double cmCTestScriptHandler::GetRemainingTimeAllowed()
+cmDuration cmCTestScriptHandler::GetRemainingTimeAllowed()
 {
   if (!this->Makefile) {
-    return 1.0e7;
+    return cmCTest::MaxDuration();
   }
 
   const char* timelimitS = this->Makefile->GetDefinition("CTEST_TIME_LIMIT");
 
   if (!timelimitS) {
-    return 1.0e7;
+    return cmCTest::MaxDuration();
   }
 
-  double timelimit = atof(timelimitS);
+  auto timelimit = cmDuration(atof(timelimitS));
 
-  return timelimit - cmSystemTools::GetTime() + this->ScriptStartTime;
+  auto duration = std::chrono::duration_cast<cmDuration>(
+    std::chrono::steady_clock::now() - this->ScriptStartTime);
+  return (timelimit - duration);
+}
+
+void cmCTestScriptHandler::SetRunCurrentScript(bool value)
+{
+  this->ShouldRunCurrentScript = value;
 }

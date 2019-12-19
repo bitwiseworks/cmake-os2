@@ -1,5 +1,6 @@
 #include "cmParseGTMCoverage.h"
 
+#include "cmAlgorithms.h"
 #include "cmCTest.h"
 #include "cmCTestCoverageHandler.h"
 #include "cmSystemTools.h"
@@ -75,7 +76,8 @@ bool cmParseGTMCoverage::ReadMCovFile(const char* file)
         this->Coverage.TotalCoverage[lastpath][lastoffset + linenumber] +=
           count;
       } else {
-        cmCTestLog(this->CTest, ERROR_MESSAGE, "Can not find mumps file : "
+        cmCTestLog(this->CTest, ERROR_MESSAGE,
+                   "Can not find mumps file : "
                      << lastroutine
                      << "  referenced in this line of mcov data:\n"
                         "["
@@ -85,6 +87,10 @@ bool cmParseGTMCoverage::ReadMCovFile(const char* file)
     }
     // Find the full path to the file
     bool found = this->FindMumpsFile(routine, filepath);
+    if (!found && cmHasLiteralSuffix(routine, "%")) {
+      routine.erase(0, 1);
+      found = this->FindMumpsFile(routine, filepath);
+    }
     if (found) {
       int lineoffset = 0;
       if (this->FindFunctionInMumpsFile(filepath, function, lineoffset)) {
@@ -93,7 +99,7 @@ bool cmParseGTMCoverage::ReadMCovFile(const char* file)
         // This section accounts for lines that were previously marked
         // as non-executable code (-1), if the parser comes back with
         // a non-zero count, increase the count by 1 to push the line
-        // into the executable code set in addtion to the count found.
+        // into the executable code set in addition to the count found.
         if (coverageVector[lineoffset + linenumber] == -1 && count > 0) {
           coverageVector[lineoffset + linenumber] += count + 1;
         } else {
@@ -102,9 +108,11 @@ bool cmParseGTMCoverage::ReadMCovFile(const char* file)
         lastoffset = lineoffset;
       }
     } else {
-      cmCTestLog(this->CTest, ERROR_MESSAGE, "Can not find mumps file : "
-                   << routine << "  referenced in this line of mcov data:\n"
-                                 "["
+      cmCTestLog(this->CTest, ERROR_MESSAGE,
+                 "Can not find mumps file : "
+                   << routine
+                   << "  referenced in this line of mcov data:\n"
+                      "["
                    << line << "]\n");
     }
     lastfunction = function;
@@ -144,8 +152,9 @@ bool cmParseGTMCoverage::FindFunctionInMumpsFile(std::string const& filepath,
     linenum++; // move to next line count
   }
   lineoffset = 0;
-  cmCTestLog(this->CTest, ERROR_MESSAGE, "Could not find entry point : "
-               << function << " in " << filepath << "\n");
+  cmCTestLog(this->CTest, ERROR_MESSAGE,
+             "Could not find entry point : " << function << " in " << filepath
+                                             << "\n");
   return false;
 }
 
@@ -156,7 +165,7 @@ bool cmParseGTMCoverage::ParseMCOVLine(std::string const& line,
 {
   // this method parses lines from the .mcov file
   // each line has ^COVERAGE(...) in it, and there
-  // are several varients of coverage lines:
+  // are several variants of coverage lines:
   //
   // ^COVERAGE("DIC11","PR1",0)="2:0:0:0"
   //          ( file  , entry, line ) = "number_executed:timing_info"
@@ -188,8 +197,8 @@ bool cmParseGTMCoverage::ParseMCOVLine(std::string const& line,
         done = true;
       }
     } else {
-      // all chars except ", (, and % get stored in the arg string
-      if (cur != '\"' && cur != '(' && cur != '%') {
+      // all chars except " and ( get stored in the arg string
+      if (cur != '\"' && cur != '(') {
         arg.append(1, line[pos]);
       }
     }
@@ -221,8 +230,8 @@ bool cmParseGTMCoverage::ParseMCOVLine(std::string const& line,
   }
   // less then two arguments is an error
   if (args.size() < 2) {
-    cmCTestLog(this->CTest, ERROR_MESSAGE, "Error parsing mcov line: ["
-                 << line << "]\n");
+    cmCTestLog(this->CTest, ERROR_MESSAGE,
+               "Error parsing mcov line: [" << line << "]\n");
     return false;
   }
   routine = args[0];  // the routine is the first argument

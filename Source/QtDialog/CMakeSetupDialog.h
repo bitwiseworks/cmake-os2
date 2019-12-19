@@ -15,8 +15,14 @@ class CMakeCacheModel;
 class QProgressBar;
 class QToolButton;
 
+#ifdef QT_WINEXTRAS
+class QWinTaskbarButton;
+#endif
+
 /// Qt user interface for CMake
-class CMakeSetupDialog : public QMainWindow, public Ui::CMakeSetupDialog
+class CMakeSetupDialog
+  : public QMainWindow
+  , public Ui::CMakeSetupDialog
 {
   Q_OBJECT
 public:
@@ -31,7 +37,6 @@ protected slots:
   void initialize();
   void doConfigure();
   void doGenerate();
-  QString getProjectFilename();
   void doOpenProject();
   void doInstallForCommandLine();
   void doHelp();
@@ -116,6 +121,10 @@ protected:
   QStringList FindHistory;
 
   QEventLoop LocalLoop;
+
+#ifdef QT_WINEXTRAS
+  QWinTaskbarButton* TaskbarButton;
+#endif
 
   float ProgressOffset;
   float ProgressFactor;

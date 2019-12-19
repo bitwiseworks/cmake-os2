@@ -20,6 +20,10 @@ execute_process(COMMAND sw_vers -productVersion
 set(CMAKE_OSX_ARCHITECTURES "$ENV{CMAKE_OSX_ARCHITECTURES}" CACHE STRING
   "Build architectures for OSX")
 
+# macOS, iOS, tvOS, and watchOS should lookup compilers from
+# Platform/Apple-${CMAKE_CXX_COMPILER_ID}-<LANG>
+set(CMAKE_EFFECTIVE_SYSTEM_NAME "Apple")
+
 #----------------------------------------------------------------------------
 # _CURRENT_OSX_VERSION - as a two-component string: 10.5, 10.6, ...
 #
@@ -30,7 +34,7 @@ string(REGEX REPLACE "^([0-9]+\\.[0-9]+).*$" "\\1"
 # CMAKE_OSX_DEPLOYMENT_TARGET
 
 # Set cache variable - end user may change this during ccmake or cmake-gui configure.
-if(_CURRENT_OSX_VERSION VERSION_GREATER 10.3)
+if(CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND _CURRENT_OSX_VERSION VERSION_GREATER 10.3)
   set(CMAKE_OSX_DEPLOYMENT_TARGET "$ENV{MACOSX_DEPLOYMENT_TARGET}" CACHE STRING
     "Minimum OS X version to target for deployment (at runtime); newer APIs weak linked. Set to empty string for default value.")
 endif()
@@ -45,6 +49,12 @@ elseif(NOT "x$ENV{SDKROOT}" STREQUAL "x" AND
         (NOT "x$ENV{SDKROOT}" MATCHES "/" OR IS_DIRECTORY "$ENV{SDKROOT}"))
   # Use the value of SDKROOT from the environment.
   set(_CMAKE_OSX_SYSROOT_DEFAULT "$ENV{SDKROOT}")
+elseif(CMAKE_SYSTEM_NAME STREQUAL iOS)
+  set(_CMAKE_OSX_SYSROOT_DEFAULT "iphoneos")
+elseif(CMAKE_SYSTEM_NAME STREQUAL tvOS)
+  set(_CMAKE_OSX_SYSROOT_DEFAULT "appletvos")
+elseif(CMAKE_SYSTEM_NAME STREQUAL watchOS)
+  set(_CMAKE_OSX_SYSROOT_DEFAULT "watchos")
 elseif("${CMAKE_GENERATOR}" MATCHES Xcode
        OR CMAKE_OSX_DEPLOYMENT_TARGET
        OR CMAKE_OSX_ARCHITECTURES MATCHES "[^;]"

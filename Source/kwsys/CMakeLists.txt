@@ -35,11 +35,16 @@
 #                            target_link_libraries. Because of how interface
 #                            properties propagate, this target is not suitable
 #                            for use with PUBLIC or INTERFACE linking.
+#  KWSYS_ALIAS_TARGET = The name of an alias target to create to the actual target.
 #
 #    Example:
 #
 #      SET(KWSYS_HEADER_ROOT ${PROJECT_BINARY_DIR})
 #      INCLUDE_DIRECTORIES(${PROJECT_BINARY_DIR})
+#
+#  KWSYS_CXX_STANDARD         = A value for CMAKE_CXX_STANDARD within KWSys.
+#                               Set to empty string to use no default value.
+#  KWSYS_CXX_COMPILE_FEATURES = target_compile_features arguments for KWSys.
 #
 # Optional settings to setup install rules are as follows:
 #
@@ -81,22 +86,17 @@
 # any outside mailing list and no documentation of the change will be
 # written.
 
-CMAKE_MINIMUM_REQUIRED(VERSION 2.6.3 FATAL_ERROR)
+CMAKE_MINIMUM_REQUIRED(VERSION 3.1 FATAL_ERROR)
 FOREACH(p
-    CMP0025 # CMake 3.0, Compiler id for Apple Clang is now AppleClang.
-    CMP0048 # CMake 3.0, Let the project command manage version variables.
     CMP0056 # CMake 3.2, Honor link flags in try_compile() source-file signature.
     CMP0063 # CMake 3.3, Honor visibility properties for all target types.
+    CMP0067 # CMake 3.8, Honor language standard in try_compile source-file signature.
+    CMP0069 # CMake 3.9, INTERPROCEDURAL_OPTIMIZATION is enforced when enabled.
     )
   IF(POLICY ${p})
     CMAKE_POLICY(SET ${p} NEW)
   ENDIF()
 ENDFOREACH()
-SET(CMAKE_LEGACY_CYGWIN_WIN32 0)
-
-IF(CMAKE_VERSION VERSION_LESS 3.0)
-  SET(KWSYS_SPLIT_OBJECTS_FROM_INTERFACE 0)
-ENDIF()
 
 #-----------------------------------------------------------------------------
 # If a namespace is not specified, use "kwsys" and enable testing.
@@ -116,6 +116,19 @@ SET_PROPERTY(DIRECTORY
   PROPERTY IMPLICIT_DEPENDS_INCLUDE_TRANSFORM
   "KWSYS_HEADER(%)=<${KWSYS_NAMESPACE}/%>"
   )
+
+if(KWSYS_CXX_STANDARD)
+  set(CMAKE_CXX_STANDARD "${KWSYS_CXX_STANDARD}")
+elseif(NOT DEFINED CMAKE_CXX_STANDARD AND NOT DEFINED KWSYS_CXX_STANDARD)
+  if(CMAKE_CXX_COMPILER_ID STREQUAL "Clang"
+     AND "x${CMAKE_CXX_SIMULATE_ID}" STREQUAL "xMSVC"
+     AND "x${CMAKE_CXX_COMPILER_FRONTEND_VARIANT}" STREQUAL "xGNU"
+    )
+    set(CMAKE_CXX_STANDARD 14)
+  else()
+    set(CMAKE_CXX_STANDARD 11)
+  endif()
+endif()
 
 # Select library components.
 IF(KWSYS_STANDALONE OR CMake_SOURCE_DIR)
@@ -166,18 +179,14 @@ ENDIF()
 IF(KWSYS_USE_Directory)
   SET(KWSYS_USE_Encoding 1)
 ENDIF()
+IF(KWSYS_USE_DynamicLoader)
+  SET(KWSYS_USE_Encoding 1)
+ENDIF()
 IF(KWSYS_USE_FStream)
   SET(KWSYS_USE_Encoding 1)
 ENDIF()
 IF(KWSYS_USE_ConsoleBuf)
   SET(KWSYS_USE_Encoding 1)
-ENDIF()
-
-# Setup the large file support default.
-IF(KWSYS_LFS_DISABLE)
-  SET(KWSYS_LFS_REQUESTED 0)
-ELSE()
-  SET(KWSYS_LFS_REQUESTED 1)
 ENDIF()
 
 # Specify default 8 bit encoding for Windows
@@ -192,6 +201,11 @@ IF(KWSYS_STANDALONE)
   IF(BUILD_TESTING)
     ENABLE_TESTING()
   ENDIF()
+ENDIF()
+
+# Choose default shared/static build if not specified.
+IF(NOT DEFINED KWSYS_BUILD_SHARED)
+  SET(KWSYS_BUILD_SHARED ${BUILD_SHARED_LIBS})
 ENDIF()
 
 # Include helper macros.
@@ -228,19 +242,31 @@ ENDIF()
 
 # Setup library install rules.
 SET(KWSYS_INSTALL_LIBRARY_RULE)
+SET(KWSYS_INSTALL_NAMELINK_RULE)
 IF(KWSYS_INSTALL_LIB_DIR)
   IF(KWSYS_INSTALL_EXPORT_NAME)
     LIST(APPEND KWSYS_INSTALL_LIBRARY_RULE EXPORT ${KWSYS_INSTALL_EXPORT_NAME})
   ENDIF()
   # Install the shared library to the lib directory.
   SET(KWSYS_INSTALL_LIBRARY_RULE ${KWSYS_INSTALL_LIBRARY_RULE}
-    LIBRARY DESTINATION ${KWSYS_INSTALL_LIB_DIR}
+    LIBRARY DESTINATION ${KWSYS_INSTALL_LIB_DIR} NAMELINK_SKIP
     )
   # Assign the shared library to the runtime component.
   IF(KWSYS_INSTALL_COMPONENT_NAME_RUNTIME)
     SET(KWSYS_INSTALL_LIBRARY_RULE ${KWSYS_INSTALL_LIBRARY_RULE}
       COMPONENT ${KWSYS_INSTALL_COMPONENT_NAME_RUNTIME}
       )
+  ENDIF()
+  IF(KWSYS_BUILD_SHARED)
+    SET(KWSYS_INSTALL_NAMELINK_RULE ${KWSYS_INSTALL_NAMELINK_RULE}
+      LIBRARY DESTINATION ${KWSYS_INSTALL_LIB_DIR} NAMELINK_ONLY
+      )
+    # Assign the namelink to the development component.
+    IF(KWSYS_INSTALL_COMPONENT_NAME_DEVELOPMENT)
+      SET(KWSYS_INSTALL_NAMELINK_RULE ${KWSYS_INSTALL_NAMELINK_RULE}
+        COMPONENT ${KWSYS_INSTALL_COMPONENT_NAME_DEVELOPMENT}
+        )
+    ENDIF()
   ENDIF()
 
   # Install the archive to the lib directory.
@@ -330,30 +356,6 @@ IF(KWSYS_STANDALONE)
 ENDIF()
 
 #-----------------------------------------------------------------------------
-# Configure Large File Support.
-KWSYS_PLATFORM_CXX_TEST(KWSYS_CXX_HAS_CSTDIO
-  "Checking whether header cstdio is available" DIRECT)
-SET(KWSYS_LFS_AVAILABLE 0)
-IF(KWSYS_LFS_REQUESTED)
-  # Large File Support is requested.
-  SET(KWSYS_LFS_REQUESTED 1)
-
-  # Check for large file support.
-  SET(KWSYS_PLATFORM_CXX_TEST_DEFINES
-    -DKWSYS_CXX_HAS_CSTDIO=${KWSYS_CXX_HAS_CSTDIO})
-  KWSYS_PLATFORM_CXX_TEST_RUN(KWSYS_LFS_WORKS
-    "Checking for Large File Support" DIRECT)
-  SET(KWSYS_PLATFORM_CXX_TEST_DEFINES)
-
-  IF(KWSYS_LFS_WORKS)
-    SET(KWSYS_LFS_AVAILABLE 1)
-  ENDIF()
-ELSE()
-  # Large File Support is not requested.
-  SET(KWSYS_LFS_REQUESTED 0)
-ENDIF()
-
-#-----------------------------------------------------------------------------
 # Configure the standard library header wrappers based on compiler's
 # capabilities and parent project's request.  Enforce 0/1 as only
 # possible values for configuration into Configure.hxx.
@@ -425,11 +427,6 @@ ELSE()
   SET(KWSYS_NAME_IS_KWSYS 0)
 ENDIF()
 
-# Choose default shared/static build if not specified.
-IF(KWSYS_BUILD_SHARED MATCHES "^KWSYS_BUILD_SHARED$")
-  SET(KWSYS_BUILD_SHARED ${BUILD_SHARED_LIBS})
-ENDIF()
-
 IF(KWSYS_BUILD_SHARED)
   SET(KWSYS_BUILD_SHARED 1)
   SET(KWSYS_LIBRARY_TYPE SHARED)
@@ -438,6 +435,10 @@ ELSE()
   SET(KWSYS_LIBRARY_TYPE STATIC)
 ENDIF()
 
+if(NOT DEFINED KWSYS_BUILD_PIC)
+  set(KWSYS_BUILD_PIC 0)
+endif()
+
 #-----------------------------------------------------------------------------
 # Configure some implementation details.
 
@@ -445,8 +446,13 @@ KWSYS_PLATFORM_C_TEST(KWSYS_C_HAS_PTRDIFF_T
   "Checking whether C compiler has ptrdiff_t in stddef.h" DIRECT)
 KWSYS_PLATFORM_C_TEST(KWSYS_C_HAS_SSIZE_T
   "Checking whether C compiler has ssize_t in unistd.h" DIRECT)
+IF(KWSYS_USE_Process)
+  KWSYS_PLATFORM_C_TEST(KWSYS_C_HAS_CLOCK_GETTIME_MONOTONIC
+    "Checking whether C compiler has clock_gettime" DIRECT)
+ENDIF()
+
 SET_SOURCE_FILES_PROPERTIES(ProcessUNIX.c System.c PROPERTIES
-  COMPILE_FLAGS "-DKWSYS_C_HAS_PTRDIFF_T=${KWSYS_C_HAS_PTRDIFF_T} -DKWSYS_C_HAS_SSIZE_T=${KWSYS_C_HAS_SSIZE_T}"
+  COMPILE_FLAGS "-DKWSYS_C_HAS_PTRDIFF_T=${KWSYS_C_HAS_PTRDIFF_T} -DKWSYS_C_HAS_SSIZE_T=${KWSYS_C_HAS_SSIZE_T} -DKWSYS_C_HAS_CLOCK_GETTIME_MONOTONIC=${KWSYS_C_HAS_CLOCK_GETTIME_MONOTONIC}"
   )
 
 IF(DEFINED KWSYS_PROCESS_USE_SELECT)
@@ -466,6 +472,14 @@ IF(KWSYS_USE_DynamicLoader)
 ENDIF()
 
 IF(KWSYS_USE_SystemTools)
+  if (NOT DEFINED KWSYS_SYSTEMTOOLS_USE_TRANSLATION_MAP)
+    set(KWSYS_SYSTEMTOOLS_USE_TRANSLATION_MAP 1)
+  endif ()
+  if (KWSYS_SYSTEMTOOLS_USE_TRANSLATION_MAP)
+    set(KWSYS_SYSTEMTOOLS_USE_TRANSLATION_MAP 1)
+  else ()
+    set(KWSYS_SYSTEMTOOLS_USE_TRANSLATION_MAP 0)
+  endif ()
   KWSYS_PLATFORM_CXX_TEST(KWSYS_CXX_HAS_SETENV
     "Checking whether CXX compiler has setenv" DIRECT)
   KWSYS_PLATFORM_CXX_TEST(KWSYS_CXX_HAS_UNSETENV
@@ -489,6 +503,24 @@ IF(KWSYS_USE_SystemTools)
     KWSYS_CXX_STAT_HAS_ST_MTIM=${KWSYS_CXX_STAT_HAS_ST_MTIM}
     KWSYS_CXX_STAT_HAS_ST_MTIMESPEC=${KWSYS_CXX_STAT_HAS_ST_MTIMESPEC}
     )
+  IF(NOT WIN32)
+    IF(KWSYS_STANDALONE)
+      OPTION(KWSYS_SYSTEMTOOLS_SUPPORT_WINDOWS_SLASHES "If true, Windows paths will be supported on Unix as well" ON)
+    ENDIF()
+    IF(KWSYS_SYSTEMTOOLS_SUPPORT_WINDOWS_SLASHES)
+      SET_PROPERTY(SOURCE SystemTools.cxx testSystemTools.cxx APPEND PROPERTY COMPILE_DEFINITIONS
+        KWSYS_SYSTEMTOOLS_SUPPORT_WINDOWS_SLASHES
+        )
+    ENDIF()
+  ENDIF()
+
+  # Disable getpwnam for static linux builds since it depends on shared glibc
+  GET_PROPERTY(SHARED_LIBS_SUPPORTED GLOBAL PROPERTY TARGET_SUPPORTS_SHARED_LIBS)
+  IF(CMAKE_SYSTEM_NAME MATCHES "Linux" AND NOT SHARED_LIBS_SUPPORTED)
+    SET_PROPERTY(SOURCE SystemTools.cxx APPEND PROPERTY COMPILE_DEFINITIONS
+      HAVE_GETPWNAM=0
+      )
+  ENDIF()
 ENDIF()
 
 IF(KWSYS_USE_SystemInformation)
@@ -530,9 +562,6 @@ IF(KWSYS_USE_SystemInformation)
         COMPILE_DEFINITIONS KWSYS_SYS_HAS_MACHINE_CPU_H=1)
     ENDIF()
   ENDIF()
-  IF(KWSYS_LFS_AVAILABLE AND NOT KWSYS_LFS_DISABLE)
-    SET(KWSYS_PLATFORM_CXX_TEST_DEFINES -DKWSYS_HAS_LFS=1)
-  ENDIF()
   KWSYS_PLATFORM_CXX_TEST(KWSYS_CXX_HAS_RLIMIT64
     "Checking whether CXX compiler has rlimit64" DIRECT)
   SET(KWSYS_PLATFORM_CXX_TEST_DEFINES)
@@ -571,7 +600,7 @@ IF(KWSYS_USE_SystemInformation)
     CHECK_INCLUDE_FILE_CXX("execinfo.h" KWSYS_CXX_HAS_EXECINFOH)
     IF (KWSYS_CXX_HAS_EXECINFOH)
       # we have the backtrace header check if it
-      # can be used  with this compiler
+      # can be used with this compiler
       SET(KWSYS_PLATFORM_CXX_TEST_LINK_LIBRARIES ${EXECINFO_LIB})
       KWSYS_PLATFORM_CXX_TEST(KWSYS_CXX_HAS_BACKTRACE
          "Checking whether backtrace works with this C++ compiler" DIRECT)
@@ -700,9 +729,13 @@ ENDIF()
 # selected components.  Initialize with required components.
 SET(KWSYS_CLASSES)
 SET(KWSYS_H_FILES Configure SharedForward)
-SET(KWSYS_HXX_FILES Configure String
-  hashtable hash_fun hash_map hash_set
-  )
+SET(KWSYS_HXX_FILES Configure String)
+
+IF(NOT CMake_SOURCE_DIR)
+  SET(KWSYS_HXX_FILES ${KWSYS_HXX_FILES}
+    hashtable hash_fun hash_map hash_set
+    )
+ENDIF()
 
 # Add selected C++ classes.
 SET(cppclasses
@@ -827,7 +860,7 @@ IF(KWSYS_C_SRCS OR KWSYS_CXX_SRCS)
     SET(KWSYS_LINK_DEPENDENCY INTERFACE)
     ADD_LIBRARY(${KWSYS_TARGET_OBJECT} OBJECT
       ${KWSYS_C_SRCS} ${KWSYS_CXX_SRCS})
-    IF(KWSYS_BUILD_SHARED)
+    IF(KWSYS_BUILD_SHARED OR KWSYS_BUILD_PIC)
       SET_PROPERTY(TARGET ${KWSYS_TARGET_OBJECT} PROPERTY
         POSITION_INDEPENDENT_CODE TRUE)
     ENDIF()
@@ -837,6 +870,8 @@ IF(KWSYS_C_SRCS OR KWSYS_CXX_SRCS)
       ${KWSYS_TARGET_INTERFACE})
     TARGET_SOURCES(${KWSYS_TARGET_LINK} INTERFACE
       $<TARGET_OBJECTS:${KWSYS_TARGET_OBJECT}>)
+    target_compile_features(${KWSYS_TARGET_OBJECT} PRIVATE ${KWSYS_CXX_COMPILE_FEATURES})
+    target_compile_features(${KWSYS_TARGET_INTERFACE} INTERFACE ${KWSYS_CXX_COMPILE_FEATURES})
   ELSE()
     SET(KWSYS_TARGET_INTERFACE ${KWSYS_NAMESPACE})
     SET(KWSYS_TARGET_OBJECT ${KWSYS_NAMESPACE})
@@ -845,7 +880,11 @@ IF(KWSYS_C_SRCS OR KWSYS_CXX_SRCS)
     SET(KWSYS_LINK_DEPENDENCY PUBLIC)
     ADD_LIBRARY(${KWSYS_TARGET_INTERFACE} ${KWSYS_LIBRARY_TYPE}
       ${KWSYS_C_SRCS} ${KWSYS_CXX_SRCS})
+    target_compile_features(${KWSYS_TARGET_INTERFACE} PUBLIC ${KWSYS_CXX_COMPILE_FEATURES})
   ENDIF()
+  if (KWSYS_ALIAS_TARGET)
+    add_library(${KWSYS_ALIAS_TARGET} ALIAS ${KWSYS_TARGET_INTERFACE})
+  endif ()
   SET_TARGET_PROPERTIES(${KWSYS_TARGET_OBJECT} PROPERTIES
     C_CLANG_TIDY ""
     CXX_CLANG_TIDY ""
@@ -862,6 +901,11 @@ IF(KWSYS_C_SRCS OR KWSYS_CXX_SRCS)
   IF(KWSYS_USE_SystemInformation)
     IF(WIN32)
       TARGET_LINK_LIBRARIES(${KWSYS_TARGET_INTERFACE} ${KWSYS_LINK_DEPENDENCY} ws2_32)
+      # link in dbghelp.dll for symbol lookup if MSVC 1800 or later
+      # Note that the dbghelp runtime is part of MS Windows OS
+      IF(MSVC_VERSION AND NOT MSVC_VERSION VERSION_LESS 1800)
+        TARGET_LINK_LIBRARIES(${KWSYS_TARGET_INTERFACE} ${KWSYS_LINK_DEPENDENCY} dbghelp)
+      ENDIF()
       IF(KWSYS_SYS_HAS_PSAPI)
         TARGET_LINK_LIBRARIES(${KWSYS_TARGET_INTERFACE} ${KWSYS_LINK_DEPENDENCY}
           Psapi)
@@ -893,7 +937,7 @@ IF(KWSYS_C_SRCS OR KWSYS_CXX_SRCS)
   # Set up include usage requirement
   IF(COMMAND TARGET_INCLUDE_DIRECTORIES)
     TARGET_INCLUDE_DIRECTORIES(${KWSYS_TARGET_INTERFACE} INTERFACE
-      $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}>)
+      $<BUILD_INTERFACE:${KWSYS_HEADER_ROOT}>)
     IF(KWSYS_INSTALL_INCLUDE_DIR)
       TARGET_INCLUDE_DIRECTORIES(${KWSYS_TARGET_INTERFACE} INTERFACE
         $<INSTALL_INTERFACE:${KWSYS_INSTALL_INCLUDE_DIR}>)
@@ -903,6 +947,9 @@ IF(KWSYS_C_SRCS OR KWSYS_CXX_SRCS)
   # Create an install target for the library.
   IF(KWSYS_INSTALL_LIBRARY_RULE)
     INSTALL(TARGETS ${KWSYS_TARGET_INSTALL} ${KWSYS_INSTALL_LIBRARY_RULE})
+  ENDIF()
+  IF(KWSYS_INSTALL_NAMELINK_RULE)
+    INSTALL(TARGETS ${KWSYS_TARGET_INSTALL} ${KWSYS_INSTALL_NAMELINK_RULE})
   ENDIF()
 ENDIF()
 
@@ -916,7 +963,7 @@ IF(KWSYS_ENABLE_C AND KWSYS_C_SRCS)
       ${KWSYS_TARGET_C_INTERFACE} ${KWSYS_TARGET_C_LINK})
     SET(KWSYS_LINK_DEPENDENCY INTERFACE)
     ADD_LIBRARY(${KWSYS_TARGET_C_OBJECT} OBJECT ${KWSYS_C_SRCS})
-    IF(KWSYS_BUILD_SHARED)
+    IF(KWSYS_BUILD_SHARED OR KWSYS_BUILD_PIC)
       SET_PROPERTY(TARGET ${KWSYS_TARGET_C_OBJECT} PROPERTY
         POSITION_INDEPENDENT_CODE TRUE)
     ENDIF()
@@ -947,7 +994,7 @@ IF(KWSYS_ENABLE_C AND KWSYS_C_SRCS)
   # Set up include usage requirement
   IF(COMMAND TARGET_INCLUDE_DIRECTORIES)
     TARGET_INCLUDE_DIRECTORIES(${KWSYS_TARGET_C_INTERFACE} INTERFACE
-      $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}>)
+      $<BUILD_INTERFACE:${KWSYS_HEADER_ROOT}>)
     IF(KWSYS_INSTALL_INCLUDE_DIR)
       TARGET_INCLUDE_DIRECTORIES(${KWSYS_TARGET_C_INTERFACE} INTERFACE
         $<INSTALL_INTERFACE:${KWSYS_INSTALL_INCLUDE_DIR}>)
@@ -965,7 +1012,8 @@ ENDIF()
 ADD_DEFINITIONS("-DKWSYS_NAMESPACE=${KWSYS_NAMESPACE}")
 
 # Disable deprecation warnings for standard C functions.
-IF(MSVC OR (WIN32 AND CMAKE_C_COMPILER_ID STREQUAL "Intel"))
+IF(MSVC OR (WIN32 AND (CMAKE_C_COMPILER_ID STREQUAL "Intel" OR
+   (CMAKE_C_COMPILER_ID STREQUAL "Clang"  AND "x${CMAKE_CXX_SIMULATE_ID}" STREQUAL "xMSVC"))))
   ADD_DEFINITIONS(
     -D_CRT_NONSTDC_NO_DEPRECATE
     -D_CRT_SECURE_NO_DEPRECATE
@@ -1003,11 +1051,11 @@ IF(KWSYS_STANDALONE OR CMake_SOURCE_DIR)
 
     # C tests
     SET(KWSYS_C_TESTS
-      testEncode
-      testTerminal
+      testEncode.c
+      testTerminal.c
       )
     IF(KWSYS_STANDALONE)
-      SET(KWSYS_C_TESTS ${KWSYS_C_TESTS} testFail)
+      SET(KWSYS_C_TESTS ${KWSYS_C_TESTS} testFail.c)
     ENDIF()
     CREATE_TEST_SOURCELIST(
       KWSYS_C_TEST_SRCS ${KWSYS_NAMESPACE}TestsC.c
@@ -1016,31 +1064,33 @@ IF(KWSYS_STANDALONE OR CMake_SOURCE_DIR)
     ADD_EXECUTABLE(${KWSYS_NAMESPACE}TestsC ${KWSYS_C_TEST_SRCS})
     SET_PROPERTY(TARGET ${KWSYS_NAMESPACE}TestsC PROPERTY LABELS ${KWSYS_LABELS_EXE})
     TARGET_LINK_LIBRARIES(${KWSYS_NAMESPACE}TestsC ${KWSYS_TARGET_C_LINK})
-    FOREACH(test ${KWSYS_C_TESTS})
+    FOREACH(testfile ${KWSYS_C_TESTS})
+      get_filename_component(test "${testfile}" NAME_WE)
       ADD_TEST(kwsys.${test} ${EXEC_DIR}/${KWSYS_NAMESPACE}TestsC ${test} ${KWSYS_TEST_ARGS_${test}})
       SET_PROPERTY(TEST kwsys.${test} PROPERTY LABELS ${KWSYS_LABELS_TEST})
     ENDFOREACH()
 
     # C++ tests
-    IF(NOT WATCOM)
+    IF(NOT WATCOM AND NOT CMake_SOURCE_DIR)
       SET(KWSYS_CXX_TESTS
-        testHashSTL
+        testHashSTL.cxx
         )
     ENDIF()
     SET(KWSYS_CXX_TESTS ${KWSYS_CXX_TESTS}
-      testSystemTools
-      testCommandLineArguments
-      testCommandLineArguments1
-      testDirectory
+      testConfigure.cxx
+      testSystemTools.cxx
+      testCommandLineArguments.cxx
+      testCommandLineArguments1.cxx
+      testDirectory.cxx
       )
     IF(KWSYS_STL_HAS_WSTRING)
       SET(KWSYS_CXX_TESTS ${KWSYS_CXX_TESTS}
-        testEncoding
+        testEncoding.cxx
         )
     ENDIF()
     IF(KWSYS_USE_FStream)
       SET(KWSYS_CXX_TESTS ${KWSYS_CXX_TESTS}
-        testFStream
+        testFStream.cxx
         )
     ENDIF()
     IF(KWSYS_USE_ConsoleBuf)
@@ -1052,7 +1102,7 @@ IF(KWSYS_STANDALONE OR CMake_SOURCE_DIR)
       SET_PROPERTY(TARGET testConsoleBufChild PROPERTY LABELS ${KWSYS_LABELS_EXE})
       TARGET_LINK_LIBRARIES(testConsoleBufChild ${KWSYS_TARGET_LINK})
       SET(KWSYS_CXX_TESTS ${KWSYS_CXX_TESTS}
-        testConsoleBuf
+        testConsoleBuf.cxx
         )
       IF("x${CMAKE_CXX_COMPILER_ID}" STREQUAL "xMSVC" AND
          CMAKE_CXX_COMPILER_VERSION VERSION_GREATER "19.0.23506")
@@ -1062,14 +1112,28 @@ IF(KWSYS_STANDALONE OR CMake_SOURCE_DIR)
         KWSYS_ENCODING_DEFAULT_CODEPAGE=${KWSYS_ENCODING_DEFAULT_CODEPAGE})
     ENDIF()
     IF(KWSYS_USE_SystemInformation)
-      SET(KWSYS_CXX_TESTS ${KWSYS_CXX_TESTS} testSystemInformation)
+      SET(KWSYS_CXX_TESTS ${KWSYS_CXX_TESTS} testSystemInformation.cxx)
     ENDIF()
     IF(KWSYS_USE_DynamicLoader)
-      SET(KWSYS_CXX_TESTS ${KWSYS_CXX_TESTS} testDynamicLoader)
+      SET(KWSYS_CXX_TESTS ${KWSYS_CXX_TESTS} testDynamicLoader.cxx)
       # If kwsys contains the DynamicLoader, need extra library
       ADD_LIBRARY(${KWSYS_NAMESPACE}TestDynload MODULE testDynload.c)
       SET_PROPERTY(TARGET ${KWSYS_NAMESPACE}TestDynload PROPERTY LABELS ${KWSYS_LABELS_LIB})
       ADD_DEPENDENCIES(${KWSYS_NAMESPACE}TestDynload ${KWSYS_TARGET_INTERFACE})
+
+      if (WIN32)
+        # Windows tests supported flags.
+        add_library(${KWSYS_NAMESPACE}TestDynloadImpl SHARED testDynloadImpl.c)
+        set_property(TARGET ${KWSYS_NAMESPACE}TestDynloadImpl PROPERTY LABELS ${KWSYS_LABELS_LIB})
+        set_property(TARGET ${KWSYS_NAMESPACE}TestDynloadImpl PROPERTY DEFINE_SYMBOL BUILDING_TestDynloadImpl)
+        set_property(TARGET ${KWSYS_NAMESPACE}TestDynloadImpl PROPERTY RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/dynloaddir")
+        add_dependencies(${KWSYS_NAMESPACE}TestDynloadImpl ${KWSYS_TARGET_INTERFACE})
+        add_library(${KWSYS_NAMESPACE}TestDynloadUse MODULE testDynloadUse.c)
+        set_property(TARGET ${KWSYS_NAMESPACE}TestDynloadUse PROPERTY LABELS ${KWSYS_LABELS_LIB})
+        set_property(TARGET ${KWSYS_NAMESPACE}TestDynloadUse PROPERTY LIBRARY_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/dynloaddir")
+        add_dependencies(${KWSYS_NAMESPACE}TestDynloadUse ${KWSYS_TARGET_INTERFACE})
+        target_link_libraries(${KWSYS_NAMESPACE}TestDynloadUse PRIVATE ${KWSYS_NAMESPACE}TestDynloadImpl)
+      endif ()
     ENDIF()
     CREATE_TEST_SOURCELIST(
       KWSYS_CXX_TEST_SRCS ${KWSYS_NAMESPACE}TestsCxx.cxx
@@ -1124,7 +1188,8 @@ IF(KWSYS_STANDALONE OR CMake_SOURCE_DIR)
       -p
       some junk at the end
       )
-    FOREACH(test ${KWSYS_CXX_TESTS})
+    FOREACH(testfile ${KWSYS_CXX_TESTS})
+      get_filename_component(test "${testfile}" NAME_WE)
       ADD_TEST(kwsys.${test} ${EXEC_DIR}/${KWSYS_NAMESPACE}TestsCxx ${test} ${KWSYS_TEST_ARGS_${test}})
       SET_PROPERTY(TEST kwsys.${test} PROPERTY LABELS ${KWSYS_LABELS_TEST})
     ENDFOREACH()
@@ -1142,17 +1207,26 @@ IF(KWSYS_STANDALONE OR CMake_SOURCE_DIR)
       SET_TESTS_PROPERTIES(kwsys.testProcess-${n} PROPERTIES TIMEOUT 120)
     ENDFOREACH()
 
+    SET(testProcess_COMPILE_FLAGS "")
     # Some Apple compilers produce bad optimizations in this source.
     IF(APPLE AND CMAKE_C_COMPILER_ID MATCHES "^(GNU|LLVM)$")
-      SET_SOURCE_FILES_PROPERTIES(testProcess.c PROPERTIES COMPILE_FLAGS -O0)
-    ELSEIF(CMAKE_C_COMPILER_ID STREQUAL "XL" AND
-           NOT (CMAKE_SYSTEM MATCHES "Linux.*ppc64le" AND
-                NOT CMAKE_C_COMPILER_VERSION VERSION_LESS "13.1.1"))
+      SET(testProcess_COMPILE_FLAGS "${testProcess_COMPILE_FLAGS} -O0")
+    ELSEIF(CMAKE_C_COMPILER_ID STREQUAL "XL")
       # Tell IBM XL not to warn about our test infinite loop
-      # v13.1.1 and newer on Linux ppc64le is clang based and does not accept
-      # the -qsuppress option
-      SET_PROPERTY(SOURCE testProcess.c PROPERTY COMPILE_FLAGS -qsuppress=1500-010)
+      IF(CMAKE_SYSTEM MATCHES "Linux.*ppc64le"
+         AND CMAKE_C_COMPILER_VERSION VERSION_LESS "16.1.0"
+         AND NOT CMAKE_C_COMPILER_VERSION VERSION_LESS "13.1.1")
+        # v13.1.[1-6] on Linux ppc64le is clang based and does not accept
+        # the -qsuppress option, so just suppress all warnings.
+        SET(testProcess_COMPILE_FLAGS "${testProcess_COMPILE_FLAGS} -w")
+      ELSE()
+        SET(testProcess_COMPILE_FLAGS "${testProcess_COMPILE_FLAGS} -qsuppress=1500-010")
+      ENDIF()
     ENDIF()
+    IF(CMAKE_C_FLAGS MATCHES "-fsanitize=")
+      SET(testProcess_COMPILE_FLAGS "${testProcess_COMPILE_FLAGS} -DCRASH_USING_ABORT")
+    ENDIF()
+    SET_PROPERTY(SOURCE testProcess.c PROPERTY COMPILE_FLAGS "${testProcess_COMPILE_FLAGS}")
 
     # Test SharedForward
     CONFIGURE_FILE(${PROJECT_SOURCE_DIR}/testSharedForward.c.in

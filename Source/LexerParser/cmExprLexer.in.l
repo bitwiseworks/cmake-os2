@@ -18,15 +18,19 @@ Modify cmExprLexer.cxx:
 
 /* IWYU pragma: no_forward_declare yyguts_t */
 
+#ifndef __clang_analyzer__ /* Suppress clang scan-build warnings */
+
 #include "cmExprParserHelper.h"
 
 /* Replace the lexer input function.  */
 #undef YY_INPUT
 #define YY_INPUT(buf, result, max_size) \
-  { result = yyextra->LexInput(buf, max_size); }
+  do { result = yyextra->LexInput(buf, max_size); } while (0)
 
 /* Include the set of tokens from the parser.  */
 #include "cmExprParserTokens.h"
+
+#include <string>
 
 /*--------------------------------------------------------------------------*/
 %}
@@ -38,8 +42,10 @@ Modify cmExprLexer.cxx:
 %pointer
 
 %%
+[ \t]  {}
 
-[0-9][0-9]* { yylvalp->Number = atoi(yytext); return exp_NUMBER; }
+[0-9][0-9]* { yylvalp->Number = std::stoll(yytext, nullptr, 10); return exp_NUMBER; }
+0[xX][0-9a-fA-F][0-9a-fA-F]* {  yylvalp->Number = std::stoll(yytext, nullptr, 16); return exp_NUMBER; }
 
 "+" { return exp_PLUS; }
 "-" { return exp_MINUS; }
@@ -54,5 +60,10 @@ Modify cmExprLexer.cxx:
 ">>" { return exp_SHIFTRIGHT; }
 "(" { return exp_OPENPARENT; }
 ")" { return exp_CLOSEPARENT; }
+. { yyextra->UnexpectedChar(yytext[0]); }
 
 %%
+
+/*--------------------------------------------------------------------------*/
+
+#endif /* __clang_analyzer__ */

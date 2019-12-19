@@ -1,19 +1,55 @@
 string
 ------
 
-.. only:: html
-
-   .. contents::
-
 String operations.
+
+Synopsis
+^^^^^^^^
+
+.. parsed-literal::
+
+  `Search and Replace`_
+    string(`FIND`_ <string> <substring> <out-var> [...])
+    string(`REPLACE`_ <match-string> <replace-string> <out-var> <input>...)
+
+  `Regular Expressions`_
+    string(`REGEX MATCH`_ <match-regex> <out-var> <input>...)
+    string(`REGEX MATCHALL`_ <match-regex> <out-var> <input>...)
+    string(`REGEX REPLACE`_ <match-regex> <replace-expr> <out-var> <input>...)
+
+  `Manipulation`_
+    string(`APPEND`_ <string-var> [<input>...])
+    string(`PREPEND`_ <string-var> [<input>...])
+    string(`CONCAT`_ <out-var> [<input>...])
+    string(`JOIN`_ <glue> <out-var> [<input>...])
+    string(`TOLOWER`_ <string1> <out-var>)
+    string(`TOUPPER`_ <string1> <out-var>)
+    string(`LENGTH`_ <string> <out-var>)
+    string(`SUBSTRING`_ <string> <begin> <length> <out-var>)
+    string(`STRIP`_ <string> <out-var>)
+    string(`GENEX_STRIP`_ <string> <out-var>)
+    string(`REPEAT`_ <string> <count> <out-var>)
+
+  `Comparison`_
+    string(`COMPARE`_ <op> <string1> <string2> <out-var>)
+
+  `Hashing`_
+    string(`\<HASH\> <HASH_>`_ <out-var> <input>)
+
+  `Generation`_
+    string(`ASCII`_ <number>... <out-var>)
+    string(`CONFIGURE`_ <string1> <out-var> [...])
+    string(`MAKE_C_IDENTIFIER`_ <string> <out-var>)
+    string(`RANDOM`_ [<option>...] <out-var>)
+    string(`TIMESTAMP`_ <out-var> [<format string>] [UTC])
+    string(`UUID`_ <out-var> ...)
 
 Search and Replace
 ^^^^^^^^^^^^^^^^^^
 
-FIND
-""""
+.. _FIND:
 
-::
+.. code-block:: cmake
 
   string(FIND <string> <substring> <output variable> [REVERSE])
 
@@ -22,10 +58,9 @@ the supplied string.  If the ``REVERSE`` flag was used, the command will
 search for the position of the last occurrence of the specified
 substring.  If the substring is not found, a position of -1 is returned.
 
-REPLACE
-"""""""
+.. _REPLACE:
 
-::
+.. code-block:: cmake
 
   string(REPLACE <match_string>
          <replace_string> <output variable>
@@ -37,10 +72,9 @@ with ``replace_string`` and store the result in the output.
 Regular Expressions
 ^^^^^^^^^^^^^^^^^^^
 
-REGEX MATCH
-"""""""""""
+.. _`REGEX MATCH`:
 
-::
+.. code-block:: cmake
 
   string(REGEX MATCH <regular_expression>
          <output variable> <input> [<input>...])
@@ -48,10 +82,9 @@ REGEX MATCH
 Match the regular expression once and store the match in the output variable.
 All ``<input>`` arguments are concatenated before matching.
 
-REGEX MATCHALL
-""""""""""""""
+.. _`REGEX MATCHALL`:
 
-::
+.. code-block:: cmake
 
   string(REGEX MATCHALL <regular_expression>
          <output variable> <input> [<input>...])
@@ -60,10 +93,9 @@ Match the regular expression as many times as possible and store the matches
 in the output variable as a list.
 All ``<input>`` arguments are concatenated before matching.
 
-REGEX REPLACE
-"""""""""""""
+.. _`REGEX REPLACE`:
 
-::
+.. code-block:: cmake
 
   string(REGEX REPLACE <regular_expression>
          <replace_expression> <output variable>
@@ -90,6 +122,11 @@ The following characters have special meaning in regular expressions:
   Matches at end of input
 ``.``
   Matches any single character
+``\<char>``
+  Matches the single character specified by ``<char>``.  Use this to
+  match special regex characters, e.g. ``\.`` for a literal ``.``
+  or ``\\`` for a literal backslash ``\``.  Escaping a non-special
+  character is unnecessary but allowed, e.g. ``\a`` matches ``a``.
 ``[ ]``
   Matches any character(s) inside the brackets
 ``[^ ]``
@@ -120,68 +157,90 @@ has lower precedence than concatenation.  This means that the regular
 expression ``^ab+d$`` matches ``abbd`` but not ``ababd``, and the regular
 expression ``^(ab|cd)$`` matches ``ab`` but not ``abd``.
 
+CMake language :ref:`Escape Sequences` such as ``\t``, ``\r``, ``\n``,
+and ``\\`` may be used to construct literal tabs, carriage returns,
+newlines, and backslashes (respectively) to pass in a regex.  For example:
+
+* The quoted argument ``"[ \t\r\n]"`` specifies a regex that matches
+  any single whitespace character.
+* The quoted argument ``"[/\\]"`` specifies a regex that matches
+  a single forward slash ``/`` or backslash ``\``.
+* The quoted argument ``"[A-Za-z0-9_]"`` specifies a regex that matches
+  any single "word" character in the C locale.
+* The quoted argument ``"\\(\\a\\+b\\)"`` specifies a regex that matches
+  the exact string ``(a+b)``.  Each ``\\`` is parsed in a quoted argument
+  as just ``\``, so the regex itself is actually ``\(\a\+\b\)``.  This
+  can alternatively be specified in a :ref:`bracket argument` without
+  having to escape the backslashes, e.g. ``[[\(\a\+\b\)]]``.
+
 Manipulation
 ^^^^^^^^^^^^
 
-APPEND
-""""""
+.. _APPEND:
 
-::
+.. code-block:: cmake
 
   string(APPEND <string variable> [<input>...])
 
 Append all the input arguments to the string.
 
-PREPEND
-"""""""
+.. _PREPEND:
 
-::
+.. code-block:: cmake
 
   string(PREPEND <string variable> [<input>...])
 
 Prepend all the input arguments to the string.
 
-CONCAT
-""""""
+.. _CONCAT:
 
-::
+.. code-block:: cmake
 
   string(CONCAT <output variable> [<input>...])
 
 Concatenate all the input arguments together and store
 the result in the named output variable.
 
-TOLOWER
-"""""""
+.. _JOIN:
 
-::
+.. code-block:: cmake
+
+  string(JOIN <glue> <output variable> [<input>...])
+
+Join all the input arguments together using the glue
+string and store the result in the named output variable.
+
+To join list's elements, use preferably the ``JOIN`` operator
+from :command:`list` command. This allows for the elements to have
+special characters like ``;`` in them.
+
+.. _TOLOWER:
+
+.. code-block:: cmake
 
   string(TOLOWER <string1> <output variable>)
 
 Convert string to lower characters.
 
-TOUPPER
-"""""""
+.. _TOUPPER:
 
-::
+.. code-block:: cmake
 
   string(TOUPPER <string1> <output variable>)
 
 Convert string to upper characters.
 
-LENGTH
-""""""
+.. _LENGTH:
 
-::
+.. code-block:: cmake
 
   string(LENGTH <string> <output variable>)
 
 Store in an output variable a given string's length.
 
-SUBSTRING
-"""""""""
+.. _SUBSTRING:
 
-::
+.. code-block:: cmake
 
   string(SUBSTRING <string> <begin> <length> <output variable>)
 
@@ -193,30 +252,38 @@ If string is shorter than length then end of string is used instead.
   CMake 3.1 and below reported an error if length pointed past
   the end of string.
 
-STRIP
-"""""
+.. _STRIP:
 
-::
+.. code-block:: cmake
 
   string(STRIP <string> <output variable>)
 
 Store in an output variable a substring of a given string with leading and
 trailing spaces removed.
 
-GENEX_STRIP
-"""""""""""
+.. _GENEX_STRIP:
 
-::
+.. code-block:: cmake
 
   string(GENEX_STRIP <input string> <output variable>)
 
 Strip any :manual:`generator expressions <cmake-generator-expressions(7)>`
 from the ``input string`` and store the result in the ``output variable``.
 
+.. _REPEAT:
+
+.. code-block:: cmake
+
+  string(REPEAT <input string> <count> <output variable>)
+
+Produce the output string as repetion of ``input string`` ``count`` times.
+
 Comparison
 ^^^^^^^^^^
 
-::
+.. _COMPARE:
+
+.. code-block:: cmake
 
   string(COMPARE LESS <string1> <string2> <output variable>)
   string(COMPARE GREATER <string1> <string2> <output variable>)
@@ -232,7 +299,9 @@ Compare the strings and store true or false in the output variable.
 Hashing
 ^^^^^^^
 
-::
+.. _`HASH`:
+
+.. code-block:: cmake
 
   string(<HASH> <output variable> <input>)
 
@@ -263,29 +332,37 @@ The supported ``<HASH>`` algorithm names are:
 Generation
 ^^^^^^^^^^
 
-ASCII
-"""""
+.. _ASCII:
 
-::
+.. code-block:: cmake
 
   string(ASCII <number> [<number> ...] <output variable>)
 
 Convert all numbers into corresponding ASCII characters.
 
-CONFIGURE
-"""""""""
+.. _CONFIGURE:
 
-::
+.. code-block:: cmake
 
   string(CONFIGURE <string1> <output variable>
          [@ONLY] [ESCAPE_QUOTES])
 
 Transform a string like :command:`configure_file` transforms a file.
 
-RANDOM
-""""""
+.. _MAKE_C_IDENTIFIER:
 
-::
+.. code-block:: cmake
+
+  string(MAKE_C_IDENTIFIER <input string> <output variable>)
+
+Convert each non-alphanumeric character in the ``<input string>`` to an
+underscore and store the result in the ``<output variable>``.  If the first
+character of the string is a digit, an underscore will also be prepended to
+the result.
+
+.. _RANDOM:
+
+.. code-block:: cmake
 
   string(RANDOM [LENGTH <length>] [ALPHABET <alphabet>]
          [RANDOM_SEED <seed>] <output variable>)
@@ -296,10 +373,9 @@ and default alphabet is all numbers and upper and lower case letters.
 If an integer ``RANDOM_SEED`` is given, its value will be used to seed the
 random number generator.
 
-TIMESTAMP
-"""""""""
+.. _TIMESTAMP:
 
-::
+.. code-block:: cmake
 
   string(TIMESTAMP <output variable> [<format string>] [UTC])
 
@@ -346,28 +422,20 @@ If no explicit ``<format string>`` is given it will default to:
    %Y-%m-%dT%H:%M:%S    for local time.
    %Y-%m-%dT%H:%M:%SZ   for UTC.
 
-
-::
-
-  string(MAKE_C_IDENTIFIER <input string> <output variable>)
-
-Write a string which can be used as an identifier in C.
-
 .. note::
 
   If the ``SOURCE_DATE_EPOCH`` environment variable is set,
   its value will be used instead of the current time.
   See https://reproducible-builds.org/specs/source-date-epoch/ for details.
 
-UUID
-""""
+.. _UUID:
 
-::
+.. code-block:: cmake
 
   string(UUID <output variable> NAMESPACE <namespace> NAME <name>
          TYPE <MD5|SHA1> [UPPER])
 
-Create a univerally unique identifier (aka GUID) as per RFC4122
+Create a universally unique identifier (aka GUID) as per RFC4122
 based on the hash of the combined values of ``<namespace>``
 (which itself has to be a valid UUID) and ``<name>``.
 The hash algorithm can be either ``MD5`` (Version 3 UUID) or

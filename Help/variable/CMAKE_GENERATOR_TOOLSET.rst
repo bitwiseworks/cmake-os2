@@ -5,7 +5,8 @@ Native build system toolset specification provided by user.
 
 Some CMake generators support a toolset specification to tell the
 native build system how to choose a compiler.  If the user specifies
-a toolset (e.g.  via the :manual:`cmake(1)` ``-T`` option) the value
+a toolset (e.g. via the :manual:`cmake(1)` ``-T`` option or via
+the :envvar:`CMAKE_GENERATOR_TOOLSET` environment variable) the value
 will be available in this variable.
 
 The value of this variable should never be modified by project code.
@@ -18,6 +19,7 @@ Toolset specification is supported only on specific generators:
 
 * :ref:`Visual Studio Generators` for VS 2010 and above
 * The :generator:`Xcode` generator for Xcode 3.0 and above
+* The :generator:`Green Hills MULTI` generator
 
 See native build system documentation for allowed toolset names.
 
@@ -43,8 +45,13 @@ Supported pairs are:
   and above with the CUDA toolkit VS integration installed.
   See the :variable:`CMAKE_VS_PLATFORM_TOOLSET_CUDA` variable.
 
-``host=x64``
-  Request use of the native ``x64`` toolchain on ``x64`` hosts.
+``host=<arch>``
+  Specify the host tools architecture as ``x64`` or ``x86``.
   Supported by VS 2013 and above.
   See the :variable:`CMAKE_VS_PLATFORM_TOOLSET_HOST_ARCHITECTURE`
   variable.
+
+``version=<version>``
+  Specify the toolset version to use.  Supported by VS 2017
+  and above with the specified toolset installed.
+  See the :variable:`CMAKE_VS_PLATFORM_TOOLSET_VERSION` variable.

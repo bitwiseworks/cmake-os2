@@ -31,9 +31,7 @@ cmCTestGIT::cmCTestGIT(cmCTest* ct, std::ostream& log)
   this->CurrentGitVersion = 0;
 }
 
-cmCTestGIT::~cmCTestGIT()
-{
-}
+cmCTestGIT::~cmCTestGIT() = default;
 
 class cmCTestGIT::OneLineParser : public cmCTestVC::LineParser
 {
@@ -70,8 +68,9 @@ std::string cmCTestGIT::GetWorkingRevision()
 bool cmCTestGIT::NoteOldRevision()
 {
   this->OldRevision = this->GetWorkingRevision();
-  cmCTestLog(this->CTest, HANDLER_OUTPUT, "   Old revision of repository is: "
-               << this->OldRevision << "\n");
+  cmCTestLog(this->CTest, HANDLER_OUTPUT,
+             "   Old revision of repository is: " << this->OldRevision
+                                                  << "\n");
   this->PriorRev.Rev = this->OldRevision;
   return true;
 }
@@ -79,8 +78,9 @@ bool cmCTestGIT::NoteOldRevision()
 bool cmCTestGIT::NoteNewRevision()
 {
   this->NewRevision = this->GetWorkingRevision();
-  cmCTestLog(this->CTest, HANDLER_OUTPUT, "   New revision of repository is: "
-               << this->NewRevision << "\n");
+  cmCTestLog(this->CTest, HANDLER_OUTPUT,
+             "   New revision of repository is: " << this->NewRevision
+                                                  << "\n");
   return true;
 }
 
@@ -113,7 +113,7 @@ std::string cmCTestGIT::FindGitDir()
     // are a Windows application.  Run "cygpath" to get Windows path.
     std::string cygpath_exe = cmSystemTools::GetFilenamePath(git);
     cygpath_exe += "/cygpath.exe";
-    if (cmSystemTools::FileExists(cygpath_exe.c_str())) {
+    if (cmSystemTools::FileExists(cygpath_exe)) {
       char const* cygpath[] = { cygpath_exe.c_str(), "-w", git_dir.c_str(),
                                 0 };
       OneLineParser cygpath_out(this, "cygpath-out> ", git_dir_line);
@@ -162,7 +162,7 @@ bool cmCTestGIT::UpdateByFetchAndReset()
   if (opts.empty()) {
     opts = this->CTest->GetCTestConfiguration("GITUpdateOptions");
   }
-  std::vector<std::string> args = cmSystemTools::ParseArguments(opts.c_str());
+  std::vector<std::string> args = cmSystemTools::ParseArguments(opts);
   for (std::string const& arg : args) {
     git_fetch.push_back(arg.c_str());
   }
@@ -249,7 +249,7 @@ bool cmCTestGIT::UpdateImpl()
   if (this->GetGitVersion() < cmCTestGITVersion(1, 6, 5, 0)) {
     recursive = nullptr;
     // No need to require >= 1.6.5 if there are no submodules.
-    if (cmSystemTools::FileExists((top_dir + "/.gitmodules").c_str())) {
+    if (cmSystemTools::FileExists(top_dir + "/.gitmodules")) {
       this->Log << "Git < 1.6.5 cannot update submodules recursively\n";
     }
   }
@@ -258,7 +258,7 @@ bool cmCTestGIT::UpdateImpl()
   if (this->GetGitVersion() < cmCTestGITVersion(1, 8, 1, 0)) {
     sync_recursive = nullptr;
     // No need to require >= 1.8.1 if there are no submodules.
-    if (cmSystemTools::FileExists((top_dir + "/.gitmodules").c_str())) {
+    if (cmSystemTools::FileExists(top_dir + "/.gitmodules")) {
       this->Log << "Git < 1.8.1 cannot synchronize submodules recursively\n";
     }
   }
@@ -270,7 +270,7 @@ bool cmCTestGIT::UpdateImpl()
 
   std::string init_submodules =
     this->CTest->GetCTestConfiguration("GITInitSubmodules");
-  if (cmSystemTools::IsOn(init_submodules.c_str())) {
+  if (cmSystemTools::IsOn(init_submodules)) {
     char const* git_submodule_init[] = { git, "submodule", "init", nullptr };
     ret = this->RunChild(git_submodule_init, &submodule_out, &submodule_err,
                          top_dir.c_str());
@@ -473,15 +473,8 @@ private:
   {
     std::string Name;
     std::string EMail;
-    unsigned long Time;
-    long TimeZone;
-    Person()
-      : Name()
-      , EMail()
-      , Time(0)
-      , TimeZone(0)
-    {
-    }
+    unsigned long Time = 0;
+    long TimeZone = 0;
   };
 
   void ParsePerson(const char* str, Person& person)
@@ -553,15 +546,15 @@ private:
   void DoHeaderLine()
   {
     // Look for header fields that we need.
-    if (cmHasLiteralPrefix(this->Line.c_str(), "commit ")) {
-      this->Rev.Rev = this->Line.c_str() + 7;
-    } else if (cmHasLiteralPrefix(this->Line.c_str(), "author ")) {
+    if (cmHasLiteralPrefix(this->Line, "commit ")) {
+      this->Rev.Rev = this->Line.substr(7);
+    } else if (cmHasLiteralPrefix(this->Line, "author ")) {
       Person author;
       this->ParsePerson(this->Line.c_str() + 7, author);
       this->Rev.Author = author.Name;
       this->Rev.EMail = author.EMail;
       this->Rev.Date = this->FormatDateTime(author);
-    } else if (cmHasLiteralPrefix(this->Line.c_str(), "committer ")) {
+    } else if (cmHasLiteralPrefix(this->Line, "committer ")) {
       Person committer;
       this->ParsePerson(this->Line.c_str() + 10, committer);
       this->Rev.Committer = committer.Name;
@@ -616,8 +609,8 @@ bool cmCTestGIT::LoadRevisions()
     git,  "diff-tree",    "--stdin",          "--always", "-z",
     "-r", "--pretty=raw", "--encoding=utf-8", nullptr
   };
-  this->Log << this->ComputeCommandLine(git_rev_list) << " | "
-            << this->ComputeCommandLine(git_diff_tree) << "\n";
+  this->Log << cmCTestGIT::ComputeCommandLine(git_rev_list) << " | "
+            << cmCTestGIT::ComputeCommandLine(git_diff_tree) << "\n";
 
   cmsysProcess* cp = cmsysProcess_New();
   cmsysProcess_AddCommand(cp, git_rev_list);
@@ -626,7 +619,7 @@ bool cmCTestGIT::LoadRevisions()
 
   CommitParser out(this, "dt-out> ");
   OutputLogger err(this->Log, "dt-err> ");
-  this->RunProcess(cp, &out, &err, cmProcessOutput::UTF8);
+  cmCTestGIT::RunProcess(cp, &out, &err, cmProcessOutput::UTF8);
 
   // Send one extra zero-byte to terminate the last record.
   out.Process("", 1);

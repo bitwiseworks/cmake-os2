@@ -5,7 +5,14 @@
 
 #include "cmLocalGenerator.h"
 
-class cmGeneratedFileStream;
+#include <map>
+#include <string>
+#include <vector>
+
+class cmGeneratorTarget;
+class cmGlobalGenerator;
+class cmMakefile;
+class cmSourceFile;
 
 /** \class cmLocalGhsMultiGenerator
  * \brief Write Green Hills MULTI project files.
@@ -18,12 +25,23 @@ class cmLocalGhsMultiGenerator : public cmLocalGenerator
 public:
   cmLocalGhsMultiGenerator(cmGlobalGenerator* gg, cmMakefile* mf);
 
-  virtual ~cmLocalGhsMultiGenerator();
+  ~cmLocalGhsMultiGenerator() override;
 
   /**
    * Generate the makefile for this directory.
    */
-  virtual void Generate();
+  void Generate() override;
+
+  std::string GetTargetDirectory(
+    cmGeneratorTarget const* target) const override;
+
+  void ComputeObjectFilenames(
+    std::map<cmSourceFile const*, std::string>& mapping,
+    cmGeneratorTarget const* gt = nullptr) override;
+
+private:
+  void GenerateTargetsDepthFirst(cmGeneratorTarget* target,
+                                 std::vector<cmGeneratorTarget*>& remaining);
 };
 
 #endif

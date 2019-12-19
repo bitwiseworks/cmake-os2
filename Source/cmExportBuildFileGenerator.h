@@ -5,7 +5,9 @@
 
 #include "cmConfigure.h" // IWYU pragma: keep
 
+#include "cmAlgorithms.h"
 #include "cmExportFileGenerator.h"
+#include "cmStateTypes.h"
 
 #include <iosfwd>
 #include <string>
@@ -38,7 +40,7 @@ public:
   void GetTargets(std::vector<std::string>& targets) const;
   void AppendTargets(std::vector<std::string> const& targets)
   {
-    this->Targets.insert(this->Targets.end(), targets.begin(), targets.end());
+    cmAppend(this->Targets, targets);
   }
   void SetExportSet(cmExportSet*);
 
@@ -53,6 +55,8 @@ protected:
   void GenerateImportTargetsConfig(
     std::ostream& os, const std::string& config, std::string const& suffix,
     std::vector<std::string>& missingTargets) override;
+  cmStateEnums::TargetType GetExportTargetType(
+    cmGeneratorTarget const* target) const;
   void HandleMissingTarget(std::string& link_libs,
                            std::vector<std::string>& missingTargets,
                            cmGeneratorTarget* depender,

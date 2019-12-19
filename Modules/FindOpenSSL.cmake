@@ -1,46 +1,54 @@
 # Distributed under the OSI-approved BSD 3-Clause License.  See accompanying
 # file Copyright.txt or https://cmake.org/licensing for details.
 
-#.rst:
-# FindOpenSSL
-# -----------
-#
-# Find the OpenSSL encryption library.
-#
-# Imported Targets
-# ^^^^^^^^^^^^^^^^
-#
-# This module defines the following :prop_tgt:`IMPORTED` targets:
-#
-# ``OpenSSL::SSL``
-#   The OpenSSL ``ssl`` library, if found.
-# ``OpenSSL::Crypto``
-#   The OpenSSL ``crypto`` library, if found.
-#
-# Result Variables
-# ^^^^^^^^^^^^^^^^
-#
-# This module will set the following variables in your project:
-#
-# ``OPENSSL_FOUND``
-#   System has the OpenSSL library.
-# ``OPENSSL_INCLUDE_DIR``
-#   The OpenSSL include directory.
-# ``OPENSSL_CRYPTO_LIBRARY``
-#   The OpenSSL crypto library.
-# ``OPENSSL_SSL_LIBRARY``
-#   The OpenSSL SSL library.
-# ``OPENSSL_LIBRARIES``
-#   All OpenSSL libraries.
-# ``OPENSSL_VERSION``
-#   This is set to ``$major.$minor.$revision$patch`` (e.g. ``0.9.8s``).
-#
-# Hints
-# ^^^^^
-#
-# Set ``OPENSSL_ROOT_DIR`` to the root directory of an OpenSSL installation.
-# Set ``OPENSSL_USE_STATIC_LIBS`` to ``TRUE`` to look for static libraries.
-# Set ``OPENSSL_MSVC_STATIC_RT`` set ``TRUE`` to choose the MT version of the lib.
+#[=======================================================================[.rst:
+FindOpenSSL
+-----------
+
+Find the OpenSSL encryption library.
+
+Optional COMPONENTS
+^^^^^^^^^^^^^^^^^^^
+
+This module supports two optional COMPONENTS: ``Crypto`` and ``SSL``.  Both
+components have associated imported targets, as described below.
+
+Imported Targets
+^^^^^^^^^^^^^^^^
+
+This module defines the following :prop_tgt:`IMPORTED` targets:
+
+``OpenSSL::SSL``
+  The OpenSSL ``ssl`` library, if found.
+``OpenSSL::Crypto``
+  The OpenSSL ``crypto`` library, if found.
+
+Result Variables
+^^^^^^^^^^^^^^^^
+
+This module will set the following variables in your project:
+
+``OPENSSL_FOUND``
+  System has the OpenSSL library. If no components are requested it only
+  requires the crypto library.
+``OPENSSL_INCLUDE_DIR``
+  The OpenSSL include directory.
+``OPENSSL_CRYPTO_LIBRARY``
+  The OpenSSL crypto library.
+``OPENSSL_SSL_LIBRARY``
+  The OpenSSL SSL library.
+``OPENSSL_LIBRARIES``
+  All OpenSSL libraries.
+``OPENSSL_VERSION``
+  This is set to ``$major.$minor.$revision$patch`` (e.g. ``0.9.8s``).
+
+Hints
+^^^^^
+
+Set ``OPENSSL_ROOT_DIR`` to the root directory of an OpenSSL installation.
+Set ``OPENSSL_USE_STATIC_LIBS`` to ``TRUE`` to look for static libraries.
+Set ``OPENSSL_MSVC_STATIC_RT`` set ``TRUE`` to choose the MT version of the lib.
+#]=======================================================================]
 
 if (UNIX)
   find_package(PkgConfig QUIET)
@@ -110,7 +118,7 @@ if(WIN32 AND NOT CYGWIN)
     #   * MTd for static-debug
 
     # Implementation details:
-    # We are using the libraries located in the VC subdir instead of the parent directory eventhough :
+    # We are using the libraries located in the VC subdir instead of the parent directory even though :
     # libeay32MD.lib is identical to ../libeay32.lib, and
     # ssleay32MD.lib is identical to ../ssleay32.lib
     # enable OPENSSL_USE_STATIC_LIBS to use the static libs located in lib/VC/static
@@ -371,28 +379,47 @@ if(OPENSSL_INCLUDE_DIR AND EXISTS "${OPENSSL_INCLUDE_DIR}/openssl/opensslv.h")
   endif ()
 endif ()
 
-include(${CMAKE_CURRENT_LIST_DIR}/FindPackageHandleStandardArgs.cmake)
-
 set(OPENSSL_LIBRARIES ${OPENSSL_SSL_LIBRARY} ${OPENSSL_CRYPTO_LIBRARY} )
 
-if (OPENSSL_VERSION)
-  find_package_handle_standard_args(OpenSSL
-    REQUIRED_VARS
-      #OPENSSL_SSL_LIBRARY # FIXME: require based on a component request?
-      OPENSSL_CRYPTO_LIBRARY
-      OPENSSL_INCLUDE_DIR
-    VERSION_VAR
-      OPENSSL_VERSION
-    FAIL_MESSAGE
-      "Could NOT find OpenSSL, try to set the path to OpenSSL root folder in the system variable OPENSSL_ROOT_DIR"
-  )
-else ()
-  find_package_handle_standard_args(OpenSSL "Could NOT find OpenSSL, try to set the path to OpenSSL root folder in the system variable OPENSSL_ROOT_DIR"
-    #OPENSSL_SSL_LIBRARY # FIXME: require based on a component request?
+foreach(_comp IN LISTS OpenSSL_FIND_COMPONENTS)
+  if(_comp STREQUAL "Crypto")
+    if(EXISTS "${OPENSSL_INCLUDE_DIR}" AND
+        (EXISTS "${OPENSSL_CRYPTO_LIBRARY}" OR
+        EXISTS "${LIB_EAY_LIBRARY_DEBUG}" OR
+        EXISTS "${LIB_EAY_LIBRARY_RELEASE}")
+    )
+      set(OpenSSL_${_comp}_FOUND TRUE)
+    else()
+      set(OpenSSL_${_comp}_FOUND FALSE)
+    endif()
+  elseif(_comp STREQUAL "SSL")
+    if(EXISTS "${OPENSSL_INCLUDE_DIR}" AND
+        (EXISTS "${OPENSSL_SSL_LIBRARY}" OR
+        EXISTS "${SSL_EAY_LIBRARY_DEBUG}" OR
+        EXISTS "${SSL_EAY_LIBRARY_RELEASE}")
+    )
+      set(OpenSSL_${_comp}_FOUND TRUE)
+    else()
+      set(OpenSSL_${_comp}_FOUND FALSE)
+    endif()
+  else()
+    message(WARNING "${_comp} is not a valid OpenSSL component")
+    set(OpenSSL_${_comp}_FOUND FALSE)
+  endif()
+endforeach()
+unset(_comp)
+
+include(${CMAKE_CURRENT_LIST_DIR}/FindPackageHandleStandardArgs.cmake)
+find_package_handle_standard_args(OpenSSL
+  REQUIRED_VARS
     OPENSSL_CRYPTO_LIBRARY
     OPENSSL_INCLUDE_DIR
-  )
-endif ()
+  VERSION_VAR
+    OPENSSL_VERSION
+  HANDLE_COMPONENTS
+  FAIL_MESSAGE
+    "Could NOT find OpenSSL, try to set the path to OpenSSL root folder in the system variable OPENSSL_ROOT_DIR"
+)
 
 mark_as_advanced(OPENSSL_INCLUDE_DIR OPENSSL_LIBRARIES)
 
@@ -425,6 +452,7 @@ if(OPENSSL_FOUND)
         IMPORTED_LOCATION_DEBUG "${LIB_EAY_LIBRARY_DEBUG}")
     endif()
   endif()
+
   if(NOT TARGET OpenSSL::SSL AND
       (EXISTS "${OPENSSL_SSL_LIBRARY}" OR
         EXISTS "${SSL_EAY_LIBRARY_DEBUG}" OR

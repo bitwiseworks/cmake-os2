@@ -15,9 +15,7 @@ cmCTestGlobalVC::cmCTestGlobalVC(cmCTest* ct, std::ostream& log)
   this->PriorRev = this->Unknown;
 }
 
-cmCTestGlobalVC::~cmCTestGlobalVC()
-{
-}
+cmCTestGlobalVC::~cmCTestGlobalVC() = default;
 
 const char* cmCTestGlobalVC::LocalPath(std::string const& path)
 {
@@ -118,4 +116,9 @@ bool cmCTestGlobalVC::WriteXMLUpdates(cmXMLWriter& xml)
   }
 
   return result;
+}
+
+void cmCTestGlobalVC::SetNewRevision(std::string const& revision)
+{
+  this->NewRevision = revision;
 }

@@ -5,6 +5,8 @@
 
 #include "cmGlobalUnixMakefileGenerator3.h"
 
+#include <iosfwd>
+
 /** \class cmGlobalNMakeMakefileGenerator
  * \brief Write a NMake makefiles.
  *
@@ -19,8 +21,8 @@ public:
     return new cmGlobalGeneratorSimpleFactory<
       cmGlobalNMakeMakefileGenerator>();
   }
-  ///! Get the name for the generator.
-  virtual std::string GetName() const
+  //! Get the name for the generator.
+  std::string GetName() const override
   {
     return cmGlobalNMakeMakefileGenerator::GetActualName();
   }
@@ -39,12 +41,22 @@ public:
    * Try to determine system information such as shared library
    * extension, pthreads, byte order etc.
    */
-  virtual void EnableLanguage(std::vector<std::string> const& languages,
-                              cmMakefile*, bool optional);
+  void EnableLanguage(std::vector<std::string> const& languages, cmMakefile*,
+                      bool optional) override;
+
+protected:
+  std::vector<GeneratedMakeCommand> GenerateBuildCommand(
+    const std::string& makeProgram, const std::string& projectName,
+    const std::string& projectDir, std::vector<std::string> const& targetNames,
+    const std::string& config, bool fast, int jobs, bool verbose,
+    std::vector<std::string> const& makeOptions =
+      std::vector<std::string>()) override;
+
+  void PrintBuildCommandAdvice(std::ostream& os, int jobs) const override;
 
 private:
   void PrintCompilerAdvice(std::ostream& os, std::string const& lang,
-                           const char* envVar) const;
+                           const char* envVar) const override;
 };
 
 #endif

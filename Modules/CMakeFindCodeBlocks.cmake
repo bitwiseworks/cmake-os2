@@ -8,7 +8,7 @@
 find_program(CMAKE_CODEBLOCKS_EXECUTABLE NAMES codeblocks DOC "The CodeBlocks executable")
 
 if(CMAKE_CODEBLOCKS_EXECUTABLE)
-   set(CMAKE_OPEN_PROJECT_COMMAND "${CMAKE_CODEBLOCKS_EXECUTABLE} <PROJECT_FILE>" )
+  set(CMAKE_OPEN_PROJECT_COMMAND "${CMAKE_CODEBLOCKS_EXECUTABLE} <PROJECT_FILE>" )
 endif()
 
 # Determine builtin macros and include dirs:
@@ -28,3 +28,6 @@ endif()
 
 # This variable is used by the CodeBlocks generator and appended to the make invocation commands.
 set(CMAKE_CODEBLOCKS_MAKE_ARGUMENTS "${_CMAKE_CODEBLOCKS_INITIAL_MAKE_ARGS}" CACHE STRING "Additional command line arguments when CodeBlocks invokes make. Enter e.g. -j<some_number> to get parallel builds")
+
+# This variable is used by the CodeBlocks generator and allows the user to overwrite the autodetected CodeBlocks compiler id
+set(CMAKE_CODEBLOCKS_COMPILER_ID "" CACHE STRING "Id string of the compiler for the CodeBlocks IDE. Automatically detected when left empty")

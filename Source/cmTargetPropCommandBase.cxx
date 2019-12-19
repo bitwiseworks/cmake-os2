@@ -17,11 +17,11 @@ bool cmTargetPropCommandBase::HandleArguments(
     return false;
   }
 
-  // Lookup the target for which libraries are specified.
   if (this->Makefile->IsAlias(args[0])) {
     this->SetError("can not be used on an ALIAS target.");
     return false;
   }
+  // Lookup the target for which property-values are specified.
   this->Target =
     this->Makefile->GetCMakeInstance()->GetGlobalGenerator()->FindTarget(
       args[0]);
@@ -85,18 +85,6 @@ bool cmTargetPropCommandBase::ProcessContentArgs(
     return false;
   }
 
-  if (this->Target->IsImported()) {
-    this->HandleImportedTarget(args[0]);
-    return false;
-  }
-
-  if (this->Target->GetType() == cmStateEnums::INTERFACE_LIBRARY &&
-      scope != "INTERFACE") {
-    this->SetError("may only be set INTERFACE properties on INTERFACE "
-                   "targets");
-    return false;
-  }
-
   ++argIndex;
 
   std::vector<std::string> content;
@@ -104,9 +92,20 @@ bool cmTargetPropCommandBase::ProcessContentArgs(
   for (unsigned int i = argIndex; i < args.size(); ++i, ++argIndex) {
     if (args[i] == "PUBLIC" || args[i] == "PRIVATE" ||
         args[i] == "INTERFACE") {
-      return this->PopulateTargetProperies(scope, content, prepend, system);
+      break;
     }
     content.push_back(args[i]);
+  }
+  if (!content.empty()) {
+    if (this->Target->GetType() == cmStateEnums::INTERFACE_LIBRARY &&
+        scope != "INTERFACE") {
+      this->SetError("may only set INTERFACE properties on INTERFACE targets");
+      return false;
+    }
+    if (this->Target->IsImported() && scope != "INTERFACE") {
+      this->SetError("may only set INTERFACE properties on IMPORTED targets");
+      return false;
+    }
   }
   return this->PopulateTargetProperies(scope, content, prepend, system);
 }
@@ -115,6 +114,9 @@ bool cmTargetPropCommandBase::PopulateTargetProperies(
   const std::string& scope, const std::vector<std::string>& content,
   bool prepend, bool system)
 {
+  if (content.empty()) {
+    return true;
+  }
   if (scope == "PRIVATE" || scope == "PUBLIC") {
     if (!this->HandleDirectContent(this->Target, content, prepend, system)) {
       return false;

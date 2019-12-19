@@ -183,7 +183,7 @@ bool cmCPackIFWRepository::PatchUpdatesXml()
     this->Directory + "/repository/UpdatesPatch.xml";
 
   // Output stream
-  cmGeneratedFileStream fout(updatesPatchXml.data());
+  cmGeneratedFileStream fout(updatesPatchXml);
   cmXMLWriter xout(fout);
 
   xout.StartDocument();
@@ -200,7 +200,7 @@ bool cmCPackIFWRepository::PatchUpdatesXml()
 
   fout.Close();
 
-  return cmSystemTools::RenameFile(updatesPatchXml.data(), updatesXml.data());
+  return cmSystemTools::RenameFile(updatesPatchXml, updatesXml);
 }
 
 void cmCPackIFWRepository::WriteRepositoryConfig(cmXMLWriter& xout)

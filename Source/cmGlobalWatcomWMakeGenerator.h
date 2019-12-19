@@ -8,6 +8,7 @@
 #include "cmGlobalGeneratorFactory.h"
 #include "cmGlobalUnixMakefileGenerator3.h"
 
+#include <iosfwd>
 #include <string>
 #include <vector>
 
@@ -28,7 +29,7 @@ public:
   {
     return new cmGlobalGeneratorSimpleFactory<cmGlobalWatcomWMakeGenerator>();
   }
-  ///! Get the name for the generator.
+  //! Get the name for the generator.
   std::string GetName() const override
   {
     return cmGlobalWatcomWMakeGenerator::GetActualName();
@@ -47,6 +48,16 @@ public:
 
   bool AllowNotParallel() const override { return false; }
   bool AllowDeleteOnError() const override { return false; }
+
+protected:
+  std::vector<GeneratedMakeCommand> GenerateBuildCommand(
+    const std::string& makeProgram, const std::string& projectName,
+    const std::string& projectDir, std::vector<std::string> const& targetNames,
+    const std::string& config, bool fast, int jobs, bool verbose,
+    std::vector<std::string> const& makeOptions =
+      std::vector<std::string>()) override;
+
+  void PrintBuildCommandAdvice(std::ostream& os, int jobs) const override;
 };
 
 #endif

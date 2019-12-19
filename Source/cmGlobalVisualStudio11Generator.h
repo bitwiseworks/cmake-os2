@@ -20,19 +20,18 @@ class cmake;
 class cmGlobalVisualStudio11Generator : public cmGlobalVisualStudio10Generator
 {
 public:
-  cmGlobalVisualStudio11Generator(cmake* cm, const std::string& name,
-                                  const std::string& platformName);
   static cmGlobalGeneratorFactory* NewFactory();
 
-  virtual bool MatchesGeneratorName(const std::string& name) const;
-
-  virtual void WriteSLNHeader(std::ostream& fout);
+  bool MatchesGeneratorName(const std::string& name) const override;
 
 protected:
-  virtual bool InitializeWindowsPhone(cmMakefile* mf);
-  virtual bool InitializeWindowsStore(cmMakefile* mf);
-  virtual bool SelectWindowsPhoneToolset(std::string& toolset) const;
-  virtual bool SelectWindowsStoreToolset(std::string& toolset) const;
+  cmGlobalVisualStudio11Generator(cmake* cm, const std::string& name,
+                                  std::string const& platformInGeneratorName);
+
+  bool InitializeWindowsPhone(cmMakefile* mf) override;
+  bool InitializeWindowsStore(cmMakefile* mf) override;
+  bool SelectWindowsPhoneToolset(std::string& toolset) const override;
+  bool SelectWindowsStoreToolset(std::string& toolset) const override;
 
   // Used to verify that the Desktop toolset for the current generator is
   // installed on the machine.
@@ -43,12 +42,11 @@ protected:
   bool IsWindowsPhoneToolsetInstalled() const;
   bool IsWindowsStoreToolsetInstalled() const;
 
-  virtual const char* GetIDEVersion() { return "11.0"; }
-  bool UseFolderProperty();
+  bool UseFolderProperty() const override;
   static std::set<std::string> GetInstalledWindowsCESDKs();
 
-  /** Return true if the configuration needs to be deployed */
-  virtual bool NeedsDeploy(cmStateEnums::TargetType type) const;
+  /** Return true if target system supports debugging deployment. */
+  bool TargetSystemSupportsDeployment() const override;
 
 private:
   class Factory;

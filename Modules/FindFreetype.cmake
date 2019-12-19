@@ -1,45 +1,46 @@
 # Distributed under the OSI-approved BSD 3-Clause License.  See accompanying
 # file Copyright.txt or https://cmake.org/licensing for details.
 
-#.rst:
-# FindFreetype
-# ------------
-#
-# Find the FreeType font renderer includes and library.
-#
-# Imported Targets
-# ^^^^^^^^^^^^^^^^
-#
-# This module defines the following :prop_tgt:`IMPORTED` target:
-#
-# ``Freetype::Freetype``
-#   The Freetype ``freetype`` library, if found
-#
-# Result Variables
-# ^^^^^^^^^^^^^^^^
-#
-# This module will set the following variables in your project:
-#
-# ``FREETYPE_FOUND``
-#   true if the Freetype headers and libraries were found
-# ``FREETYPE_INCLUDE_DIRS``
-#   directories containing the Freetype headers. This is the
-#   concatenation of the variables:
-#
-#   ``FREETYPE_INCLUDE_DIR_ft2build``
-#     directory holding the main Freetype API configuration header
-#   ``FREETYPE_INCLUDE_DIR_freetype2``
-#     directory holding Freetype public headers
-# ``FREETYPE_LIBRARIES``
-#   the library to link against
-# ``FREETYPE_VERSION_STRING``
-#   the version of freetype found (since CMake 2.8.8)
-#
-# Hints
-# ^^^^^
-#
-# The user may set the environment variable ``FREETYPE_DIR`` to the root
-# directory of a Freetype installation.
+#[=======================================================================[.rst:
+FindFreetype
+------------
+
+Find the FreeType font renderer includes and library.
+
+Imported Targets
+^^^^^^^^^^^^^^^^
+
+This module defines the following :prop_tgt:`IMPORTED` target:
+
+``Freetype::Freetype``
+  The Freetype ``freetype`` library, if found
+
+Result Variables
+^^^^^^^^^^^^^^^^
+
+This module will set the following variables in your project:
+
+``FREETYPE_FOUND``
+  true if the Freetype headers and libraries were found
+``FREETYPE_INCLUDE_DIRS``
+  directories containing the Freetype headers. This is the
+  concatenation of the variables:
+
+  ``FREETYPE_INCLUDE_DIR_ft2build``
+    directory holding the main Freetype API configuration header
+  ``FREETYPE_INCLUDE_DIR_freetype2``
+    directory holding Freetype public headers
+``FREETYPE_LIBRARIES``
+  the library to link against
+``FREETYPE_VERSION_STRING``
+  the version of freetype found (since CMake 2.8.8)
+
+Hints
+^^^^^
+
+The user may set the environment variable ``FREETYPE_DIR`` to the root
+directory of a Freetype installation.
+#]=======================================================================]
 
 # Created by Eric Wing.
 # Modifications by Alexander Neundorf.
@@ -63,10 +64,6 @@ set(FREETYPE_FIND_ARGS
   HINTS
     ENV FREETYPE_DIR
   PATHS
-    /usr/X11R6
-    /usr/local/X11R6
-    /usr/local/X11
-    /usr/freeware
     ENV GTKMM_BASEPATH
     [HKEY_CURRENT_USER\\SOFTWARE\\gtkmm\\2.4;Path]
     [HKEY_LOCAL_MACHINE\\SOFTWARE\\gtkmm\\2.4;Path]
@@ -115,6 +112,9 @@ if(NOT FREETYPE_LIBRARY)
   )
   include(${CMAKE_CURRENT_LIST_DIR}/SelectLibraryConfigurations.cmake)
   select_library_configurations(FREETYPE)
+else()
+  # on Windows, ensure paths are in canonical format (forward slahes):
+  file(TO_CMAKE_PATH "${FREETYPE_LIBRARY}" FREETYPE_LIBRARY)
 endif()
 
 unset(FREETYPE_FIND_ARGS)

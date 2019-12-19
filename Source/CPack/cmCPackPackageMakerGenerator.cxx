@@ -13,6 +13,7 @@
 
 #include "cmCPackComponentGroup.h"
 #include "cmCPackLog.h"
+#include "cmDuration.h"
 #include "cmGeneratedFileStream.h"
 #include "cmSystemTools.h"
 #include "cmXMLWriter.h"
@@ -29,9 +30,7 @@ cmCPackPackageMakerGenerator::cmCPackPackageMakerGenerator()
   this->PackageCompatibilityVersion = getVersion(10, 4);
 }
 
-cmCPackPackageMakerGenerator::~cmCPackPackageMakerGenerator()
-{
-}
+cmCPackPackageMakerGenerator::~cmCPackPackageMakerGenerator() = default;
 
 bool cmCPackPackageMakerGenerator::SupportsComponentInstallation() const
 {
@@ -250,8 +249,8 @@ int cmCPackPackageMakerGenerator::PackageFiles()
       !this->CopyCreateResourceFile("Welcome", resDir) ||
       !this->CopyResourcePlistFile("Info.plist") ||
       !this->CopyResourcePlistFile("Description.plist")) {
-    cmCPackLogger(cmCPackLog::LOG_ERROR, "Problem copying the resource files"
-                    << std::endl);
+    cmCPackLogger(cmCPackLog::LOG_ERROR,
+                  "Problem copying the resource files" << std::endl);
     return 0;
   }
 
@@ -295,9 +294,9 @@ int cmCPackPackageMakerGenerator::PackageFiles()
   int numTries = 10;
   bool res = false;
   while (numTries > 0) {
-    res = cmSystemTools::RunSingleCommand(dmgCmd.str().c_str(), &output,
-                                          &output, &retVal, nullptr,
-                                          this->GeneratorVerbose, 0);
+    res = cmSystemTools::RunSingleCommand(
+      dmgCmd.str(), &output, &output, &retVal, nullptr, this->GeneratorVerbose,
+      cmDuration::zero());
     if (res && !retVal) {
       numTries = -1;
       break;
@@ -306,11 +305,12 @@ int cmCPackPackageMakerGenerator::PackageFiles()
     numTries--;
   }
   if (!res || retVal) {
-    cmGeneratedFileStream ofs(tmpFile.c_str());
+    cmGeneratedFileStream ofs(tmpFile);
     ofs << "# Run command: " << dmgCmd.str() << std::endl
         << "# Output:" << std::endl
         << output << std::endl;
-    cmCPackLogger(cmCPackLog::LOG_ERROR, "Problem running hdiutil command: "
+    cmCPackLogger(cmCPackLog::LOG_ERROR,
+                  "Problem running hdiutil command: "
                     << dmgCmd.str() << std::endl
                     << "Please check " << tmpFile << " for errors"
                     << std::endl);
@@ -338,16 +338,16 @@ int cmCPackPackageMakerGenerator::InitializeInternal()
   // If found, save result in the CPACK_INSTALLER_PROGRAM variable.
 
   std::vector<std::string> paths;
-  paths.push_back("/Applications/Xcode.app/Contents/Applications"
-                  "/PackageMaker.app/Contents/MacOS");
-  paths.push_back("/Applications/Utilities"
-                  "/PackageMaker.app/Contents/MacOS");
-  paths.push_back("/Applications"
-                  "/PackageMaker.app/Contents/MacOS");
-  paths.push_back("/Developer/Applications/Utilities"
-                  "/PackageMaker.app/Contents/MacOS");
-  paths.push_back("/Developer/Applications"
-                  "/PackageMaker.app/Contents/MacOS");
+  paths.emplace_back("/Applications/Xcode.app/Contents/Applications"
+                     "/PackageMaker.app/Contents/MacOS");
+  paths.emplace_back("/Applications/Utilities"
+                     "/PackageMaker.app/Contents/MacOS");
+  paths.emplace_back("/Applications"
+                     "/PackageMaker.app/Contents/MacOS");
+  paths.emplace_back("/Developer/Applications/Utilities"
+                     "/PackageMaker.app/Contents/MacOS");
+  paths.emplace_back("/Developer/Applications"
+                     "/PackageMaker.app/Contents/MacOS");
 
   std::string pkgPath;
   const char* inst_program = this->GetOption("CPACK_INSTALLER_PROGRAM");
@@ -356,8 +356,8 @@ int cmCPackPackageMakerGenerator::InitializeInternal()
   } else {
     pkgPath = cmSystemTools::FindProgram("PackageMaker", paths, false);
     if (pkgPath.empty()) {
-      cmCPackLogger(cmCPackLog::LOG_ERROR, "Cannot find PackageMaker compiler"
-                      << std::endl);
+      cmCPackLogger(cmCPackLog::LOG_ERROR,
+                    "Cannot find PackageMaker compiler" << std::endl);
       return 0;
     }
     this->SetOptionIfNotSet("CPACK_INSTALLER_PROGRAM", pkgPath.c_str());
@@ -414,12 +414,13 @@ int cmCPackPackageMakerGenerator::InitializeInternal()
   }
   this->PackageMakerVersion = atof(rexVersion.match(1).c_str());
   if (this->PackageMakerVersion < 1.0) {
-    cmCPackLogger(cmCPackLog::LOG_ERROR, "Require PackageMaker 1.0 or higher"
-                    << std::endl);
+    cmCPackLogger(cmCPackLog::LOG_ERROR,
+                  "Require PackageMaker 1.0 or higher" << std::endl);
     return 0;
   }
-  cmCPackLogger(cmCPackLog::LOG_DEBUG, "PackageMaker version is: "
-                  << this->PackageMakerVersion << std::endl);
+  cmCPackLogger(cmCPackLog::LOG_DEBUG,
+                "PackageMaker version is: " << this->PackageMakerVersion
+                                            << std::endl);
 
   // Determine the package compatibility version. If it wasn't
   // specified by the user, we define it based on which features the
@@ -447,8 +448,8 @@ int cmCPackPackageMakerGenerator::InitializeInternal()
   std::vector<std::string> no_paths;
   pkgPath = cmSystemTools::FindProgram("hdiutil", no_paths, false);
   if (pkgPath.empty()) {
-    cmCPackLogger(cmCPackLog::LOG_ERROR, "Cannot find hdiutil compiler"
-                    << std::endl);
+    cmCPackLogger(cmCPackLog::LOG_ERROR,
+                  "Cannot find hdiutil compiler" << std::endl);
     return 0;
   }
   this->SetOptionIfNotSet("CPACK_INSTALLER_PROGRAM_DISK_IMAGE",
@@ -467,18 +468,20 @@ bool cmCPackPackageMakerGenerator::RunPackageMaker(const char* command,
   std::string output;
   int retVal = 1;
   bool res = cmSystemTools::RunSingleCommand(
-    command, &output, &output, &retVal, nullptr, this->GeneratorVerbose, 0);
-  cmCPackLogger(cmCPackLog::LOG_VERBOSE, "Done running package maker"
-                  << std::endl);
+    command, &output, &output, &retVal, nullptr, this->GeneratorVerbose,
+    cmDuration::zero());
+  cmCPackLogger(cmCPackLog::LOG_VERBOSE,
+                "Done running package maker" << std::endl);
   if (!res || retVal) {
-    cmGeneratedFileStream ofs(tmpFile.c_str());
+    cmGeneratedFileStream ofs(tmpFile);
     ofs << "# Run command: " << command << std::endl
         << "# Output:" << std::endl
         << output << std::endl;
-    cmCPackLogger(
-      cmCPackLog::LOG_ERROR, "Problem running PackageMaker command: "
-        << command << std::endl
-        << "Please check " << tmpFile << " for errors" << std::endl);
+    cmCPackLogger(cmCPackLog::LOG_ERROR,
+                  "Problem running PackageMaker command: "
+                    << command << std::endl
+                    << "Please check " << tmpFile << " for errors"
+                    << std::endl);
     return false;
   }
   // sometimes the command finishes but the directory is not yet
@@ -503,8 +506,9 @@ bool cmCPackPackageMakerGenerator::GenerateComponentPackage(
   const char* packageFile, const char* packageDir,
   const cmCPackComponent& component)
 {
-  cmCPackLogger(cmCPackLog::LOG_OUTPUT, "-   Building component package: "
-                  << packageFile << std::endl);
+  cmCPackLogger(cmCPackLog::LOG_OUTPUT,
+                "-   Building component package: " << packageFile
+                                                   << std::endl);
 
   // The command that will be used to run PackageMaker
   std::ostringstream pkgCmd;

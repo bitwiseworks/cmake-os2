@@ -47,7 +47,7 @@ set(TIMESTAMP-AllSpecifiers-STDERR "~[0-9]+(;[0-9]+)*~")
 set(TIMESTAMP-MonthWeekNames-RESULT 0)
 set(TIMESTAMP-MonthWeekNames-STDERR "~[^%]+;[^%]+~")
 set(TIMESTAMP-UnixTime-RESULT 0)
-set(TIMESTAMP-UnixTime-STDERR "~[1-9][0-9]+~")
+set(TIMESTAMP-UnixTime-STDERR "~[0-9]+~")
 
 include("@CMAKE_CURRENT_SOURCE_DIR@/CheckCMakeTest.cmake")
 check_cmake_test(String
@@ -81,7 +81,7 @@ check_cmake_test(String
 # Execute each test listed in StringTestScript.cmake:
 #
 set(scriptname "@CMAKE_CURRENT_SOURCE_DIR@/StringTestScript.cmake")
-set(number_of_tests_expected 70)
+set(number_of_tests_expected 74)
 
 include("@CMAKE_CURRENT_SOURCE_DIR@/ExecuteScriptTests.cmake")
 execute_all_script_tests(${scriptname} number_of_tests_executed)

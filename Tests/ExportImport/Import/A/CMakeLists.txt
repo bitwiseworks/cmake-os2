@@ -1,3 +1,9 @@
+# Prepare imported targets that the exported project itself imported.
+add_library(SubDirLinkAImported IMPORTED INTERFACE)
+target_compile_definitions(SubDirLinkAImported INTERFACE DEF_SubDirLinkAImportedForImport)
+add_library(SubDirLinkBImported IMPORTED INTERFACE)
+target_compile_definitions(SubDirLinkBImported INTERFACE DEF_SubDirLinkBImportedForImport)
+
 # Import targets from the exported build tree.
 include(${Import_BINARY_DIR}/../Export/ExportBuildTree.cmake)
 
@@ -31,6 +37,20 @@ add_executable(imp_testExe1
   ${Import_BINARY_DIR}/exp_generated3.c
   ${Import_BINARY_DIR}/exp_generated4.c
   )
+
+function(checkForProperty _TARGET _PROP _EXPECTED)
+  get_target_property(EXPORTED_PROPERTY ${_TARGET} "${_PROP}")
+  if (NOT EXPORTED_PROPERTY STREQUAL "${_EXPECTED}")
+    message(SEND_ERROR "${_TARGET} was expected to export \"${_PROP}\" with value \"${_EXPECTED}\" but got \"${EXPORTED_PROPERTY}\"")
+  endif()
+endfunction()
+
+checkForProperty(bld_testLib3 "EXPORTED_PROPERTY1"  "EXPORTING_TESTLIB3")
+checkForProperty(exp_testLib3 "EXPORTED_PROPERTY1"  "EXPORTING_TESTLIB3")
+checkForProperty(bld_testLib4 "EXPORTED_PROPERTY2"  "EXPORTING_TESTLIB4_1")
+checkForProperty(exp_testLib4 "EXPORTED_PROPERTY2"  "EXPORTING_TESTLIB4_1")
+checkForProperty(bld_testLib4 "EXPORTED_PROPERTY3"  "EXPORTING_TESTLIB4_2")
+checkForProperty(exp_testLib4 "EXPORTED_PROPERTY3"  "EXPORTING_TESTLIB4_2")
 
 # Try linking to a library imported from the install tree.
 target_link_libraries(imp_testExe1
@@ -144,6 +164,11 @@ target_link_libraries(cmp0022OLD_exp_test exp_cmp0022OLD)
 add_executable(cmp0022NEW_exp_test cmp0022NEW_test_vs6_2.cpp)
 target_link_libraries(cmp0022NEW_exp_test exp_cmp0022NEW)
 
+add_executable(SubDirLink_bld SubDirLink.c)
+target_link_libraries(SubDirLink_bld PRIVATE bld_TopDirLib bld_SubDirLinkA)
+add_executable(SubDirLink_exp SubDirLink.c)
+target_link_libraries(SubDirLink_exp PRIVATE exp_TopDirLib exp_SubDirLinkA)
+
 # Try building a plugin to an executable imported from the build tree.
 add_library(imp_mod1b MODULE imp_mod1.c)
 target_link_libraries(imp_mod1b bld_testExe2)
@@ -229,14 +254,43 @@ add_library(imp_lib1b STATIC imp_lib1.c)
 target_link_libraries(imp_lib1b bld_testLib2)
 
 if(NOT CMAKE_GENERATOR STREQUAL "Xcode" OR NOT CMAKE_OSX_ARCHITECTURES MATCHES "[;$]")
-  # Create a executable that is using objects imported from the install tree
-  add_executable(imp_testLib8 imp_testLib8.c $<TARGET_OBJECTS:exp_testLib8>)
+  set(bld_objlib_type OBJECT_LIBRARY)
+
+  # Create executables using objects imported from the install tree
+  add_executable(imp_testLib8_src imp_testLib8.c $<TARGET_OBJECTS:exp_testLib8>)
+  add_executable(imp_testLib8_link imp_testLib8.c)
+  target_link_libraries(imp_testLib8_link exp_testLib8)
 
   if(NOT CMAKE_GENERATOR STREQUAL "Xcode" OR NOT XCODE_VERSION VERSION_LESS 5)
-    # Create a executable that is using objects imported from the build tree
-    add_executable(imp_testLib8b imp_testLib8.c $<TARGET_OBJECTS:bld_testLib8>)
+    # Create executables using objects imported from the build tree
+    add_executable(imp_testLib8b_src imp_testLib8.c $<TARGET_OBJECTS:bld_testLib8>)
+    add_executable(imp_testLib8b_link imp_testLib8.c)
+    target_link_libraries(imp_testLib8b_link bld_testLib8)
   endif()
+else()
+  set(bld_objlib_type INTERFACE_LIBRARY)
 endif()
+
+# Create an executable that uses a library imported from the install tree
+# that itself was built using an object library.  Verify we get the usage
+# requirements.
+add_executable(imp_testLib9 imp_testLib9.c)
+target_link_libraries(imp_testLib9 exp_testLib9)
+# Similarly for importing from the build tree.
+add_executable(imp_testLib9b imp_testLib9.c)
+target_link_libraries(imp_testLib9b bld_testLib9)
+
+# Check that object libraries were transformed on export as expected.
+foreach(vis Pub Priv Iface)
+  get_property(type TARGET exp_testLib9Obj${vis} PROPERTY TYPE)
+  if(NOT type STREQUAL INTERFACE_LIBRARY)
+    message(FATAL_ERROR "exp_testLib9Obj${vis} type is '${type}', not 'INTERFACE_LIBRARY'")
+  endif()
+  get_property(type TARGET bld_testLib9Obj${vis} PROPERTY TYPE)
+  if(NOT type STREQUAL "${bld_objlib_type}")
+    message(FATAL_ERROR "bld_testLib9Obj${vis} type is '${type}', not '${bld_objlib_type}'")
+  endif()
+endforeach()
 
 #-----------------------------------------------------------------------------
 # Test that handling imported targets, including transitive dependencies,
@@ -278,7 +332,6 @@ if (APPLE OR CMAKE_CXX_COMPILER_ID MATCHES "GNU")
 else()
   if (CMAKE_CXX_COMPILER_ID MATCHES "PGI"
       OR CMAKE_CXX_COMPILER_ID MATCHES "PathScale"
-      OR CMAKE_SYSTEM_NAME MATCHES "IRIX64"
       OR CMAKE_CXX_COMPILER_ID MATCHES "Intel")
     set(run_pic_test 0)
   else()
@@ -354,7 +407,7 @@ endforeach()
 unset(_configs)
 
 if (((CMAKE_C_COMPILER_ID STREQUAL GNU AND CMAKE_C_COMPILER_VERSION VERSION_GREATER 4.4)
-    OR CMAKE_C_COMPILER_ID STREQUAL Clang)
+    OR (CMAKE_C_COMPILER_ID STREQUAL Clang AND NOT "x${CMAKE_CXX_SIMULATE_ID}" STREQUAL "xMSVC"))
     AND (CMAKE_GENERATOR STREQUAL "Unix Makefiles" OR CMAKE_GENERATOR STREQUAL "Ninja"))
   include(CheckCXXCompilerFlag)
   check_cxx_compiler_flag(-Wunused-variable run_sys_includes_test)
@@ -428,4 +481,21 @@ if (((CMAKE_C_COMPILER_ID STREQUAL GNU AND CMAKE_C_COMPILER_VERSION VERSION_GREA
       endif()
     endif()
   endif()
+endif()
+
+#---------------------------------------------------------------------------------
+# check that imported libraries have the expected INTERFACE_LINK_OPTIONS property
+checkForProperty(bld_testLinkOptions "INTERFACE_LINK_OPTIONS" "INTERFACE_FLAG")
+checkForProperty(Req::testLinkOptions "INTERFACE_LINK_OPTIONS" "INTERFACE_FLAG")
+
+#---------------------------------------------------------------------------------
+# check that imported libraries have the expected INTERFACE_LINK_DIRECTORIES property
+checkForProperty(bld_testLinkDirectories "INTERFACE_LINK_DIRECTORIES" "/interface/build")
+checkForProperty(Req::testLinkDirectories "INTERFACE_LINK_DIRECTORIES" "${CMAKE_INSTALL_PREFIX}/interface/install")
+
+#---------------------------------------------------------------------------------
+# check that imported libraries have the expected INTERFACE_LINK_DEPENDS property
+if(CMAKE_GENERATOR MATCHES "Make|Ninja")
+  checkForProperty(bld_testLinkDepends "INTERFACE_LINK_DEPENDS" "BUILD_LINK_DEPENDS")
+  checkForProperty(Req::testLinkDepends "INTERFACE_LINK_DEPENDS" "${CMAKE_INSTALL_PREFIX}/INSTALL_LINK_DEPENDS")
 endif()

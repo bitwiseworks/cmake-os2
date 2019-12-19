@@ -1,32 +1,34 @@
 # Distributed under the OSI-approved BSD 3-Clause License.  See accompanying
 # file Copyright.txt or https://cmake.org/licensing for details.
 
-#.rst:
-# FindVulkan
-# ----------
-#
-# Try to find Vulkan
-#
-# IMPORTED Targets
-# ^^^^^^^^^^^^^^^^
-#
-# This module defines :prop_tgt:`IMPORTED` target ``Vulkan::Vulkan``, if
-# Vulkan has been found.
-#
-# Result Variables
-# ^^^^^^^^^^^^^^^^
-#
-# This module defines the following variables::
-#
-#   Vulkan_FOUND          - True if Vulkan was found
-#   Vulkan_INCLUDE_DIRS   - include directories for Vulkan
-#   Vulkan_LIBRARIES      - link against this library to use Vulkan
-#
-# The module will also define two cache variables::
-#
-#   Vulkan_INCLUDE_DIR    - the Vulkan include directory
-#   Vulkan_LIBRARY        - the path to the Vulkan library
-#
+#[=======================================================================[.rst:
+FindVulkan
+----------
+
+Find Vulkan, which isis a low-overhead, cross-platform 3D graphics
+and computing API.
+
+IMPORTED Targets
+^^^^^^^^^^^^^^^^
+
+This module defines :prop_tgt:`IMPORTED` target ``Vulkan::Vulkan``, if
+Vulkan has been found.
+
+Result Variables
+^^^^^^^^^^^^^^^^
+
+This module defines the following variables::
+
+  Vulkan_FOUND          - "True" if Vulkan was found
+  Vulkan_INCLUDE_DIRS   - include directories for Vulkan
+  Vulkan_LIBRARIES      - link against this library to use Vulkan
+
+The module will also define two cache variables::
+
+  Vulkan_INCLUDE_DIR    - the Vulkan include directory
+  Vulkan_LIBRARY        - the path to the Vulkan library
+
+#]=======================================================================]
 
 if(WIN32)
   find_path(Vulkan_INCLUDE_DIR
@@ -65,7 +67,7 @@ endif()
 set(Vulkan_LIBRARIES ${Vulkan_LIBRARY})
 set(Vulkan_INCLUDE_DIRS ${Vulkan_INCLUDE_DIR})
 
-include(FindPackageHandleStandardArgs)
+include(${CMAKE_CURRENT_LIST_DIR}/FindPackageHandleStandardArgs.cmake)
 find_package_handle_standard_args(Vulkan
   DEFAULT_MSG
   Vulkan_LIBRARY Vulkan_INCLUDE_DIR)

@@ -18,8 +18,19 @@ cmInstallGenerator::cmInstallGenerator(
 {
 }
 
-cmInstallGenerator::~cmInstallGenerator()
+cmInstallGenerator::~cmInstallGenerator() = default;
+
+bool cmInstallGenerator::HaveInstall()
 {
+  return true;
+}
+
+void cmInstallGenerator::CheckCMP0082(bool& haveSubdirectoryInstall,
+                                      bool& haveInstallAfterSubdirectory)
+{
+  if (haveSubdirectoryInstall) {
+    haveInstallAfterSubdirectory = true;
+  }
 }
 
 void cmInstallGenerator::AddInstallRule(
@@ -55,20 +66,21 @@ void cmInstallGenerator::AddInstallRule(
       break;
   }
   os << indent;
-  if (cmSystemTools::FileIsFullPath(dest.c_str())) {
+  if (cmSystemTools::FileIsFullPath(dest)) {
     os << "list(APPEND CMAKE_ABSOLUTE_DESTINATION_FILES\n";
     os << indent << " \"";
-    for (std::vector<std::string>::const_iterator fi = files.begin();
-         fi != files.end(); ++fi) {
-      if (fi != files.begin()) {
+    bool firstIteration = true;
+    for (std::string const& file : files) {
+      if (!firstIteration) {
         os << ";";
       }
       os << dest << "/";
       if (rename && *rename) {
         os << rename;
       } else {
-        os << cmSystemTools::GetFilenameName(*fi);
+        os << cmSystemTools::GetFilenameName(file);
       }
+      firstIteration = false;
     }
     os << "\")\n";
     os << indent << "if(CMAKE_WARN_ON_ABSOLUTE_INSTALL_DESTINATION)\n";
@@ -130,7 +142,7 @@ void cmInstallGenerator::AddInstallRule(
 std::string cmInstallGenerator::CreateComponentTest(const char* component,
                                                     bool exclude_from_all)
 {
-  std::string result = "\"x${CMAKE_INSTALL_COMPONENT}x\" STREQUAL \"x";
+  std::string result = R"("x${CMAKE_INSTALL_COMPONENT}x" STREQUAL "x)";
   result += component;
   result += "x\"";
   if (!exclude_from_all) {
@@ -165,7 +177,7 @@ std::string cmInstallGenerator::ConvertToAbsoluteDestination(
   std::string const& dest) const
 {
   std::string result;
-  if (!dest.empty() && !cmSystemTools::FileIsFullPath(dest.c_str())) {
+  if (!dest.empty() && !cmSystemTools::FileIsFullPath(dest)) {
     result = "${CMAKE_INSTALL_PREFIX}/";
   }
   result += dest;

@@ -6,7 +6,7 @@
 
 #include "cmAlgorithms.h"
 #include "cmMakefile.h"
-#include "cmake.h"
+#include "cmMessageType.h"
 
 class cmExecutionStatus;
 class cmTarget;
@@ -17,15 +17,6 @@ bool cmTargetCompileFeaturesCommand::InitialPass(
   return this->HandleArguments(args, "COMPILE_FEATURES", NO_FLAGS);
 }
 
-void cmTargetCompileFeaturesCommand::HandleImportedTarget(
-  const std::string& tgt)
-{
-  std::ostringstream e;
-  e << "Cannot specify compile features for imported target \"" << tgt
-    << "\".";
-  this->Makefile->IssueMessage(cmake::FATAL_ERROR, e.str());
-}
-
 void cmTargetCompileFeaturesCommand::HandleMissingTarget(
   const std::string& name)
 {
@@ -33,7 +24,7 @@ void cmTargetCompileFeaturesCommand::HandleMissingTarget(
   e << "Cannot specify compile features for target \"" << name
     << "\" "
        "which is not built by this project.";
-  this->Makefile->IssueMessage(cmake::FATAL_ERROR, e.str());
+  this->Makefile->IssueMessage(MessageType::FATAL_ERROR, e.str());
 }
 
 std::string cmTargetCompileFeaturesCommand::Join(
@@ -49,8 +40,8 @@ bool cmTargetCompileFeaturesCommand::HandleDirectContent(
     std::string error;
     if (!this->Makefile->AddRequiredTargetFeature(tgt, it, &error)) {
       this->SetError(error);
-      return false;
+      return false; // Not (successfully) handled.
     }
   }
-  return true;
+  return true; // Successfully handled.
 }

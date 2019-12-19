@@ -238,12 +238,10 @@ Referencing Commits in Commit Messages
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 The preferred form for references to other commits is
-``commit <commit> (<subject>, <date>)``, where:
+``commit <shorthash> (<subject>, <date>)``, where:
 
-* ``<commit>``:
-  If available, a tag-relative name of the commit produced by
-  ``git describe --contains <commit-ish>``.  Otherwise, the first
-  8-10 characters of the commit ``<hash>``.
+* ``<shorthash>``:
+  The abbreviated hash of the commit.
 
 * ``<subject>``:
   The first line of the commit message.
@@ -251,6 +249,17 @@ The preferred form for references to other commits is
 * ``<date>``:
   The author date of the commit, in its original time zone, formatted as
   ``CCYY-MM-DD``.  ``git-log(1)`` shows the original time zone by default.
+
+This may be generated with
+``git show -s --date=short --pretty="format:%h (%s, %ad)" <commit>``.
+
+If the commit is a fix for the mentioned commit, consider using a ``Fixes:``
+trailer in the commit message with the specified format. This trailer should
+not be word-wrapped. Note that if there is also an issue for what is being
+fixed, it is preferrable to link to the issue instead.
+
+If relevant, add the first release tag of CMake containing the commit after
+the ``<date>``, i.e., ``commit <shorthash> (<subject>, <date>, <tag>)``.
 
 Alternatively, the full commit ``<hash>`` may be used.
 
@@ -323,6 +332,14 @@ branch (e.g. ``master``) branch followed by a sequence of merges each
 integrating changes from an open MR that has been staged for integration
 testing.  Each time the target integration branch is updated the stage
 is rebuilt automatically by merging the staged MR topics again.
+The branch is stored in the upstream repository by special refs:
+
+* ``refs/stage/master/head``: The current topic stage branch.
+  This is used by continuous builds that report to CDash.
+* ``refs/stage/master/nightly/latest``: Topic stage as of 1am UTC each night.
+  This is used by most nightly builds that report to CDash.
+* ``refs/stage/master/nightly/<yyyy>/<mm>/<dd>``: Topic stage as of 1am UTC
+  on the date specified. This is used for historical reference.
 
 `CMake GitLab Project Developers`_ may stage a MR for integration testing
 by adding a comment with a command among the `comment trailing lines`_::
@@ -360,7 +377,15 @@ command is needed to stage it again.
 Resolve
 =======
 
-A MR may be resolved in one of the following ways.
+The workflow used by the CMake project supports a number of different
+ways in which a MR can be moved to a resolved state.  In addition to
+the conventional practices of merging or closing a MR without merging it,
+a MR can also be moved to a quasi-resolved state pending some action.
+This may involve moving discussion to an issue or it may be the result of
+an extended period of inactivity.  These quasi-resolved states are used
+to help manage the relatively large number of MRs the project receives
+and are not an indication of the changes being rejected.  The following
+sections explain the different resolutions a MR may be given.
 
 Merge
 -----
@@ -401,11 +426,14 @@ The ``Do: merge`` command accepts the following arguments:
   branch in the constructed merge commit message.
 
 Additionally, ``Do: merge`` extracts configuration from trailing lines
-in the MR description:
+in the MR description (the following have no effect if used in a MR
+comment instead):
 
 * ``Topic-rename: <topic>``: substitute ``<topic>`` for the name of
   the MR topic branch in the constructed merge commit message.
-  The ``-t`` option overrides this.
+  It is also used in merge commits constructed by ``Do: stage``.
+  The ``-t`` option to a ``Do: merge`` command overrides any topic
+  rename set in the MR description.
 
 .. _`CMake GitLab Project Masters`: https://gitlab.kitware.com/cmake/cmake/settings/members
 
@@ -413,15 +441,68 @@ Close
 -----
 
 If review has concluded that the MR should not be integrated then it
-may be closed through GitLab.
+may be closed through GitLab.  This would normally be a final state
+with no expectation that the MR would be re-opened in the future.
+It is also used when a MR is being superseded by another separate one,
+in which case a reference to the new MR should be added to the MR being
+closed.
 
 Expire
 ------
 
 If progress on a MR has stalled for a while, it may be closed with a
 ``workflow:expired`` label and a comment indicating that the MR has
-been closed due to inactivity.
+been closed due to inactivity (it may also be done where the MR is blocked
+for an extended period by work in a different MR).  This is not an
+indication that there is a problem with the MR's content, it is only a
+practical measure to allow the reviewers to focus attention on MRs that
+are actively being worked on.  As a guide, the average period of inactivity
+before transitioning a MR to the expired state would be around 2 weeks,
+but this may decrease to 1 week or less when there is a high number of
+open merge requests.
 
-Contributors are welcome to re-open an expired MR when they are ready
-to continue work.  Please re-open *before* pushing an update to the
-MR topic branch to ensure GitLab will still act on the association.
+Reviewers would usually provide a message similar to the following when
+resolving a MR as expired::
+
+  Closing for now. @<MR-author> please re-open when ready to continue work.
+
+This is to make it clear to contributors that they are welcome to re-open
+the expired MR when they are ready to return to working on it and moving
+it forward.  In the meantime, the MR will appear as ``Closed`` in GitLab,
+but it can be differentiated from permanently closed MRs by the presence
+of the ``workflow:expired`` label.
+
+**NOTE:** Please re-open *before* pushing an update to the MR topic branch
+to ensure GitLab will still act on the association.  If changes are pushed
+before re-opening the MR, the reviewer should initiate a ``Do: check`` to
+force GitLab to act on the updates.
+
+External Discussion
+-------------------
+
+In some situations, a series of comments on a MR may develop into a more
+involved discussion, or it may become apparent that there are broader
+discussions that need to take place before the MR can move forward in an
+agreed direction.  Such discussions are better suited to GitLab issues
+rather than in a MR because MRs may be superseded by a different MR, or
+the set of changes may evolve to look quite different to the context in
+which the discussions began.  When this occurs, reviewers may ask the
+MR author to open an issue to discuss things there and they will transition
+the MR to a resolved state with the label ``workflow:external-discussion``.
+The MR will appear in GitLab as closed, but it can be differentiated from
+permanently closed MRs by the presence of the ``workflow:external-discussion``
+label.  Reviewers should leave a message clearly explaining the action
+so that the MR author understands that the MR closure is temporary and
+it is clear what actions need to happen next.  The following is an example
+of such a message, but it will usually be necessary to tailor the message
+to the individual situation::
+
+  The desired behavior here looks to be more involved than first thought.
+  Please open an issue so we can discuss the relevant details there.
+  Once the path forward is clear, we can re-open this MR and continue work.
+
+When the discussion in the associated issue runs its course and the way
+forward is clear, the MR can be re-opened again and the
+``workflow:external-discussion`` label removed.  Reviewers should ensure
+that the issue created contains a reference to the MR so that GitLab
+provides a cross-reference to link the two.

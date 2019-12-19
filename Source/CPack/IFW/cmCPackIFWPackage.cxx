@@ -24,9 +24,7 @@ cmCPackIFWPackage::CompareStruct::CompareStruct()
 }
 
 //------------------------------------------------------- DependenceStruct ---
-cmCPackIFWPackage::DependenceStruct::DependenceStruct()
-{
-}
+cmCPackIFWPackage::DependenceStruct::DependenceStruct() = default;
 
 cmCPackIFWPackage::DependenceStruct::DependenceStruct(
   const std::string& dependence)
@@ -126,10 +124,10 @@ void cmCPackIFWPackage::DefaultConfiguration()
   this->RequiresAdminRights.clear();
 }
 
-// Defaul configuration (all in one package)
+// Default configuration (all in one package)
 int cmCPackIFWPackage::ConfigureFromOptions()
 {
-  // Restore defaul configuration
+  // Restore default configuration
   this->DefaultConfiguration();
 
   // Name
@@ -168,7 +166,7 @@ int cmCPackIFWPackage::ConfigureFromComponent(cmCPackComponent* component)
     return 0;
   }
 
-  // Restore defaul configuration
+  // Restore default configuration
   this->DefaultConfiguration();
 
   std::string prefix = "CPACK_IFW_COMPONENT_" +
@@ -226,7 +224,8 @@ int cmCPackIFWPackage::ConfigureFromComponent(cmCPackComponent* component)
   if (const char* option = this->GetOption(prefix + "PRIORITY")) {
     this->SortingPriority = option;
     cmCPackIFWLogger(
-      WARNING, "The \"PRIORITY\" option is set "
+      WARNING,
+      "The \"PRIORITY\" option is set "
         << "for component \"" << component->Name << "\", but there option is "
         << "deprecated. Please use \"SORTING_PRIORITY\" option instead."
         << std::endl);
@@ -255,7 +254,7 @@ int cmCPackIFWPackage::ConfigureFromGroup(cmCPackComponentGroup* group)
     return 0;
   }
 
-  // Restore defaul configuration
+  // Restore default configuration
   this->DefaultConfiguration();
 
   std::string prefix = "CPACK_IFW_COMPONENT_GROUP_" +
@@ -303,7 +302,8 @@ int cmCPackIFWPackage::ConfigureFromGroup(cmCPackComponentGroup* group)
   if (const char* option = this->GetOption(prefix + "PRIORITY")) {
     this->SortingPriority = option;
     cmCPackIFWLogger(
-      WARNING, "The \"PRIORITY\" option is set "
+      WARNING,
+      "The \"PRIORITY\" option is set "
         << "for component group \"" << group->Name
         << "\", but there option is "
         << "deprecated. Please use \"SORTING_PRIORITY\" option instead."
@@ -357,7 +357,7 @@ int cmCPackIFWPackage::ConfigureFromPrefix(const std::string& prefix)
   if (this->IsSetToEmpty(option)) {
     this->DisplayName.clear();
   } else if (const char* value = this->GetOption(option)) {
-    this->ExpandListArgument(value, this->DisplayName);
+    cmCPackIFWPackage::ExpandListArgument(value, this->DisplayName);
   }
 
   // Description
@@ -365,7 +365,7 @@ int cmCPackIFWPackage::ConfigureFromPrefix(const std::string& prefix)
   if (this->IsSetToEmpty(option)) {
     this->Description.clear();
   } else if (const char* value = this->GetOption(option)) {
-    this->ExpandListArgument(value, this->Description);
+    cmCPackIFWPackage::ExpandListArgument(value, this->Description);
   }
 
   // Release date
@@ -526,7 +526,7 @@ void cmCPackIFWPackage::GeneratePackageFile()
   }
 
   // Output stream
-  cmGeneratedFileStream fout((this->Directory + "/meta/package.xml").data());
+  cmGeneratedFileStream fout(this->Directory + "/meta/package.xml");
   cmXMLWriter xout(fout);
 
   xout.StartDocument();

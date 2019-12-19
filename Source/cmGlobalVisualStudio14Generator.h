@@ -18,34 +18,39 @@ class cmake;
 class cmGlobalVisualStudio14Generator : public cmGlobalVisualStudio12Generator
 {
 public:
-  cmGlobalVisualStudio14Generator(cmake* cm, const std::string& name,
-                                  const std::string& platformName);
   static cmGlobalGeneratorFactory* NewFactory();
 
-  virtual bool MatchesGeneratorName(const std::string& name) const;
+  bool MatchesGeneratorName(const std::string& name) const override;
 
-  virtual void WriteSLNHeader(std::ostream& fout);
-
-  virtual const char* GetToolsVersion() { return "14.0"; }
 protected:
-  virtual bool InitializeWindows(cmMakefile* mf);
-  virtual bool InitializeWindowsStore(cmMakefile* mf);
-  virtual bool SelectWindowsStoreToolset(std::string& toolset) const;
+  cmGlobalVisualStudio14Generator(cmake* cm, const std::string& name,
+                                  std::string const& platformInGeneratorName);
+
+  bool InitializeWindows(cmMakefile* mf) override;
+  bool InitializeWindowsStore(cmMakefile* mf) override;
+  bool SelectWindowsStoreToolset(std::string& toolset) const override;
 
   // These aren't virtual because we need to check if the selected version
   // of the toolset is installed
   bool IsWindowsStoreToolsetInstalled() const;
 
-  virtual const char* GetIDEVersion() { return "14.0"; }
+  // Used to make sure that the Windows 10 SDK selected can work with the
+  // version of the toolset.
+  virtual std::string GetWindows10SDKMaxVersion() const;
+
   virtual bool SelectWindows10SDK(cmMakefile* mf, bool required);
+
+  void SetWindowsTargetPlatformVersion(std::string const& version,
+                                       cmMakefile* mf);
 
   // Used to verify that the Desktop toolset for the current generator is
   // installed on the machine.
-  virtual bool IsWindowsDesktopToolsetInstalled() const;
+  bool IsWindowsDesktopToolsetInstalled() const override;
 
   std::string GetWindows10SDKVersion();
 
 private:
   class Factory;
+  friend class Factory;
 };
 #endif

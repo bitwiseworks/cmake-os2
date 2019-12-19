@@ -4,8 +4,11 @@
 
 #include "cmCustomCommandLines.h"
 #include "cmMakefile.h"
+#include "cmRange.h"
 #include "cmSourceFile.h"
 #include "cmSystemTools.h"
+
+#include <utility>
 
 class cmExecutionStatus;
 
@@ -19,7 +22,7 @@ bool cmQTWrapCPPCommand::InitialPass(std::vector<std::string> const& args,
   }
 
   // Get the moc executable to run in the custom command.
-  const char* moc_exe =
+  std::string const& moc_exe =
     this->Makefile->GetRequiredDefinition("QT_MOC_EXECUTABLE");
 
   // Get the variable holding the list of sources.
@@ -27,13 +30,13 @@ bool cmQTWrapCPPCommand::InitialPass(std::vector<std::string> const& args,
   std::string sourceListValue = this->Makefile->GetSafeDefinition(sourceList);
 
   // Create a rule for all sources listed.
-  for (std::vector<std::string>::const_iterator j = (args.begin() + 2);
-       j != args.end(); ++j) {
-    cmSourceFile* curr = this->Makefile->GetSource(*j);
+  for (std::string const& arg : cmMakeRange(args).advance(2)) {
+    cmSourceFile* curr = this->Makefile->GetSource(arg);
     // if we should wrap the class
     if (!(curr && curr->GetPropertyAsBool("WRAP_EXCLUDE"))) {
       // Compute the name of the file to generate.
-      std::string srcName = cmSystemTools::GetFilenameWithoutLastExtension(*j);
+      std::string srcName =
+        cmSystemTools::GetFilenameWithoutLastExtension(arg);
       std::string newName = this->Makefile->GetCurrentBinaryDirectory();
       newName += "/moc_";
       newName += srcName;
@@ -45,16 +48,16 @@ bool cmQTWrapCPPCommand::InitialPass(std::vector<std::string> const& args,
 
       // Compute the name of the header from which to generate the file.
       std::string hname;
-      if (cmSystemTools::FileIsFullPath(j->c_str())) {
-        hname = *j;
+      if (cmSystemTools::FileIsFullPath(arg)) {
+        hname = arg;
       } else {
-        if (curr && curr->GetPropertyAsBool("GENERATED")) {
+        if (curr && curr->GetIsGenerated()) {
           hname = this->Makefile->GetCurrentBinaryDirectory();
         } else {
           hname = this->Makefile->GetCurrentSourceDirectory();
         }
         hname += "/";
-        hname += *j;
+        hname += arg;
       }
 
       // Append the generated source file to the list.
@@ -71,7 +74,7 @@ bool cmQTWrapCPPCommand::InitialPass(std::vector<std::string> const& args,
       commandLine.push_back(hname);
 
       cmCustomCommandLines commandLines;
-      commandLines.push_back(commandLine);
+      commandLines.push_back(std::move(commandLine));
 
       std::vector<std::string> depends;
       depends.push_back(moc_exe);

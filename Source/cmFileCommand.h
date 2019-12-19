@@ -39,6 +39,7 @@ protected:
   bool HandleHashCommand(std::vector<std::string> const& args);
   bool HandleStringsCommand(std::vector<std::string> const& args);
   bool HandleGlobCommand(std::vector<std::string> const& args, bool recurse);
+  bool HandleTouchCommand(std::vector<std::string> const& args, bool create);
   bool HandleMakeDirectoryCommand(std::vector<std::string> const& args);
 
   bool HandleRelativePathCommand(std::vector<std::string> const& args);
@@ -58,6 +59,9 @@ protected:
   bool HandleTimestampCommand(std::vector<std::string> const& args);
   bool HandleGenerateCommand(std::vector<std::string> const& args);
   bool HandleLockCommand(std::vector<std::string> const& args);
+  bool HandleSizeCommand(std::vector<std::string> const& args);
+  bool HandleReadSymlinkCommand(std::vector<std::string> const& args);
+  bool HandleCreateLinkCommand(std::vector<std::string> const& args);
 
 private:
   void AddEvaluationFile(const std::string& inputName,

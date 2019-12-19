@@ -5,6 +5,7 @@
 #include "cmAlgorithms.h"
 #include "cmGeneratorTarget.h"
 #include "cmGlobalGenerator.h"
+#include "cmMessageType.h"
 #include "cmSystemTools.h"
 #include "cmake.h"
 
@@ -47,7 +48,7 @@ public:
       this->FileName = cmSystemTools::GetFilenameName(file);
     }
   }
-  virtual ~cmOrderDirectoriesConstraint() {}
+  virtual ~cmOrderDirectoriesConstraint() = default;
 
   void AddDirectory()
   {
@@ -118,7 +119,7 @@ bool cmOrderDirectoriesConstraint::FileMayConflict(std::string const& dir,
   std::string file = dir;
   file += "/";
   file += name;
-  if (cmSystemTools::FileExists(file.c_str(), true)) {
+  if (cmSystemTools::FileExists(file, true)) {
     // The file conflicts only if it is not the same as the original
     // file due to a symlink or hardlink.
     return !cmSystemTools::SameFile(this->FullPath, file);
@@ -186,7 +187,7 @@ bool cmOrderDirectoriesConstraintSOName::FindConflict(std::string const& dir)
     // file name.  Usually the soname starts with the library name.
     std::string base = this->FileName;
     std::set<std::string>::const_iterator first = files.lower_bound(base);
-    ++base[base.size() - 1];
+    ++base.back();
     std::set<std::string>::const_iterator last = files.upper_bound(base);
     if (first != last) {
       return true;
@@ -328,15 +329,13 @@ void cmOrderDirectories::AddLinkLibrary(std::string const& fullPath)
 void cmOrderDirectories::AddUserDirectories(
   std::vector<std::string> const& extra)
 {
-  this->UserDirectories.insert(this->UserDirectories.end(), extra.begin(),
-                               extra.end());
+  cmAppend(this->UserDirectories, extra);
 }
 
 void cmOrderDirectories::AddLanguageDirectories(
   std::vector<std::string> const& dirs)
 {
-  this->LanguageDirectories.insert(this->LanguageDirectories.end(),
-                                   dirs.begin(), dirs.end());
+  cmAppend(this->LanguageDirectories, dirs);
 }
 
 void cmOrderDirectories::SetImplicitDirectories(
@@ -475,7 +474,7 @@ void cmOrderDirectories::FindImplicitConflicts()
     << " libraries in implicit directories:\n"
     << text << "Some of these libraries may not be found correctly.";
   this->GlobalGenerator->GetCMakeInstance()->IssueMessage(
-    cmake::WARNING, w.str(), this->Target->GetBacktrace());
+    MessageType::WARNING, w.str(), this->Target->GetBacktrace());
 }
 
 void cmOrderDirectories::OrderDirectories()
@@ -544,7 +543,7 @@ void cmOrderDirectories::DiagnoseCycle()
   }
   e << "Some of these libraries may not be found correctly.";
   this->GlobalGenerator->GetCMakeInstance()->IssueMessage(
-    cmake::WARNING, e.str(), this->Target->GetBacktrace());
+    MessageType::WARNING, e.str(), this->Target->GetBacktrace());
 }
 
 bool cmOrderDirectories::IsSameDirectory(std::string const& l,

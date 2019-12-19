@@ -3,25 +3,49 @@ file
 
 File manipulation command.
 
-------------------------------------------------------------------------------
+Synopsis
+^^^^^^^^
 
-::
+.. parsed-literal::
 
-  file(WRITE <filename> <content>...)
-  file(APPEND <filename> <content>...)
+  `Reading`_
+    file(`READ`_ <filename> <out-var> [...])
+    file(`STRINGS`_ <filename> <out-var> [...])
+    file(`\<HASH\> <HASH_>`_ <filename> <out-var>)
+    file(`TIMESTAMP`_ <filename> <out-var> [...])
 
-Write ``<content>`` into a file called ``<filename>``.  If the file does
-not exist, it will be created.  If the file already exists, ``WRITE``
-mode will overwrite it and ``APPEND`` mode will append to the end.
-Any directories in the path specified by ``<filename>`` that do not
-exist will be created.
+  `Writing`_
+    file({`WRITE`_ | `APPEND`_} <filename> <content>...)
+    file({`TOUCH`_ | `TOUCH_NOCREATE`_} [<file>...])
+    file(`GENERATE`_ OUTPUT <output-file> [...])
 
-If the file is a build input, use the :command:`configure_file` command
-to update the file only when its content changes.
+  `Filesystem`_
+    file({`GLOB`_ | `GLOB_RECURSE`_} <out-var> [...] [<globbing-expr>...])
+    file(`RENAME`_ <oldname> <newname>)
+    file({`REMOVE`_ | `REMOVE_RECURSE`_ } [<files>...])
+    file(`MAKE_DIRECTORY`_ [<dir>...])
+    file({`COPY`_ | `INSTALL`_} <file>... DESTINATION <dir> [...])
+    file(`SIZE`_ <filename> <out-var>)
+    file(`READ_SYMLINK`_ <linkname> <out-var>)
+    file(`CREATE_LINK`_ <original> <linkname> [...])
 
-------------------------------------------------------------------------------
+  `Path Conversion`_
+    file(`RELATIVE_PATH`_ <out-var> <directory> <file>)
+    file({`TO_CMAKE_PATH`_ | `TO_NATIVE_PATH`_} <path> <out-var>)
 
-::
+  `Transfer`_
+    file(`DOWNLOAD`_ <url> <file> [...])
+    file(`UPLOAD`_ <file> <url> [...])
+
+  `Locking`_
+    file(`LOCK`_ <path> [...])
+
+Reading
+^^^^^^^
+
+.. _READ:
+
+.. code-block:: cmake
 
   file(READ <filename> <variable>
        [OFFSET <offset>] [LIMIT <max-in>] [HEX])
@@ -31,9 +55,9 @@ Read content from a file called ``<filename>`` and store it in a
 read at most ``<max-in>`` bytes.  The ``HEX`` option causes data to
 be converted to a hexadecimal representation (useful for binary data).
 
-------------------------------------------------------------------------------
+.. _STRINGS:
 
-::
+.. code-block:: cmake
 
   file(STRINGS <filename> <variable> [<options>...])
 
@@ -82,9 +106,9 @@ For example, the code
 stores a list in the variable ``myfile`` in which each item is a line
 from the input file.
 
-------------------------------------------------------------------------------
+.. _HASH:
 
-::
+.. code-block:: cmake
 
   file(<HASH> <filename> <variable>)
 
@@ -93,172 +117,9 @@ store it in a ``<variable>``.  The supported ``<HASH>`` algorithm names
 are those listed by the :ref:`string(\<HASH\>) <Supported Hash Algorithms>`
 command.
 
-------------------------------------------------------------------------------
+.. _TIMESTAMP:
 
-::
-
-  file(GLOB <variable>
-       [LIST_DIRECTORIES true|false] [RELATIVE <path>]
-       [<globbing-expressions>...])
-  file(GLOB_RECURSE <variable> [FOLLOW_SYMLINKS]
-       [LIST_DIRECTORIES true|false] [RELATIVE <path>]
-       [<globbing-expressions>...])
-
-Generate a list of files that match the ``<globbing-expressions>`` and
-store it into the ``<variable>``.  Globbing expressions are similar to
-regular expressions, but much simpler.  If ``RELATIVE`` flag is
-specified, the results will be returned as relative paths to the given
-path.  The results will be ordered lexicographically.
-
-By default ``GLOB`` lists directories - directories are omited in result if
-``LIST_DIRECTORIES`` is set to false.
-
-.. note::
-  We do not recommend using GLOB to collect a list of source files from
-  your source tree.  If no CMakeLists.txt file changes when a source is
-  added or removed then the generated build system cannot know when to
-  ask CMake to regenerate.
-
-Examples of globbing expressions include::
-
-  *.cxx      - match all files with extension cxx
-  *.vt?      - match all files with extension vta,...,vtz
-  f[3-5].txt - match files f3.txt, f4.txt, f5.txt
-
-The ``GLOB_RECURSE`` mode will traverse all the subdirectories of the
-matched directory and match the files.  Subdirectories that are symlinks
-are only traversed if ``FOLLOW_SYMLINKS`` is given or policy
-:policy:`CMP0009` is not set to ``NEW``.
-
-By default ``GLOB_RECURSE`` omits directories from result list - setting
-``LIST_DIRECTORIES`` to true adds directories to result list.
-If ``FOLLOW_SYMLINKS`` is given or policy :policy:`CMP0009` is not set to
-``OLD`` then ``LIST_DIRECTORIES`` treats symlinks as directories.
-
-Examples of recursive globbing include::
-
-  /dir/*.py  - match all python files in /dir and subdirectories
-
-------------------------------------------------------------------------------
-
-::
-
-  file(RENAME <oldname> <newname>)
-
-Move a file or directory within a filesystem from ``<oldname>`` to
-``<newname>``, replacing the destination atomically.
-
-------------------------------------------------------------------------------
-
-::
-
-  file(REMOVE [<files>...])
-  file(REMOVE_RECURSE [<files>...])
-
-Remove the given files.  The ``REMOVE_RECURSE`` mode will remove the given
-files and directories, also non-empty directories. No error is emitted if a
-given file does not exist.
-
-------------------------------------------------------------------------------
-
-::
-
-  file(MAKE_DIRECTORY [<directories>...])
-
-Create the given directories and their parents as needed.
-
-------------------------------------------------------------------------------
-
-::
-
-  file(RELATIVE_PATH <variable> <directory> <file>)
-
-Compute the relative path from a ``<directory>`` to a ``<file>`` and
-store it in the ``<variable>``.
-
-------------------------------------------------------------------------------
-
-::
-
-  file(TO_CMAKE_PATH "<path>" <variable>)
-  file(TO_NATIVE_PATH "<path>" <variable>)
-
-The ``TO_CMAKE_PATH`` mode converts a native ``<path>`` into a cmake-style
-path with forward-slashes (``/``).  The input can be a single path or a
-system search path like ``$ENV{PATH}``.  A search path will be converted
-to a cmake-style list separated by ``;`` characters.
-
-The ``TO_NATIVE_PATH`` mode converts a cmake-style ``<path>`` into a native
-path with platform-specific slashes (``\`` on Windows and ``/`` elsewhere).
-
-Always use double quotes around the ``<path>`` to be sure it is treated
-as a single argument to this command.
-
-------------------------------------------------------------------------------
-
-::
-
-  file(DOWNLOAD <url> <file> [<options>...])
-  file(UPLOAD   <file> <url> [<options>...])
-
-The ``DOWNLOAD`` mode downloads the given ``<url>`` to a local ``<file>``.
-The ``UPLOAD`` mode uploads a local ``<file>`` to a given ``<url>``.
-
-Options to both ``DOWNLOAD`` and ``UPLOAD`` are:
-
-``INACTIVITY_TIMEOUT <seconds>``
-  Terminate the operation after a period of inactivity.
-
-``LOG <variable>``
-  Store a human-readable log of the operation in a variable.
-
-``SHOW_PROGRESS``
-  Print progress information as status messages until the operation is
-  complete.
-
-``STATUS <variable>``
-  Store the resulting status of the operation in a variable.
-  The status is a ``;`` separated list of length 2.
-  The first element is the numeric return value for the operation,
-  and the second element is a string value for the error.
-  A ``0`` numeric error means no error in the operation.
-
-``TIMEOUT <seconds>``
-  Terminate the operation after a given total time has elapsed.
-
-``USERPWD <username>:<password>``
-  Set username and password for operation.
-
-``HTTPHEADER <HTTP-header>``
-  HTTP header for operation. Suboption can be repeated several times.
-
-Additional options to ``DOWNLOAD`` are:
-
-``EXPECTED_HASH ALGO=<value>``
-
-  Verify that the downloaded content hash matches the expected value, where
-  ``ALGO`` is one of the algorithms supported by ``file(<HASH>)``.
-  If it does not match, the operation fails with an error.
-
-``EXPECTED_MD5 <value>``
-  Historical short-hand for ``EXPECTED_HASH MD5=<value>``.
-
-``TLS_VERIFY <ON|OFF>``
-  Specify whether to verify the server certificate for ``https://`` URLs.
-  The default is to *not* verify.
-
-``TLS_CAINFO <file>``
-  Specify a custom Certificate Authority file for ``https://`` URLs.
-
-For ``https://`` URLs CMake must be built with OpenSSL support.  ``TLS/SSL``
-certificates are not checked by default.  Set ``TLS_VERIFY`` to ``ON`` to
-check certificates and/or use ``EXPECTED_HASH`` to verify downloaded content.
-If neither ``TLS`` option is given CMake will check variables
-``CMAKE_TLS_VERIFY`` and ``CMAKE_TLS_CAINFO``, respectively.
-
-------------------------------------------------------------------------------
-
-::
+.. code-block:: cmake
 
   file(TIMESTAMP <filename> <variable> [<format>] [UTC])
 
@@ -269,9 +130,47 @@ timestamp variable will be set to the empty string ("").
 See the :command:`string(TIMESTAMP)` command for documentation of
 the ``<format>`` and ``UTC`` options.
 
-------------------------------------------------------------------------------
+Writing
+^^^^^^^
 
-::
+.. _WRITE:
+.. _APPEND:
+
+.. code-block:: cmake
+
+  file(WRITE <filename> <content>...)
+  file(APPEND <filename> <content>...)
+
+Write ``<content>`` into a file called ``<filename>``.  If the file does
+not exist, it will be created.  If the file already exists, ``WRITE``
+mode will overwrite it and ``APPEND`` mode will append to the end.
+Any directories in the path specified by ``<filename>`` that do not
+exist will be created.
+
+If the file is a build input, use the :command:`configure_file` command
+to update the file only when its content changes.
+
+.. _TOUCH:
+.. _TOUCH_NOCREATE:
+
+.. code-block:: cmake
+
+  file(TOUCH [<files>...])
+  file(TOUCH_NOCREATE [<files>...])
+
+Create a file with no content if it does not yet exist. If the file already
+exists, its access and/or modification will be updated to the time when the
+function call is executed.
+
+Use TOUCH_NOCREATE to touch a file if it exists but not create it. If a file
+does not exist it will be silently ignored.
+
+With TOUCH and TOUCH_NOCREATE the contents of an existing file will not be
+modified.
+
+.. _GENERATE:
+
+.. code-block:: cmake
 
   file(GENERATE OUTPUT output-file
        <INPUT input-file|CONTENT content>
@@ -315,14 +214,105 @@ generation phase. The output file will not yet have been written when the
 ``file(GENERATE)`` command returns, it is written only after processing all
 of a project's ``CMakeLists.txt`` files.
 
-------------------------------------------------------------------------------
+Filesystem
+^^^^^^^^^^
 
-::
+.. _GLOB:
+.. _GLOB_RECURSE:
+
+.. code-block:: cmake
+
+  file(GLOB <variable>
+       [LIST_DIRECTORIES true|false] [RELATIVE <path>] [CONFIGURE_DEPENDS]
+       [<globbing-expressions>...])
+  file(GLOB_RECURSE <variable> [FOLLOW_SYMLINKS]
+       [LIST_DIRECTORIES true|false] [RELATIVE <path>] [CONFIGURE_DEPENDS]
+       [<globbing-expressions>...])
+
+Generate a list of files that match the ``<globbing-expressions>`` and
+store it into the ``<variable>``.  Globbing expressions are similar to
+regular expressions, but much simpler.  If ``RELATIVE`` flag is
+specified, the results will be returned as relative paths to the given
+path.  The results will be ordered lexicographically.
+
+If the ``CONFIGURE_DEPENDS`` flag is specified, CMake will add logic
+to the main build system check target to rerun the flagged ``GLOB`` commands
+at build time. If any of the outputs change, CMake will regenerate the build
+system.
+
+By default ``GLOB`` lists directories - directories are omitted in result if
+``LIST_DIRECTORIES`` is set to false.
+
+.. note::
+  We do not recommend using GLOB to collect a list of source files from
+  your source tree.  If no CMakeLists.txt file changes when a source is
+  added or removed then the generated build system cannot know when to
+  ask CMake to regenerate.
+  The ``CONFIGURE_DEPENDS`` flag may not work reliably on all generators, or if
+  a new generator is added in the future that cannot support it, projects using
+  it will be stuck. Even if ``CONFIGURE_DEPENDS`` works reliably, there is
+  still a cost to perform the check on every rebuild.
+
+Examples of globbing expressions include::
+
+  *.cxx      - match all files with extension cxx
+  *.vt?      - match all files with extension vta,...,vtz
+  f[3-5].txt - match files f3.txt, f4.txt, f5.txt
+
+The ``GLOB_RECURSE`` mode will traverse all the subdirectories of the
+matched directory and match the files.  Subdirectories that are symlinks
+are only traversed if ``FOLLOW_SYMLINKS`` is given or policy
+:policy:`CMP0009` is not set to ``NEW``.
+
+By default ``GLOB_RECURSE`` omits directories from result list - setting
+``LIST_DIRECTORIES`` to true adds directories to result list.
+If ``FOLLOW_SYMLINKS`` is given or policy :policy:`CMP0009` is not set to
+``OLD`` then ``LIST_DIRECTORIES`` treats symlinks as directories.
+
+Examples of recursive globbing include::
+
+  /dir/*.py  - match all python files in /dir and subdirectories
+
+.. _RENAME:
+
+.. code-block:: cmake
+
+  file(RENAME <oldname> <newname>)
+
+Move a file or directory within a filesystem from ``<oldname>`` to
+``<newname>``, replacing the destination atomically.
+
+.. _REMOVE:
+.. _REMOVE_RECURSE:
+
+.. code-block:: cmake
+
+  file(REMOVE [<files>...])
+  file(REMOVE_RECURSE [<files>...])
+
+Remove the given files.  The ``REMOVE_RECURSE`` mode will remove the given
+files and directories, also non-empty directories. No error is emitted if a
+given file does not exist.  Relative input paths are evaluated with respect
+to the current source directory.  Empty input paths are ignored with a warning.
+
+.. _MAKE_DIRECTORY:
+
+.. code-block:: cmake
+
+  file(MAKE_DIRECTORY [<directories>...])
+
+Create the given directories and their parents as needed.
+
+.. _COPY:
+.. _INSTALL:
+
+.. code-block:: cmake
 
   file(<COPY|INSTALL> <files>... DESTINATION <dir>
        [FILE_PERMISSIONS <permissions>...]
        [DIRECTORY_PERMISSIONS <permissions>...]
        [NO_SOURCE_PERMISSIONS] [USE_SOURCE_PERMISSIONS]
+       [FOLLOW_SYMLINK_CHAIN]
        [FILES_MATCHING]
        [[PATTERN <pattern> | REGEX <regex>]
         [EXCLUDE] [PERMISSIONS <permissions>...]] [...])
@@ -336,6 +326,32 @@ at the destination with the same timestamp.  Copying preserves input
 permissions unless explicit permissions or ``NO_SOURCE_PERMISSIONS``
 are given (default is ``USE_SOURCE_PERMISSIONS``).
 
+If ``FOLLOW_SYMLINK_CHAIN`` is specified, ``COPY`` will recursively resolve
+the symlinks at the paths given until a real file is found, and install
+a corresponding symlink in the destination for each symlink encountered. For
+each symlink that is installed, the resolution is stripped of the directory,
+leaving only the filename, meaning that the new symlink points to a file in
+the same directory as the symlink. This feature is useful on some Unix systems,
+where libraries are installed as a chain of symlinks with version numbers, with
+less specific versions pointing to more specific versions.
+``FOLLOW_SYMLINK_CHAIN`` will install all of these symlinks and the library
+itself into the destination directory. For example, if you have the following
+directory structure:
+
+* ``/opt/foo/lib/libfoo.so.1.2.3``
+* ``/opt/foo/lib/libfoo.so.1.2 -> libfoo.so.1.2.3``
+* ``/opt/foo/lib/libfoo.so.1 -> libfoo.so.1.2``
+* ``/opt/foo/lib/libfoo.so -> libfoo.so.1``
+
+and you do:
+
+.. code-block:: cmake
+
+  file(COPY /opt/foo/lib/libfoo.so DESTINATION lib FOLLOW_SYMLINK_CHAIN)
+
+This will install all of the symlinks and ``libfoo.so.1.2.3`` itself into
+``lib``.
+
 See the :command:`install(DIRECTORY)` command for documentation of
 permissions, ``FILES_MATCHING``, ``PATTERN``, ``REGEX``, and
 ``EXCLUDE`` options.  Copying directories preserves the structure
@@ -348,9 +364,189 @@ and ``NO_SOURCE_PERMISSIONS`` is default.
 Installation scripts generated by the :command:`install` command
 use this signature (with some undocumented options for internal use).
 
-------------------------------------------------------------------------------
+.. _SIZE:
 
-::
+.. code-block:: cmake
+
+  file(SIZE <filename> <variable>)
+
+Determine the file size of the ``<filename>`` and put the result in
+``<variable>`` variable. Requires that ``<filename>`` is a valid path
+pointing to a file and is readable.
+
+.. _READ_SYMLINK:
+
+.. code-block:: cmake
+
+  file(READ_SYMLINK <linkname> <variable>)
+
+This subcommand queries the symlink ``<linkname>`` and stores the path it
+points to in the result ``<variable>``.  If ``<linkname>`` does not exist or
+is not a symlink, CMake issues a fatal error.
+
+Note that this command returns the raw symlink path and does not resolve
+a relative path.  The following is an example of how to ensure that an
+absolute path is obtained:
+
+.. code-block:: cmake
+
+  set(linkname "/path/to/foo.sym")
+  file(READ_SYMLINK "${linkname}" result)
+  if(NOT IS_ABSOLUTE "${result}")
+    get_filename_component(dir "${linkname}" DIRECTORY)
+    set(result "${dir}/${result}")
+  endif()
+
+.. _CREATE_LINK:
+
+.. code-block:: cmake
+
+  file(CREATE_LINK <original> <linkname>
+       [RESULT <result>] [COPY_ON_ERROR] [SYMBOLIC])
+
+Create a link ``<linkname>`` that points to ``<original>``.
+It will be a hard link by default, but providing the ``SYMBOLIC`` option
+results in a symbolic link instead.  Hard links require that ``original``
+exists and is a file, not a directory.  If ``<linkname>`` already exists,
+it will be overwritten.
+
+The ``<result>`` variable, if specified, receives the status of the operation.
+It is set to ``0`` upon success or an error message otherwise.  If ``RESULT``
+is not specified and the operation fails, a fatal error is emitted.
+
+Specifying ``COPY_ON_ERROR`` enables copying the file as a fallback if
+creating the link fails.  It can be useful for handling situations such as
+``<original>`` and ``<linkname>`` being on different drives or mount points,
+which would make them unable to support a hard link.
+
+Path Conversion
+^^^^^^^^^^^^^^^
+
+.. _RELATIVE_PATH:
+
+.. code-block:: cmake
+
+  file(RELATIVE_PATH <variable> <directory> <file>)
+
+Compute the relative path from a ``<directory>`` to a ``<file>`` and
+store it in the ``<variable>``.
+
+.. _TO_CMAKE_PATH:
+.. _TO_NATIVE_PATH:
+
+.. code-block:: cmake
+
+  file(TO_CMAKE_PATH "<path>" <variable>)
+  file(TO_NATIVE_PATH "<path>" <variable>)
+
+The ``TO_CMAKE_PATH`` mode converts a native ``<path>`` into a cmake-style
+path with forward-slashes (``/``).  The input can be a single path or a
+system search path like ``$ENV{PATH}``.  A search path will be converted
+to a cmake-style list separated by ``;`` characters.
+
+The ``TO_NATIVE_PATH`` mode converts a cmake-style ``<path>`` into a native
+path with platform-specific slashes (``\`` on Windows and ``/`` elsewhere).
+
+Always use double quotes around the ``<path>`` to be sure it is treated
+as a single argument to this command.
+
+Transfer
+^^^^^^^^
+
+.. _DOWNLOAD:
+.. _UPLOAD:
+
+.. code-block:: cmake
+
+  file(DOWNLOAD <url> <file> [<options>...])
+  file(UPLOAD   <file> <url> [<options>...])
+
+The ``DOWNLOAD`` mode downloads the given ``<url>`` to a local ``<file>``.
+The ``UPLOAD`` mode uploads a local ``<file>`` to a given ``<url>``.
+
+Options to both ``DOWNLOAD`` and ``UPLOAD`` are:
+
+``INACTIVITY_TIMEOUT <seconds>``
+  Terminate the operation after a period of inactivity.
+
+``LOG <variable>``
+  Store a human-readable log of the operation in a variable.
+
+``SHOW_PROGRESS``
+  Print progress information as status messages until the operation is
+  complete.
+
+``STATUS <variable>``
+  Store the resulting status of the operation in a variable.
+  The status is a ``;`` separated list of length 2.
+  The first element is the numeric return value for the operation,
+  and the second element is a string value for the error.
+  A ``0`` numeric error means no error in the operation.
+
+``TIMEOUT <seconds>``
+  Terminate the operation after a given total time has elapsed.
+
+``USERPWD <username>:<password>``
+  Set username and password for operation.
+
+``HTTPHEADER <HTTP-header>``
+  HTTP header for operation. Suboption can be repeated several times.
+
+``NETRC <level>``
+  Specify whether the .netrc file is to be used for operation.  If this
+  option is not specified, the value of the ``CMAKE_NETRC`` variable
+  will be used instead.
+  Valid levels are:
+
+  ``IGNORED``
+    The .netrc file is ignored.
+    This is the default.
+  ``OPTIONAL``
+    The .netrc file is optional, and information in the URL is preferred.
+    The file will be scanned to find which ever information is not specified
+    in the URL.
+  ``REQUIRED``
+    The .netrc file is required, and information in the URL is ignored.
+
+``NETRC_FILE <file>``
+  Specify an alternative .netrc file to the one in your home directory,
+  if the ``NETRC`` level is ``OPTIONAL`` or ``REQUIRED``. If this option
+  is not specified, the value of the ``CMAKE_NETRC_FILE`` variable will
+  be used instead.
+
+If neither ``NETRC`` option is given CMake will check variables
+``CMAKE_NETRC`` and ``CMAKE_NETRC_FILE``, respectively.
+
+Additional options to ``DOWNLOAD`` are:
+
+``EXPECTED_HASH ALGO=<value>``
+
+  Verify that the downloaded content hash matches the expected value, where
+  ``ALGO`` is one of the algorithms supported by ``file(<HASH>)``.
+  If it does not match, the operation fails with an error.
+
+``EXPECTED_MD5 <value>``
+  Historical short-hand for ``EXPECTED_HASH MD5=<value>``.
+
+``TLS_VERIFY <ON|OFF>``
+  Specify whether to verify the server certificate for ``https://`` URLs.
+  The default is to *not* verify.
+
+``TLS_CAINFO <file>``
+  Specify a custom Certificate Authority file for ``https://`` URLs.
+
+For ``https://`` URLs CMake must be built with OpenSSL support.  ``TLS/SSL``
+certificates are not checked by default.  Set ``TLS_VERIFY`` to ``ON`` to
+check certificates and/or use ``EXPECTED_HASH`` to verify downloaded content.
+If neither ``TLS`` option is given CMake will check variables
+``CMAKE_TLS_VERIFY`` and ``CMAKE_TLS_CAINFO``, respectively.
+
+Locking
+^^^^^^^
+
+.. _LOCK:
+
+.. code-block:: cmake
 
   file(LOCK <path> [DIRECTORY] [RELEASE]
        [GUARD <FUNCTION|FILE|PROCESS>]

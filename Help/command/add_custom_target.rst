@@ -3,7 +3,7 @@ add_custom_target
 
 Add a target with no output so it will always be built.
 
-::
+.. code-block:: cmake
 
   add_custom_target(Name [ALL] [command1 [args1...]]
                     [COMMAND command2 [args2...] ...]
@@ -11,6 +11,7 @@ Add a target with no output so it will always be built.
                     [BYPRODUCTS [files...]]
                     [WORKING_DIRECTORY dir]
                     [COMMENT comment]
+                    [JOB_POOL job_pool]
                     [VERBATIM] [USES_TERMINAL]
                     [COMMAND_EXPAND_LISTS]
                     [SOURCES src1 [src2...]])
@@ -97,6 +98,13 @@ The options are:
   ``${CC} "-I$<JOIN:$<TARGET_PROPERTY:foo,INCLUDE_DIRECTORIES>,;-I>" foo.cc``
   to be properly expanded.
 
+``JOB_POOL``
+  Specify a :prop_gbl:`pool <JOB_POOLS>` for the :generator:`Ninja`
+  generator. Incompatible with ``USES_TERMINAL``, which implies
+  the ``console`` pool.
+  Using a pool that is not defined by :prop_gbl:`JOB_POOLS` causes
+  an error by ninja at build time.
+
 ``SOURCES``
   Specify additional source files to be included in the custom target.
   Specified source files will be added to IDE project files for
@@ -121,3 +129,6 @@ The options are:
   Execute the command with the given current working directory.
   If it is a relative path it will be interpreted relative to the
   build tree directory corresponding to the current source directory.
+
+  Arguments to ``WORKING_DIRECTORY`` may use
+  :manual:`generator expressions <cmake-generator-expressions(7)>`.

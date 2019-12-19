@@ -4,7 +4,10 @@
 
 #include <algorithm>
 #include <set>
+#include <utility>
 
+#include "cmAlgorithms.h"
+#include "cmGeneratorExpression.h"
 #include "cmMakefile.h"
 #include "cmSystemTools.h"
 
@@ -50,11 +53,9 @@ bool cmIncludeDirectoryCommand::InitialPass(
     this->GetIncludes(*i, includes);
 
     if (before) {
-      beforeIncludes.insert(beforeIncludes.end(), includes.begin(),
-                            includes.end());
+      cmAppend(beforeIncludes, includes);
     } else {
-      afterIncludes.insert(afterIncludes.end(), includes.begin(),
-                           includes.end());
+      cmAppend(afterIncludes, includes);
     }
     if (system) {
       systemIncludes.insert(includes.begin(), includes.end());
@@ -69,15 +70,10 @@ bool cmIncludeDirectoryCommand::InitialPass(
   return true;
 }
 
-static bool StartsWithGeneratorExpression(const std::string& input)
-{
-  return input[0] == '$' && input[1] == '<';
-}
-
 // do a lot of cleanup on the arguments because this is one place where folks
 // sometimes take the output of a program and pass it directly into this
 // command not thinking that a single argument could be filled with spaces
-// and newlines etc liek below:
+// and newlines etc like below:
 //
 // "   /foo/bar
 //    /boo/hoo /dingle/berry "
@@ -97,7 +93,7 @@ void cmIncludeDirectoryCommand::GetIncludes(const std::string& arg,
       std::string inc = arg.substr(lastPos, pos);
       this->NormalizeInclude(inc);
       if (!inc.empty()) {
-        incs.push_back(inc);
+        incs.push_back(std::move(inc));
       }
     }
     lastPos = pos + 1;
@@ -105,7 +101,7 @@ void cmIncludeDirectoryCommand::GetIncludes(const std::string& arg,
   std::string inc = arg.substr(lastPos);
   this->NormalizeInclude(inc);
   if (!inc.empty()) {
-    incs.push_back(inc);
+    incs.push_back(std::move(inc));
   }
 }
 
@@ -120,11 +116,11 @@ void cmIncludeDirectoryCommand::NormalizeInclude(std::string& inc)
     return;
   }
 
-  if (!cmSystemTools::IsOff(inc.c_str())) {
+  if (!cmSystemTools::IsOff(inc)) {
     cmSystemTools::ConvertToUnixSlashes(inc);
 
-    if (!cmSystemTools::FileIsFullPath(inc.c_str())) {
-      if (!StartsWithGeneratorExpression(inc)) {
+    if (!cmSystemTools::FileIsFullPath(inc)) {
+      if (!cmGeneratorExpression::StartsWithGeneratorExpression(inc)) {
         std::string tmp = this->Makefile->GetCurrentSourceDirectory();
         tmp += "/";
         tmp += inc;

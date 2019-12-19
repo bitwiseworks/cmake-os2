@@ -4,11 +4,12 @@
 #define cmFortranParser_h
 
 #if !defined(cmFortranLexer_cxx) && !defined(cmFortranParser_cxx)
-#include "cmConfigure.h" // IWYU pragma: keep
+#  include "cmConfigure.h" // IWYU pragma: keep
 
-#include <set>
-#include <string>
-#include <vector>
+#  include <set>
+#  include <string>
+#  include <utility>
+#  include <vector>
 #endif
 
 #include <stddef.h> /* size_t */
@@ -39,11 +40,19 @@ int cmFortranParser_GetOldStartcond(cmFortranParser* parser);
 
 /* Callbacks for parser.  */
 void cmFortranParser_Error(cmFortranParser* parser, const char* message);
-void cmFortranParser_RuleUse(cmFortranParser* parser, const char* name);
+void cmFortranParser_RuleUse(cmFortranParser* parser, const char* module_name);
 void cmFortranParser_RuleLineDirective(cmFortranParser* parser,
                                        const char* filename);
 void cmFortranParser_RuleInclude(cmFortranParser* parser, const char* name);
-void cmFortranParser_RuleModule(cmFortranParser* parser, const char* name);
+void cmFortranParser_RuleModule(cmFortranParser* parser,
+                                const char* module_name);
+void cmFortranParser_RuleSubmodule(cmFortranParser* parser,
+                                   const char* module_name,
+                                   const char* submodule_name);
+void cmFortranParser_RuleSubmoduleNested(cmFortranParser* parser,
+                                         const char* module_name,
+                                         const char* submodule_name,
+                                         const char* nested_submodule_name);
 void cmFortranParser_RuleDefine(cmFortranParser* parser, const char* name);
 void cmFortranParser_RuleUndef(cmFortranParser* parser, const char* name);
 void cmFortranParser_RuleIfdef(cmFortranParser* parser, const char* name);
@@ -65,20 +74,20 @@ struct cmFortran_yystype
 #define YYSTYPE cmFortran_yystype
 #define YYSTYPE_IS_DECLARED 1
 #if !defined(cmFortranLexer_cxx)
-#define YY_NO_UNISTD_H
-#include "cmFortranLexer.h"
+#  define YY_NO_UNISTD_H
+#  include "cmFortranLexer.h"
 #endif
 #if !defined(cmFortranLexer_cxx)
-#if !defined(cmFortranParser_cxx)
-#undef YY_EXTRA_TYPE
-#undef YY_DECL
-#undef YYSTYPE
-#undef YYSTYPE_IS_DECLARED
-#endif
+#  if !defined(cmFortranParser_cxx)
+#    undef YY_EXTRA_TYPE
+#    undef YY_DECL
+#    undef YYSTYPE
+#    undef YYSTYPE_IS_DECLARED
+#  endif
 #endif
 
 #if !defined(cmFortranLexer_cxx) && !defined(cmFortranParser_cxx)
-#include <stack>
+#  include <stack>
 
 // Information about a single source file.
 class cmFortranSourceInfo
@@ -106,10 +115,10 @@ int cmFortran_yyparse(yyscan_t);
 // Define parser object internal structure.
 struct cmFortranFile
 {
-  cmFortranFile(FILE* file, YY_BUFFER_STATE buffer, const std::string& dir)
+  cmFortranFile(FILE* file, YY_BUFFER_STATE buffer, std::string dir)
     : File(file)
     , Buffer(buffer)
-    , Directory(dir)
+    , Directory(std::move(dir))
     , LastCharWasNewline(false)
   {
   }
@@ -119,15 +128,31 @@ struct cmFortranFile
   bool LastCharWasNewline;
 };
 
+struct cmFortranCompiler
+{
+  std::string Id;
+  std::string SModSep;
+  std::string SModExt;
+};
+
 struct cmFortranParser_s
 {
-  cmFortranParser_s(std::vector<std::string> const& includes,
-                    std::set<std::string> const& defines,
-                    cmFortranSourceInfo& info);
+  cmFortranParser_s(cmFortranCompiler fc, std::vector<std::string> includes,
+                    std::set<std::string> defines, cmFortranSourceInfo& info);
   ~cmFortranParser_s();
+
+  cmFortranParser_s(const cmFortranParser_s&) = delete;
+  cmFortranParser_s& operator=(const cmFortranParser_s&) = delete;
 
   bool FindIncludeFile(const char* dir, const char* includeName,
                        std::string& fileName);
+
+  std::string ModName(std::string const& mod_name) const;
+  std::string SModName(std::string const& mod_name,
+                       std::string const& sub_name) const;
+
+  // What compiler.
+  cmFortranCompiler Compiler;
 
   // The include file search path.
   std::vector<std::string> IncludePath;
