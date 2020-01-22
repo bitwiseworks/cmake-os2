@@ -1525,7 +1525,11 @@ public:
     long OldPercentage = this->CurrentPercentage;
 
     if (total > 0.0) {
+#ifdef __OS2__
+      this->CurrentPercentage = lround(value / total * 100.0);
+#else
       this->CurrentPercentage = std::lround(value / total * 100.0);
+#endif
       if (this->CurrentPercentage > 100) {
         // Avoid extra progress reports for unexpected data beyond total.
         this->CurrentPercentage = 100;

@@ -545,7 +545,11 @@ int cmCTestTestHandler::ProcessHandler()
     }
     cmCTestLog(this->CTest, HANDLER_OUTPUT,
                std::endl
+#ifdef __OS2__
+                 << passColorCode << lround(percent) << "% tests passed"
+#else
                  << passColorCode << std::lround(percent) << "% tests passed"
+#endif
                  << this->CTest->GetColorCode(cmCTest::Color::CLEAR_COLOR)
                  << ", " << failedColorCode << failed.size() << " tests failed"
                  << this->CTest->GetColorCode(cmCTest::Color::CLEAR_COLOR)
