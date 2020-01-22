@@ -30,6 +30,10 @@ int cmGetPipes(int* fds)
 #else
 #  include <errno.h>
 #  include <unistd.h>
+#  ifdef __OS2__
+#    include <sys/socket.h>
+#    define pipe(A) socketpair(AF_UNIX, SOCK_STREAM, 0, A)
+#  endif
 
 int cmGetPipes(int* fds)
 {
