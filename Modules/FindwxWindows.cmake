@@ -1,84 +1,87 @@
 # Distributed under the OSI-approved BSD 3-Clause License.  See accompanying
 # file Copyright.txt or https://cmake.org/licensing for details.
 
-#.rst:
-# FindwxWindows
-# -------------
-#
-# Find wxWindows (wxWidgets) installation
-#
-# This module finds if wxWindows/wxWidgets is installed and determines
-# where the include files and libraries are.  It also determines what
-# the name of the library is.  Please note this file is DEPRECATED and
-# replaced by FindwxWidgets.cmake.  This code sets the following
-# variables:
-#
-# ::
-#
-#   WXWINDOWS_FOUND     = system has WxWindows
-#   WXWINDOWS_LIBRARIES = path to the wxWindows libraries
-#                         on Unix/Linux with additional
-#                         linker flags from
-#                         "wx-config --libs"
-#   CMAKE_WXWINDOWS_CXX_FLAGS  = Compiler flags for wxWindows,
-#                                essentially "`wx-config --cxxflags`"
-#                                on Linux
-#   WXWINDOWS_INCLUDE_DIR      = where to find "wx/wx.h" and "wx/setup.h"
-#   WXWINDOWS_LINK_DIRECTORIES = link directories, useful for rpath on
-#                                 Unix
-#   WXWINDOWS_DEFINITIONS      = extra defines
-#
-#
-#
-# OPTIONS If you need OpenGL support please
-#
-# ::
-#
-#   set(WXWINDOWS_USE_GL 1)
-#
-# in your CMakeLists.txt *before* you include this file.
-#
-# ::
-#
-#   HAVE_ISYSTEM      - true required to replace -I by -isystem on g++
-#
-#
-#
-# For convenience include Use_wxWindows.cmake in your project's
-# CMakeLists.txt using
-# include(${CMAKE_CURRENT_LIST_DIR}/Use_wxWindows.cmake).
-#
-# USAGE
-#
-# ::
-#
-#   set(WXWINDOWS_USE_GL 1)
-#   find_package(wxWindows)
-#
-#
-#
-# NOTES wxWidgets 2.6.x is supported for monolithic builds e.g.
-# compiled in wx/build/msw dir as:
-#
-# ::
-#
-#   nmake -f makefile.vc BUILD=debug SHARED=0 USE_OPENGL=1 MONOLITHIC=1
-#
-#
-#
-# DEPRECATED
-#
-# ::
-#
-#   CMAKE_WX_CAN_COMPILE
-#   WXWINDOWS_LIBRARY
-#   CMAKE_WX_CXX_FLAGS
-#   WXWINDOWS_INCLUDE_PATH
-#
-#
-#
-# AUTHOR Jan Woetzel <http://www.mip.informatik.uni-kiel.de/~jw>
-# (07/2003-01/2006)
+#[=======================================================================[.rst:
+FindwxWindows
+-------------
+
+.. deprecated:: 3.0
+
+  Replaced by :module:`FindwxWidgets`.
+
+Find wxWindows (wxWidgets) installation
+
+This module finds if wxWindows/wxWidgets is installed and determines
+where the include files and libraries are.  It also determines what
+the name of the library is.  This code sets the following variables:
+
+::
+
+  WXWINDOWS_FOUND     = system has WxWindows
+  WXWINDOWS_LIBRARIES = path to the wxWindows libraries
+                        on Unix/Linux with additional
+                        linker flags from
+                        "wx-config --libs"
+  CMAKE_WXWINDOWS_CXX_FLAGS  = Compiler flags for wxWindows,
+                               essentially "`wx-config --cxxflags`"
+                               on Linux
+  WXWINDOWS_INCLUDE_DIR      = where to find "wx/wx.h" and "wx/setup.h"
+  WXWINDOWS_LINK_DIRECTORIES = link directories, useful for rpath on
+                                Unix
+  WXWINDOWS_DEFINITIONS      = extra defines
+
+
+
+OPTIONS If you need OpenGL support please
+
+::
+
+  set(WXWINDOWS_USE_GL 1)
+
+in your CMakeLists.txt *before* you include this file.
+
+::
+
+  HAVE_ISYSTEM      - true required to replace -I by -isystem on g++
+
+
+
+For convenience include Use_wxWindows.cmake in your project's
+CMakeLists.txt using
+include(${CMAKE_CURRENT_LIST_DIR}/Use_wxWindows.cmake).
+
+USAGE
+
+::
+
+  set(WXWINDOWS_USE_GL 1)
+  find_package(wxWindows)
+
+
+
+NOTES wxWidgets 2.6.x is supported for monolithic builds e.g.
+compiled in wx/build/msw dir as:
+
+::
+
+  nmake -f makefile.vc BUILD=debug SHARED=0 USE_OPENGL=1 MONOLITHIC=1
+
+
+
+DEPRECATED
+
+::
+
+  CMAKE_WX_CAN_COMPILE
+  WXWINDOWS_LIBRARY
+  CMAKE_WX_CXX_FLAGS
+  WXWINDOWS_INCLUDE_PATH
+
+
+
+AUTHOR Jan Woetzel <http://www.mip.informatik.uni-kiel.de/~jw>
+(07/2003-01/2006)
+#]=======================================================================]
 
 # ------------------------------------------------------------------
 #
@@ -390,7 +393,7 @@ if(WIN32_STYLE_FIND)
 
   if (NOT WXWINDOWS_USE_SHARED_LIBS)
     set(WXWINDOWS_LIBRARIES ${WXWINDOWS_LIBRARIES}
-      ##  these ones dont seem required, in particular  ctl3d32 is not neccesary (Jan Woetzel 07/2003)
+      ##  these ones don't seem required, in particular  ctl3d32 is not necessary (Jan Woetzel 07/2003)
       #   ctl3d32
       debug ${WXWINDOWS_STATIC_DEBUG_LIBRARY_ZLIB}   optimized ${WXWINDOWS_STATIC_LIBRARY_ZLIB}
       debug ${WXWINDOWS_STATIC_DEBUG_LIBRARY_REGEX}  optimized ${WXWINDOWS_STATIC_LIBRARY_REGEX}
@@ -546,7 +549,7 @@ if(WIN32_STYLE_FIND)
   endif()
 
 
-  ## not neccessary in wxWindows 2.4.1 and 2.6.2
+  ## not necessary in wxWindows 2.4.1 and 2.6.2
   ## but it may fix a previous bug, see
   ## http://lists.wxwindows.org/cgi-bin/ezmlm-cgi?8:mss:37574:200305:mpdioeneabobmgjenoap
   option(WXWINDOWS_SET_DEFINITIONS "Set additional defines for wxWindows" OFF)
@@ -617,7 +620,8 @@ else()
 
     # wx-config should be in your path anyhow, usually no need to set WXWIN or
     # search in ../wx or ../../wx
-    find_program(CMAKE_WXWINDOWS_WXCONFIG_EXECUTABLE wx-config
+    find_program(CMAKE_WXWINDOWS_WXCONFIG_EXECUTABLE
+      NAMES $ENV{WX_CONFIG} wx-config
       HINTS
         ENV WXWIN
         $ENV{WXWIN}/bin

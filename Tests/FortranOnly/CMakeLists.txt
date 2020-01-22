@@ -12,6 +12,12 @@ add_executable(FortranOnly1 testf.f)
 set_property(TARGET FortranOnly1 PROPERTY OUTPUT_NAME FortranOnly)
 target_link_libraries(FortranOnly1 FortranOnlylib)
 
+# Test that Fortran+RC work together.
+# FIXME: Add .rc in more cases.
+if(CMAKE_GENERATOR MATCHES "Visual Studio")
+  set(test_rc testRC.rc)
+endif()
+
 # create a custom command that runs FortranOnly1 and puts
 # the output into the file testfhello.txt
 add_custom_command(OUTPUT ${FortranOnly_BINARY_DIR}/testfhello.txt
@@ -20,7 +26,7 @@ add_custom_command(OUTPUT ${FortranOnly_BINARY_DIR}/testfhello.txt
 # create a second executable FortranOnly2 that has
 # testfhello.txt has an source file so that it will
 # run the above custom command.
-add_executable(FortranOnly2 testfhello.txt testf.f)
+add_executable(FortranOnly2 testfhello.txt testf.f ${test_rc})
 target_link_libraries(FortranOnly2 FortranOnlylib)
 # create a custom target to check the content of testfhello.txt
 # by running the cmake script checktestf2.cmake
@@ -28,7 +34,7 @@ add_custom_target(checktestf2 ALL
   COMMAND ${CMAKE_COMMAND}
   -P ${FortranOnly_SOURCE_DIR}/checktestf2.cmake)
 
-# create a custom target that runs FortranOnly1 exectuable and creates
+# create a custom target that runs FortranOnly1 executable and creates
 # a file out.txt that should have hello world in it.
 add_custom_target(sayhello ALL
   COMMAND FortranOnly1 > out.txt
@@ -38,7 +44,7 @@ add_dependencies(checktestf2 FortranOnly2)
 add_dependencies(sayhello FortranOnly1)
 add_dependencies(FortranOnly2 FortranOnly1)
 
-# add a custom target that checkes that out.txt has the correct
+# add a custom target that checks that out.txt has the correct
 # content
 add_custom_target(checksayhello ALL
   COMMAND ${CMAKE_COMMAND} -P ${FortranOnly_SOURCE_DIR}/checksayhello.cmake
@@ -70,8 +76,15 @@ if(NOT CMAKE_Fortran_COMPILER_ID STREQUAL XL)
   include(CheckFortranCompilerFlag)
   CHECK_Fortran_COMPILER_FLAG(-_this_is_not_a_flag_ Fortran_BOGUS_FLAG)
   if (Fortran_BOGUS_FLAG)
-    message (SEND_ERROR "CHECK_Fortran_COMPILER_FLAG() succeeded, but should have failed")
-  endif ()
+    message(SEND_ERROR "CHECK_Fortran_COMPILER_FLAG() succeeded, but should have failed")
+  endif()
+
+  unset(Fortran_RUN_FLAG CACHE)
+  include(CheckFortranSourceRuns)
+  check_fortran_source_runs("program a; end program" Fortran_RUN_FLAG SRC_EXT F90)
+  if(NOT Fortran_RUN_FLAG)
+    message(SEND_ERROR "CHECK_Fortran_SOURCE_RUNS() failed")
+  endif()
 endif()
 
 # Test generation of preprocessed sources.

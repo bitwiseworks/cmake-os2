@@ -8,13 +8,9 @@
 #include "cmCPackLog.h"
 #include "cmSystemTools.h"
 
-cmCPackBundleGenerator::cmCPackBundleGenerator()
-{
-}
+cmCPackBundleGenerator::cmCPackBundleGenerator() = default;
 
-cmCPackBundleGenerator::~cmCPackBundleGenerator()
-{
-}
+cmCPackBundleGenerator::~cmCPackBundleGenerator() = default;
 
 int cmCPackBundleGenerator::InitializeInternal()
 {
@@ -32,8 +28,8 @@ int cmCPackBundleGenerator::InitializeInternal()
       "codesign", std::vector<std::string>(), false);
 
     if (codesign_path.empty()) {
-      cmCPackLogger(cmCPackLog::LOG_ERROR, "Cannot locate codesign command"
-                      << std::endl);
+      cmCPackLogger(cmCPackLog::LOG_ERROR,
+                    "Cannot locate codesign command" << std::endl);
       return 0;
     }
     this->SetOptionIfNotSet("CPACK_COMMAND_CODESIGN", codesign_path.c_str());
@@ -59,8 +55,8 @@ int cmCPackBundleGenerator::ConstructBundle()
     ? this->GetOption("CPACK_BUNDLE_NAME")
     : "";
   if (cpack_bundle_name.empty()) {
-    cmCPackLogger(cmCPackLog::LOG_ERROR, "CPACK_BUNDLE_NAME must be set."
-                    << std::endl);
+    cmCPackLogger(cmCPackLog::LOG_ERROR,
+                  "CPACK_BUNDLE_NAME must be set." << std::endl);
 
     return 0;
   }
@@ -69,8 +65,8 @@ int cmCPackBundleGenerator::ConstructBundle()
     ? this->GetOption("CPACK_BUNDLE_PLIST")
     : "";
   if (cpack_bundle_plist.empty()) {
-    cmCPackLogger(cmCPackLog::LOG_ERROR, "CPACK_BUNDLE_PLIST must be set."
-                    << std::endl);
+    cmCPackLogger(cmCPackLog::LOG_ERROR,
+                  "CPACK_BUNDLE_PLIST must be set." << std::endl);
 
     return 0;
   }
@@ -79,8 +75,8 @@ int cmCPackBundleGenerator::ConstructBundle()
     ? this->GetOption("CPACK_BUNDLE_ICON")
     : "";
   if (cpack_bundle_icon.empty()) {
-    cmCPackLogger(cmCPackLog::LOG_ERROR, "CPACK_BUNDLE_ICON must be set."
-                    << std::endl);
+    cmCPackLogger(cmCPackLog::LOG_ERROR,
+                  "CPACK_BUNDLE_ICON must be set." << std::endl);
 
     return 0;
   }
@@ -269,8 +265,8 @@ int cmCPackBundleGenerator::SignBundle(const std::string& src_dir)
       return 0;
     }
 
-    cmCPackLogger(cmCPackLog::LOG_OUTPUT, "- Application has been codesigned"
-                    << std::endl);
+    cmCPackLogger(cmCPackLog::LOG_OUTPUT,
+                  "- Application has been codesigned" << std::endl);
     cmCPackLogger(cmCPackLog::LOG_VERBOSE,
                   (this->GetOption("CPACK_BUNDLE_APPLE_ENTITLEMENTS")
                      ? "with entitlement sandboxing"

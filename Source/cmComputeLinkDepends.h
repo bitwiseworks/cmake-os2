@@ -31,27 +31,16 @@ public:
                        const std::string& config);
   ~cmComputeLinkDepends();
 
+  cmComputeLinkDepends(const cmComputeLinkDepends&) = delete;
+  cmComputeLinkDepends& operator=(const cmComputeLinkDepends&) = delete;
+
   // Basic information about each link item.
   struct LinkEntry
   {
     std::string Item;
-    cmGeneratorTarget const* Target;
-    bool IsSharedDep;
-    bool IsFlag;
-    LinkEntry()
-      : Item()
-      , Target(nullptr)
-      , IsSharedDep(false)
-      , IsFlag(false)
-    {
-    }
-    LinkEntry(LinkEntry const& r)
-      : Item(r.Item)
-      , Target(r.Target)
-      , IsSharedDep(r.IsSharedDep)
-      , IsFlag(r.IsFlag)
-    {
-    }
+    cmGeneratorTarget const* Target = nullptr;
+    bool IsSharedDep = false;
+    bool IsFlag = false;
   };
 
   typedef std::vector<LinkEntry> EntryVector;
@@ -72,19 +61,18 @@ private:
   std::string Config;
   EntryVector FinalLinkEntries;
 
-  std::map<std::string, int>::iterator AllocateLinkEntry(
-    std::string const& item);
+  std::map<cmLinkItem, int>::iterator AllocateLinkEntry(
+    cmLinkItem const& item);
   int AddLinkEntry(cmLinkItem const& item);
   void AddVarLinkEntries(int depender_index, const char* value);
   void AddDirectLinkEntries();
   template <typename T>
   void AddLinkEntries(int depender_index, std::vector<T> const& libs);
-  cmGeneratorTarget const* FindTargetToLink(int depender_index,
-                                            const std::string& name);
+  cmLinkItem ResolveLinkItem(int depender_index, const std::string& name);
 
   // One entry for each unique item.
   std::vector<LinkEntry> EntryList;
-  std::map<std::string, int> LinkEntryIndex;
+  std::map<cmLinkItem, int> LinkEntryIndex;
 
   // BFS of initial dependencies.
   struct BFSEntry

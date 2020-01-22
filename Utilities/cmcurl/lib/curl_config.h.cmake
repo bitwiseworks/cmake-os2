@@ -118,6 +118,9 @@
 /* Define to 1 if bool is an available type. */
 #cmakedefine HAVE_BOOL_T 1
 
+/* Define to 1 if you have the __builtin_available function. */
+#cmakedefine HAVE_BUILTIN_AVAILABLE 1
+
 /* Define to 1 if you have the clock_gettime function and monotonic timer. */
 #cmakedefine HAVE_CLOCK_GETTIME_MONOTONIC 1
 
@@ -223,8 +226,17 @@
 /* Define to 1 if you have the `getprotobyname' function. */
 #cmakedefine HAVE_GETPROTOBYNAME 1
 
+/* Define to 1 if you have the `getpeername' function. */
+#cmakedefine HAVE_GETPEERNAME 1
+
+/* Define to 1 if you have the `getsockname' function. */
+#cmakedefine HAVE_GETSOCKNAME 1
+
 /* Define to 1 if you have the `getpwuid' function. */
 #cmakedefine HAVE_GETPWUID 1
+
+/* Define to 1 if you have the `getpwuid_r' function. */
+#cmakedefine HAVE_GETPWUID_R 1
 
 /* Define to 1 if you have the `getrlimit' function. */
 #cmakedefine HAVE_GETRLIMIT 1
@@ -389,8 +401,8 @@
 /* if zlib is available */
 #cmakedefine HAVE_LIBZ 1
 
-/* Define to 1 if you have the <limits.h> header file. */
-#cmakedefine HAVE_LIMITS_H 1
+/* if brotli is available */
+#cmakedefine HAVE_BROTLI 1
 
 /* if your compiler supports LL */
 #cmakedefine HAVE_LL 1
@@ -876,6 +888,12 @@
 /* The size of `long', as computed by sizeof. */
 @SIZEOF_LONG_CODE@
 
+/* The size of `long long', as computed by sizeof. */
+@SIZEOF_LONG_LONG_CODE@
+
+/* The size of `__int64', as computed by sizeof. */
+@SIZEOF___INT64_CODE@
+
 /* The size of `off_t', as computed by sizeof. */
 @SIZEOF_OFF_T_CODE@
 
@@ -918,8 +936,8 @@
 /* if PolarSSL is enabled */
 #cmakedefine USE_POLARSSL 1
 
-/* if DarwinSSL is enabled */
-#cmakedefine USE_DARWINSSL 1
+/* if Secure Transport is enabled */
+#cmakedefine USE_SECTRANSP 1
 
 /* if mbedTLS is enabled */
 #cmakedefine USE_MBEDTLS 1
@@ -950,6 +968,9 @@
 
 /* to enable Windows SSL  */
 #cmakedefine USE_SCHANNEL 1
+
+/* enable multiple SSL backends */
+#cmakedefine CURL_WITH_MULTI_SSL 1
 
 /* Define to 1 if using yaSSL in OpenSSL compatibility mode. */
 #cmakedefine USE_YASSLEMUL 1
@@ -998,3 +1019,6 @@
    typedef int ssize_t;
 # endif
 #endif
+
+/* Define to 1 if you have the mach_absolute_time function. */
+#cmakedefine HAVE_MACH_ABSOLUTE_TIME 1

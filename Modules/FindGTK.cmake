@@ -1,18 +1,19 @@
 # Distributed under the OSI-approved BSD 3-Clause License.  See accompanying
 # file Copyright.txt or https://cmake.org/licensing for details.
 
-#.rst:
-# FindGTK
-# -------
-#
-# try to find GTK (and glib) and GTKGLArea
-#
-# ::
-#
-#   GTK_INCLUDE_DIR   - Directories to include to use GTK
-#   GTK_LIBRARIES     - Files to link against to use GTK
-#   GTK_FOUND         - GTK was found
-#   GTK_GL_FOUND      - GTK's GL features were found
+#[=======================================================================[.rst:
+FindGTK
+-------
+
+Find GTK, glib and GTKGLArea
+
+::
+
+  GTK_INCLUDE_DIR   - Directories to include to use GTK
+  GTK_LIBRARIES     - Files to link against to use GTK
+  GTK_FOUND         - GTK was found
+  GTK_GL_FOUND      - GTK's GL features were found
+#]=======================================================================]
 
 # don't even bother under WIN32
 if(UNIX)
@@ -31,20 +32,17 @@ if(UNIX)
   #  - Atanas Georgiev <atanas@cs.columbia.edu>
 
   find_path( GTK_glibconfig_INCLUDE_PATH NAMES glibconfig.h
+    PATH_SUFFIXES glib/include lib/glib/include include/glib12
     PATHS
     /usr/openwin/share/include
-    /usr/local/include/glib12
-    /usr/lib/glib/include
-    /usr/local/lib/glib/include
     /opt/gnome/include
     /opt/gnome/lib/glib/include
   )
 
   find_path( GTK_glib_INCLUDE_PATH NAMES glib.h
-    PATH_SUFFIXES gtk-1.2 glib-1.2 glib12
+    PATH_SUFFIXES gtk-1.2 glib-1.2 glib12 glib/include lib/glib/include
     PATHS
     /usr/openwin/share/include
-    /usr/lib/glib/include
     /opt/gnome/include
   )
 
@@ -153,6 +151,3 @@ if(UNIX)
   )
 
 endif()
-
-
-

@@ -10,11 +10,12 @@
 #include "cmsys/Encoding.hxx"
 #include "cmsys/FStream.hxx"
 #include <iostream>
+#include <sstream>
 #include <string.h>
 #include <time.h>
 
 #ifndef __LA_SSIZE_T
-#define __LA_SSIZE_T la_ssize_t
+#  define __LA_SSIZE_T la_ssize_t
 #endif
 
 static std::string cm_archive_error_string(struct archive* a)
@@ -53,6 +54,8 @@ public:
   {
   }
   ~Entry() { archive_entry_free(this->Object); }
+  Entry(const Entry&) = delete;
+  Entry& operator=(const Entry&) = delete;
   operator struct archive_entry*() { return this->Object; }
 };
 
@@ -94,13 +97,25 @@ cmArchiveWrite::cmArchiveWrite(std::ostream& os, Compress c,
         return;
       }
       break;
-    case CompressGZip:
+    case CompressGZip: {
       if (archive_write_add_filter_gzip(this->Archive) != ARCHIVE_OK) {
         this->Error = "archive_write_add_filter_gzip: ";
         this->Error += cm_archive_error_string(this->Archive);
         return;
       }
-      break;
+      std::string source_date_epoch;
+      cmSystemTools::GetEnv("SOURCE_DATE_EPOCH", source_date_epoch);
+      if (!source_date_epoch.empty()) {
+        // We're not able to specify an arbitrary timestamp for gzip.
+        // The next best thing is to omit the timestamp entirely.
+        if (archive_write_set_filter_option(this->Archive, "gzip", "timestamp",
+                                            nullptr) != ARCHIVE_OK) {
+          this->Error = "archive_write_set_filter_option: ";
+          this->Error += cm_archive_error_string(this->Archive);
+          return;
+        }
+      }
+    } break;
     case CompressBZip2:
       if (archive_write_add_filter_bzip2(this->Archive) != ARCHIVE_OK) {
         this->Error = "archive_write_add_filter_bzip2: ";
@@ -122,7 +137,14 @@ cmArchiveWrite::cmArchiveWrite(std::ostream& os, Compress c,
         return;
       }
       break;
-  };
+    case CompressZstd:
+      if (archive_write_add_filter_zstd(this->Archive) != ARCHIVE_OK) {
+        this->Error = "archive_write_add_filter_zstd: ";
+        this->Error += cm_archive_error_string(this->Archive);
+        return;
+      }
+      break;
+  }
 #if !defined(_WIN32) || defined(__CYGWIN__)
   if (archive_read_disk_set_standard_lookup(this->Disk) != ARCHIVE_OK) {
     this->Error = "archive_read_disk_set_standard_lookup: ";
@@ -164,12 +186,10 @@ cmArchiveWrite::~cmArchiveWrite()
 bool cmArchiveWrite::Add(std::string path, size_t skip, const char* prefix,
                          bool recursive)
 {
-  if (this->Okay()) {
-    if (!path.empty() && path[path.size() - 1] == '/') {
-      path.erase(path.size() - 1);
-    }
-    this->AddPath(path.c_str(), skip, prefix, recursive);
+  if (!path.empty() && path.back() == '/') {
+    path.erase(path.size() - 1);
   }
+  this->AddPath(path.c_str(), skip, prefix, recursive);
   return this->Okay();
 }
 
@@ -205,6 +225,7 @@ bool cmArchiveWrite::AddPath(const char* path, size_t skip, const char* prefix,
 
 bool cmArchiveWrite::AddFile(const char* file, size_t skip, const char* prefix)
 {
+  this->Error = "";
   // Skip the file if we have no name for it.  This may happen on a
   // top-level directory, which does not need to be included anyway.
   if (skip >= strlen(file)) {
@@ -226,7 +247,7 @@ bool cmArchiveWrite::AddFile(const char* file, size_t skip, const char* prefix)
   cm_archive_entry_copy_pathname(e, dest);
   if (archive_read_disk_entry_from_file(this->Disk, e, -1, nullptr) !=
       ARCHIVE_OK) {
-    this->Error = "archive_read_disk_entry_from_file '";
+    this->Error = "Unable to read from file '";
     this->Error += file;
     this->Error += "': ";
     this->Error += cm_archive_error_string(this->Disk);
@@ -243,6 +264,17 @@ bool cmArchiveWrite::AddFile(const char* file, size_t skip, const char* prefix)
       return false;
     }
     archive_entry_set_mtime(e, t, 0);
+  } else {
+    std::string source_date_epoch;
+    cmSystemTools::GetEnv("SOURCE_DATE_EPOCH", source_date_epoch);
+    if (!source_date_epoch.empty()) {
+      std::istringstream iss(source_date_epoch);
+      time_t epochTime;
+      iss >> epochTime;
+      if (iss.eof() && !iss.fail()) {
+        archive_entry_set_mtime(e, epochTime, 0);
+      }
+    }
   }
 
   // manages the uid/guid of the entry (if any)

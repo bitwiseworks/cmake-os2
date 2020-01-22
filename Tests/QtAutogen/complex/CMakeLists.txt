@@ -1,4 +1,6 @@
-cmake_minimum_required(VERSION 3.9)
+cmake_minimum_required(VERSION 3.10)
+project(Complex)
+include("../AutogenGuiTest.cmake")
 
 # -- Test: AUTOMOC AUTORCC AUTOUIC
 add_definitions(-DFOO -DSomeDefine="Barx")
@@ -20,7 +22,7 @@ add_custom_command(
   OUTPUT generated.txt
   COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_CURRENT_SOURCE_DIR}/generated.txt.in" "${CMAKE_CURRENT_BINARY_DIR}/generated.txt"
   DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/generated.txt.in"
-  )
+)
 
 add_custom_target(generate_moc_input
   DEPENDS generated.txt
@@ -34,7 +36,8 @@ add_custom_command(
   DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/myotherinterface.h.in"
 )
 
-if (NOT CMAKE_CONFIGURATION_TYPES AND NOT CMAKE_GENERATOR STREQUAL Ninja)
+get_property(_isMultiConfig GLOBAL PROPERTY GENERATOR_IS_MULTI_CONFIG)
+if(NOT _isMultiConfig AND NOT CMAKE_GENERATOR STREQUAL Ninja)
   set(debug_srcs "$<$<CONFIG:Debug>:debug_class.cpp>" $<$<CONFIG:Debug>:debug_resource.qrc>)
   set_property(DIRECTORY APPEND PROPERTY COMPILE_DEFINITIONS $<$<CONFIG:Debug>:TEST_DEBUG_CLASS>)
 endif()

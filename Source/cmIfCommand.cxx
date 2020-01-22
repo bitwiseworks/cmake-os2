@@ -6,6 +6,7 @@
 #include "cmExecutionStatus.h"
 #include "cmExpandedCommandArgument.h"
 #include "cmMakefile.h"
+#include "cmMessageType.h"
 #include "cmOutputConverter.h"
 #include "cmSystemTools.h"
 #include "cmake.h"
@@ -30,16 +31,16 @@ bool cmIfFunctionBlocker::IsFunctionBlocked(const cmListFileFunction& lff,
                                             cmExecutionStatus& inStatus)
 {
   // we start by recording all the functions
-  if (!cmSystemTools::Strucmp(lff.Name.c_str(), "if")) {
+  if (lff.Name.Lower == "if") {
     this->ScopeDepth++;
-  } else if (!cmSystemTools::Strucmp(lff.Name.c_str(), "endif")) {
+  } else if (lff.Name.Lower == "endif") {
     this->ScopeDepth--;
     // if this is the endif for this if statement, then start executing
     if (!this->ScopeDepth) {
       // Remove the function blocker for this scope or bail.
       std::unique_ptr<cmFunctionBlocker> fb(
         mf.RemoveFunctionBlocker(this, lff));
-      if (!fb.get()) {
+      if (!fb) {
         return false;
       }
 
@@ -48,20 +49,19 @@ bool cmIfFunctionBlocker::IsFunctionBlocked(const cmListFileFunction& lff,
       int scopeDepth = 0;
       for (cmListFileFunction const& func : this->Functions) {
         // keep track of scope depth
-        if (!cmSystemTools::Strucmp(func.Name.c_str(), "if")) {
+        if (func.Name.Lower == "if") {
           scopeDepth++;
         }
-        if (!cmSystemTools::Strucmp(func.Name.c_str(), "endif")) {
+        if (func.Name.Lower == "endif") {
           scopeDepth--;
         }
         // watch for our state change
-        if (scopeDepth == 0 &&
-            !cmSystemTools::Strucmp(func.Name.c_str(), "else")) {
+        if (scopeDepth == 0 && func.Name.Lower == "else") {
 
           if (this->ElseSeen) {
             cmListFileBacktrace bt = mf.GetBacktrace(func);
             mf.GetCMakeInstance()->IssueMessage(
-              cmake::FATAL_ERROR,
+              MessageType::FATAL_ERROR,
               "A duplicate ELSE command was found inside an IF block.", bt);
             cmSystemTools::SetFatalErrorOccured();
             return true;
@@ -76,12 +76,11 @@ bool cmIfFunctionBlocker::IsFunctionBlocked(const cmListFileFunction& lff,
           if (!this->IsBlocking && mf.GetCMakeInstance()->GetTrace()) {
             mf.PrintCommandTrace(func);
           }
-        } else if (scopeDepth == 0 &&
-                   !cmSystemTools::Strucmp(func.Name.c_str(), "elseif")) {
+        } else if (scopeDepth == 0 && func.Name.Lower == "elseif") {
           if (this->ElseSeen) {
             cmListFileBacktrace bt = mf.GetBacktrace(func);
             mf.GetCMakeInstance()->IssueMessage(
-              cmake::FATAL_ERROR,
+              MessageType::FATAL_ERROR,
               "An ELSEIF command was found after an ELSE command.", bt);
             cmSystemTools::SetFatalErrorOccured();
             return true;
@@ -100,7 +99,7 @@ bool cmIfFunctionBlocker::IsFunctionBlocked(const cmListFileFunction& lff,
             std::vector<cmExpandedCommandArgument> expandedArguments;
             mf.ExpandArguments(func.Arguments, expandedArguments);
 
-            cmake::MessageType messType;
+            MessageType messType;
 
             cmListFileContext conditionContext =
               cmListFileContext::FromCommandContext(
@@ -117,7 +116,7 @@ bool cmIfFunctionBlocker::IsFunctionBlocked(const cmListFileFunction& lff,
               err += errorString;
               cmListFileBacktrace bt = mf.GetBacktrace(func);
               mf.GetCMakeInstance()->IssueMessage(messType, err, bt);
-              if (messType == cmake::FATAL_ERROR) {
+              if (messType == MessageType::FATAL_ERROR) {
                 cmSystemTools::SetFatalErrorOccured();
                 return true;
               }
@@ -163,7 +162,7 @@ bool cmIfFunctionBlocker::IsFunctionBlocked(const cmListFileFunction& lff,
 bool cmIfFunctionBlocker::ShouldRemove(const cmListFileFunction& lff,
                                        cmMakefile&)
 {
-  if (!cmSystemTools::Strucmp(lff.Name.c_str(), "endif")) {
+  if (lff.Name.Lower == "endif") {
     // if the endif has arguments, then make sure
     // they match the arguments of the matching if
     if (lff.Arguments.empty() || lff.Arguments == this->Args) {
@@ -183,7 +182,7 @@ bool cmIfCommand::InvokeInitialPass(
   std::vector<cmExpandedCommandArgument> expandedArguments;
   this->Makefile->ExpandArguments(args, expandedArguments);
 
-  cmake::MessageType status;
+  MessageType status;
 
   cmConditionEvaluator conditionEvaluator(
     *(this->Makefile), this->Makefile->GetExecutionContext(),
@@ -195,8 +194,8 @@ bool cmIfCommand::InvokeInitialPass(
   if (!errorString.empty()) {
     std::string err = "if " + cmIfCommandError(expandedArguments);
     err += errorString;
-    if (status == cmake::FATAL_ERROR) {
-      this->Makefile->IssueMessage(cmake::FATAL_ERROR, err);
+    if (status == MessageType::FATAL_ERROR) {
+      this->Makefile->IssueMessage(MessageType::FATAL_ERROR, err);
       cmSystemTools::SetFatalErrorOccured();
       return true;
     }

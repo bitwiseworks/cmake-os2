@@ -6,17 +6,14 @@
 
 #include "cmCPackGenerator.h"
 #include "cmCPackLog.h"
+#include "cmDuration.h"
 #include "cmGeneratedFileStream.h"
 #include "cmSystemTools.h"
 #include "cm_sys_stat.h"
 
-cmCPackOSXX11Generator::cmCPackOSXX11Generator()
-{
-}
+cmCPackOSXX11Generator::cmCPackOSXX11Generator() = default;
 
-cmCPackOSXX11Generator::~cmCPackOSXX11Generator()
-{
-}
+cmCPackOSXX11Generator::~cmCPackOSXX11Generator() = default;
 
 int cmCPackOSXX11Generator::PackageFiles()
 {
@@ -26,8 +23,9 @@ int cmCPackOSXX11Generator::PackageFiles()
   const char* cpackPackageExecutables =
     this->GetOption("CPACK_PACKAGE_EXECUTABLES");
   if (cpackPackageExecutables) {
-    cmCPackLogger(cmCPackLog::LOG_DEBUG, "The cpackPackageExecutables: "
-                    << cpackPackageExecutables << "." << std::endl);
+    cmCPackLogger(cmCPackLog::LOG_DEBUG,
+                  "The cpackPackageExecutables: " << cpackPackageExecutables
+                                                  << "." << std::endl);
     std::ostringstream str;
     std::ostringstream deleteStr;
     std::vector<std::string> cpackPackageExecutablesVector;
@@ -77,14 +75,15 @@ int cmCPackOSXX11Generator::PackageFiles()
   if (iconFile) {
     std::string iconFileName = cmsys::SystemTools::GetFilenameName(iconFile);
     if (!cmSystemTools::FileExists(iconFile)) {
-      cmCPackLogger(cmCPackLog::LOG_ERROR, "Cannot find icon file: "
+      cmCPackLogger(cmCPackLog::LOG_ERROR,
+                    "Cannot find icon file: "
                       << iconFile
                       << ". Please check CPACK_PACKAGE_ICON setting."
                       << std::endl);
       return 0;
     }
     std::string destFileName = resourcesDirectory + "/" + iconFileName;
-    this->ConfigureFile(iconFile, destFileName.c_str(), true);
+    this->ConfigureFile(iconFile, destFileName, true);
     this->SetOptionIfNotSet("CPACK_APPLE_GUI_ICON", iconFileName.c_str());
   }
 
@@ -108,8 +107,8 @@ int cmCPackOSXX11Generator::PackageFiles()
       !this->CopyResourcePlistFile("OSXScriptLauncher", appdir,
                                    this->GetOption("CPACK_PACKAGE_FILE_NAME"),
                                    true)) {
-    cmCPackLogger(cmCPackLog::LOG_ERROR, "Problem copying the resource files"
-                    << std::endl);
+    cmCPackLogger(cmCPackLog::LOG_ERROR,
+                  "Problem copying the resource files" << std::endl);
     return 0;
   }
 
@@ -146,17 +145,18 @@ int cmCPackOSXX11Generator::PackageFiles()
   dmgCmd << "\"" << this->GetOption("CPACK_INSTALLER_PROGRAM_DISK_IMAGE")
          << "\" create -ov -fs HFS+ -format UDZO -srcfolder \""
          << diskImageDirectory << "\" \"" << packageFileNames[0] << "\"";
-  cmCPackLogger(cmCPackLog::LOG_VERBOSE, "Compress disk image using command: "
-                  << dmgCmd.str() << std::endl);
+  cmCPackLogger(cmCPackLog::LOG_VERBOSE,
+                "Compress disk image using command: " << dmgCmd.str()
+                                                      << std::endl);
   // since we get random dashboard failures with this one
   // try running it more than once
   int retVal = 1;
   int numTries = 10;
   bool res = false;
   while (numTries > 0) {
-    res = cmSystemTools::RunSingleCommand(dmgCmd.str().c_str(), &output,
-                                          &output, &retVal, nullptr,
-                                          this->GeneratorVerbose, 0);
+    res = cmSystemTools::RunSingleCommand(
+      dmgCmd.str(), &output, &output, &retVal, nullptr, this->GeneratorVerbose,
+      cmDuration::zero());
     if (res && !retVal) {
       numTries = -1;
       break;
@@ -165,11 +165,12 @@ int cmCPackOSXX11Generator::PackageFiles()
     numTries--;
   }
   if (!res || retVal) {
-    cmGeneratedFileStream ofs(tmpFile.c_str());
+    cmGeneratedFileStream ofs(tmpFile);
     ofs << "# Run command: " << dmgCmd.str() << std::endl
         << "# Output:" << std::endl
         << output << std::endl;
-    cmCPackLogger(cmCPackLog::LOG_ERROR, "Problem running hdiutil command: "
+    cmCPackLogger(cmCPackLog::LOG_ERROR,
+                  "Problem running hdiutil command: "
                     << dmgCmd.str() << std::endl
                     << "Please check " << tmpFile << " for errors"
                     << std::endl);
@@ -181,13 +182,13 @@ int cmCPackOSXX11Generator::PackageFiles()
 
 int cmCPackOSXX11Generator::InitializeInternal()
 {
-  cmCPackLogger(cmCPackLog::LOG_DEBUG, "cmCPackOSXX11Generator::Initialize()"
-                  << std::endl);
+  cmCPackLogger(cmCPackLog::LOG_DEBUG,
+                "cmCPackOSXX11Generator::Initialize()" << std::endl);
   std::vector<std::string> path;
   std::string pkgPath = cmSystemTools::FindProgram("hdiutil", path, false);
   if (pkgPath.empty()) {
-    cmCPackLogger(cmCPackLog::LOG_ERROR, "Cannot find hdiutil compiler"
-                    << std::endl);
+    cmCPackLogger(cmCPackLog::LOG_ERROR,
+                  "Cannot find hdiutil compiler" << std::endl);
     return 0;
   }
   this->SetOptionIfNotSet("CPACK_INSTALLER_PROGRAM_DISK_IMAGE",
@@ -235,7 +236,7 @@ bool cmCPackOSXX11Generator::CopyCreateResourceFile(const std::string& name)
   cmCPackLogger(cmCPackLog::LOG_VERBOSE, "Configure file: "
                 << (inFileName ? inFileName : "(NULL)")
                 << " to " << destFileName << std::endl);
-  this->ConfigureFile(inFileName, destFileName.c_str());
+  this->ConfigureFile(inFileName, destFileName);
   return true;
 }
 */
@@ -262,9 +263,10 @@ bool cmCPackOSXX11Generator::CopyResourcePlistFile(
   destFileName += "/";
   destFileName += outputFileName;
 
-  cmCPackLogger(cmCPackLog::LOG_VERBOSE, "Configure file: "
-                  << inFileName << " to " << destFileName << std::endl);
-  this->ConfigureFile(inFileName.c_str(), destFileName.c_str(), copyOnly);
+  cmCPackLogger(cmCPackLog::LOG_VERBOSE,
+                "Configure file: " << inFileName << " to " << destFileName
+                                   << std::endl);
+  this->ConfigureFile(inFileName, destFileName, copyOnly);
   return true;
 }
 

@@ -6,6 +6,7 @@
 #include "cmLocalUnixMakefileGenerator3.h"
 #include "cmMakefile.h"
 #include "cmState.h"
+#include "cmake.h"
 
 cmGlobalJOMMakefileGenerator::cmGlobalJOMMakefileGenerator(cmake* cm)
   : cmGlobalUnixMakefileGenerator3(cm)
@@ -51,4 +52,30 @@ void cmGlobalJOMMakefileGenerator::PrintCompilerAdvice(
     /* clang-format on */
   }
   this->cmGlobalUnixMakefileGenerator3::PrintCompilerAdvice(os, lang, envVar);
+}
+
+std::vector<cmGlobalGenerator::GeneratedMakeCommand>
+cmGlobalJOMMakefileGenerator::GenerateBuildCommand(
+  const std::string& makeProgram, const std::string& projectName,
+  const std::string& projectDir, std::vector<std::string> const& targetNames,
+  const std::string& config, bool fast, int jobs, bool verbose,
+  std::vector<std::string> const& makeOptions)
+{
+  std::vector<std::string> jomMakeOptions;
+
+  // Since we have full control over the invocation of JOM, let us
+  // make it quiet.
+  jomMakeOptions.push_back(this->MakeSilentFlag);
+  cmAppend(jomMakeOptions, makeOptions);
+
+  // JOM does parallel builds by default, the -j is only needed if a specific
+  // number is given
+  // see https://github.com/qt-labs/jom/blob/v1.1.2/src/jomlib/options.cpp
+  if (jobs == cmake::DEFAULT_BUILD_PARALLEL_LEVEL) {
+    jobs = cmake::NO_BUILD_PARALLEL_LEVEL;
+  }
+
+  return cmGlobalUnixMakefileGenerator3::GenerateBuildCommand(
+    makeProgram, projectName, projectDir, targetNames, config, fast, jobs,
+    verbose, jomMakeOptions);
 }

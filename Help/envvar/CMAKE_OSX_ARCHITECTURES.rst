@@ -1,7 +1,9 @@
 CMAKE_OSX_ARCHITECTURES
 -----------------------
 
-Target specific architectures for OS X.
+.. include:: ENV_VAR.txt
+
+Target specific architectures for macOS.
 
 The ``CMAKE_OSX_ARCHITECTURES`` environment variable sets the default value for
 the :variable:`CMAKE_OSX_ARCHITECTURES` variable. See

@@ -28,25 +28,31 @@ public:
   ~cmCPackWIXGenerator();
 
 protected:
-  virtual int InitializeInternal();
+  int InitializeInternal() override;
 
-  virtual int PackageFiles();
+  int PackageFiles() override;
 
-  virtual const char* GetOutputExtension() { return ".msi"; }
+  const char* GetOutputExtension() override { return ".msi"; }
 
-  virtual enum CPackSetDestdirSupport SupportsSetDestdir() const
+  enum CPackSetDestdirSupport SupportsSetDestdir() const override
   {
     return SETDESTDIR_UNSUPPORTED;
   }
 
-  virtual bool SupportsAbsoluteDestination() const { return false; }
+  bool SupportsAbsoluteDestination() const override { return false; }
 
-  virtual bool SupportsComponentInstallation() const { return true; }
+  bool SupportsComponentInstallation() const override { return true; }
 
 private:
   typedef std::map<std::string, std::string> id_map_t;
   typedef std::map<std::string, size_t> ambiguity_map_t;
   typedef std::set<std::string> extension_set_t;
+
+  enum class DefinitionType
+  {
+    STRING,
+    PATH
+  };
 
   bool InitializeWiXConfiguration();
 
@@ -58,7 +64,8 @@ private:
 
   void CreateWiXProductFragmentIncludeFile();
 
-  void CopyDefinition(cmWIXSourceWriter& source, std::string const& name);
+  void CopyDefinition(cmWIXSourceWriter& source, std::string const& name,
+                      DefinitionType type = DefinitionType::STRING);
 
   void AddDefinition(cmWIXSourceWriter& source, std::string const& name,
                      std::string const& value);

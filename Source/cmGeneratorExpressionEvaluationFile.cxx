@@ -12,16 +12,17 @@
 #include "cmListFileCache.h"
 #include "cmLocalGenerator.h"
 #include "cmMakefile.h"
+#include "cmMessageType.h"
 #include "cmSourceFile.h"
+#include "cmSourceFileLocationKind.h"
 #include "cmSystemTools.h"
-#include "cmake.h"
 
 cmGeneratorExpressionEvaluationFile::cmGeneratorExpressionEvaluationFile(
-  const std::string& input,
+  std::string input,
   std::unique_ptr<cmCompiledGeneratorExpression> outputFileExpr,
   std::unique_ptr<cmCompiledGeneratorExpression> condition,
   bool inputIsContent, cmPolicies::PolicyStatus policyStatusCMP0070)
-  : Input(input)
+  : Input(std::move(input))
   , OutputFileExpr(std::move(outputFileExpr))
   , Condition(std::move(condition))
   , InputIsContent(inputIsContent)
@@ -47,14 +48,14 @@ void cmGeneratorExpressionEvaluationFile::Generate(
         << "\" did "
            "not evaluate to valid content. Got \""
         << condResult << "\".";
-      lg->IssueMessage(cmake::FATAL_ERROR, e.str());
+      lg->IssueMessage(MessageType::FATAL_ERROR, e.str());
       return;
     }
   }
 
   std::string outputFileName = this->OutputFileExpr->Evaluate(
     lg, config, false, nullptr, nullptr, nullptr, lang);
-  const std::string outputContent = inputExpression->Evaluate(
+  const std::string& outputContent = inputExpression->Evaluate(
     lg, config, false, nullptr, nullptr, nullptr, lang);
 
   if (cmSystemTools::FileIsFullPath(outputFileName)) {
@@ -76,7 +77,7 @@ void cmGeneratorExpressionEvaluationFile::Generate(
          "This is generally caused by the content evaluating the "
          "configuration type, language, or location of object files:\n "
       << outputFileName;
-    lg->IssueMessage(cmake::FATAL_ERROR, e.str());
+    lg->IssueMessage(MessageType::FATAL_ERROR, e.str());
     return;
   }
 
@@ -84,7 +85,7 @@ void cmGeneratorExpressionEvaluationFile::Generate(
   this->Files.push_back(outputFileName);
   outputFiles[outputFileName] = outputContent;
 
-  cmGeneratedFileStream fout(outputFileName.c_str());
+  cmGeneratedFileStream fout(outputFileName);
   fout.SetCopyIfDifferent(true);
   fout << outputContent;
   if (fout.Close() && perm) {
@@ -102,8 +103,15 @@ void cmGeneratorExpressionEvaluationFile::CreateOutputFile(
   for (std::string const& le : enabledLanguages) {
     std::string name = this->OutputFileExpr->Evaluate(
       lg, config, false, nullptr, nullptr, nullptr, le);
-    cmSourceFile* sf = lg->GetMakefile()->GetOrCreateSource(name);
+    cmSourceFile* sf = lg->GetMakefile()->GetOrCreateSource(
+      name, false, cmSourceFileLocationKind::Known);
+    // Tell TraceDependencies that the file is not expected to exist
+    // on disk yet.  We generate it after that runs.
     sf->SetProperty("GENERATED", "1");
+
+    // Tell the build system generators that there is no build rule
+    // to generate the file.
+    sf->SetProperty("__CMAKE_GENERATED_BY_CMAKE", "1");
 
     gg->SetFilenameTargetDepends(
       sf, this->OutputFileExpr->GetSourceSensitiveTargets());
@@ -129,7 +137,7 @@ void cmGeneratorExpressionEvaluationFile::Generate(cmLocalGenerator* lg)
     if (!fin) {
       std::ostringstream e;
       e << "Evaluation file \"" << inputFileName << "\" cannot be read.";
-      lg->IssueMessage(cmake::FATAL_ERROR, e.str());
+      lg->IssueMessage(MessageType::FATAL_ERROR, e.str());
       return;
     }
 
@@ -153,7 +161,7 @@ void cmGeneratorExpressionEvaluationFile::Generate(cmLocalGenerator* lg)
   lg->GetMakefile()->GetConfigurations(allConfigs);
 
   if (allConfigs.empty()) {
-    allConfigs.push_back("");
+    allConfigs.emplace_back();
   }
 
   std::vector<std::string> enabledLanguages;
@@ -196,7 +204,7 @@ std::string cmGeneratorExpressionEvaluationFile::FixRelativePath(
         "undefined behavior will be used."
         ;
       /* clang-format on */
-      lg->IssueMessage(cmake::AUTHOR_WARNING, w.str());
+      lg->IssueMessage(MessageType::AUTHOR_WARNING, w.str());
     }
       CM_FALLTHROUGH;
     case cmPolicies::OLD:

@@ -2,6 +2,8 @@
    file Copyright.txt or https://cmake.org/licensing for details.  */
 #include "cmExternalMakefileProjectGenerator.h"
 
+#include <utility>
+
 class cmMakefile;
 
 void cmExternalMakefileProjectGenerator::EnableLanguage(
@@ -24,18 +26,22 @@ std::string cmExternalMakefileProjectGenerator::CreateFullGeneratorName(
   return fullName;
 }
 
+bool cmExternalMakefileProjectGenerator::Open(
+  const std::string& /*bindir*/, const std::string& /*projectName*/,
+  bool /*dryRun*/)
+{
+  return false;
+}
+
 cmExternalMakefileProjectGeneratorFactory::
-  cmExternalMakefileProjectGeneratorFactory(const std::string& n,
-                                            const std::string& doc)
-  : Name(n)
-  , Documentation(doc)
+  cmExternalMakefileProjectGeneratorFactory(std::string n, std::string doc)
+  : Name(std::move(n))
+  , Documentation(std::move(doc))
 {
 }
 
 cmExternalMakefileProjectGeneratorFactory::
-  ~cmExternalMakefileProjectGeneratorFactory()
-{
-}
+  ~cmExternalMakefileProjectGeneratorFactory() = default;
 
 std::string cmExternalMakefileProjectGeneratorFactory::GetName() const
 {

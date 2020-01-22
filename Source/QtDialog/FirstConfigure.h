@@ -35,6 +35,7 @@ public:
   void setCurrentGenerator(const QString& gen);
   QString getGenerator() const;
   QString getToolset() const;
+  QString getPlatform() const;
 
   bool defaultSetup() const;
   bool compilerSetup() const;
@@ -56,14 +57,23 @@ protected:
   QFrame* ToolsetFrame;
   QLineEdit* Toolset;
   QLabel* ToolsetLabel;
+  QFrame* PlatformFrame;
+  QComboBox* PlatformOptions;
+  QLabel* PlatformLabel;
   QStringList GeneratorsSupportingToolset;
+  QStringList GeneratorsSupportingPlatform;
+  QMultiMap<QString, QString> GeneratorSupportedPlatforms;
+  QMap<QString, QString> GeneratorDefaultPlatform;
 
 private:
   QFrame* CreateToolsetWidgets();
+  QFrame* CreatePlatformWidgets();
 };
 
 //! the page that gives basic options for native compilers
-class NativeCompilerSetup : public QWizardPage, protected Ui::Compilers
+class NativeCompilerSetup
+  : public QWizardPage
+  , protected Ui::Compilers
 {
   Q_OBJECT
 public:
@@ -83,7 +93,9 @@ public:
 };
 
 //! the page that gives options for cross compilers
-class CrossCompilerSetup : public QWizardPage, protected Ui::CrossCompiler
+class CrossCompilerSetup
+  : public QWizardPage
+  , protected Ui::CrossCompiler
 {
   Q_OBJECT
 public:
@@ -155,6 +167,7 @@ public:
 
   void setGenerators(std::vector<cmake::GeneratorInfo> const& gens);
   QString getGenerator() const;
+  QString getPlatform() const;
   QString getToolset() const;
 
   bool defaultSetup() const;

@@ -3,15 +3,16 @@
 #include "cmAddCustomTargetCommand.h"
 
 #include <sstream>
+#include <utility>
 
 #include "cmCustomCommandLines.h"
 #include "cmGeneratorExpression.h"
 #include "cmGlobalGenerator.h"
 #include "cmMakefile.h"
-#include "cmPolicies.h"
+#include "cmMessageType.h"
+#include "cmStateTypes.h"
 #include "cmSystemTools.h"
 #include "cmTarget.h"
-#include "cmake.h"
 
 class cmExecutionStatus;
 
@@ -51,6 +52,7 @@ bool cmAddCustomTargetCommand::InitialPass(
   std::string comment_buffer;
   const char* comment = nullptr;
   std::vector<std::string> sources;
+  std::string job_pool;
 
   // Keep track of parser state.
   enum tdoing
@@ -61,6 +63,7 @@ bool cmAddCustomTargetCommand::InitialPass(
     doing_working_directory,
     doing_comment,
     doing_source,
+    doing_job_pool,
     doing_nothing
   };
   tdoing doing = doing_command;
@@ -96,6 +99,8 @@ bool cmAddCustomTargetCommand::InitialPass(
       command_expand_lists = true;
     } else if (copy == "COMMENT") {
       doing = doing_comment;
+    } else if (copy == "JOB_POOL") {
+      doing = doing_job_pool;
     } else if (copy == "COMMAND") {
       doing = doing_command;
 
@@ -116,7 +121,7 @@ bool cmAddCustomTargetCommand::InitialPass(
           break;
         case doing_byproducts: {
           std::string filename;
-          if (!cmSystemTools::FileIsFullPath(copy.c_str())) {
+          if (!cmSystemTools::FileIsFullPath(copy)) {
             filename = this->Makefile->GetCurrentBinaryDirectory();
             filename += "/";
           }
@@ -127,7 +132,7 @@ bool cmAddCustomTargetCommand::InitialPass(
         case doing_depends: {
           std::string dep = copy;
           cmSystemTools::ConvertToUnixSlashes(dep);
-          depends.push_back(dep);
+          depends.push_back(std::move(dep));
         } break;
         case doing_comment:
           comment_buffer = copy;
@@ -135,6 +140,9 @@ bool cmAddCustomTargetCommand::InitialPass(
           break;
         case doing_source:
           sources.push_back(copy);
+          break;
+        case doing_job_pool:
+          job_pool = copy;
           break;
         default:
           this->SetError("Wrong syntax. Unknown type of argument.");
@@ -160,35 +168,9 @@ bool cmAddCustomTargetCommand::InitialPass(
   if (nameOk) {
     nameOk = targetName.find(':') == std::string::npos;
   }
-  if (!nameOk) {
-    cmake::MessageType messageType = cmake::AUTHOR_WARNING;
-    std::ostringstream e;
-    bool issueMessage = false;
-    switch (this->Makefile->GetPolicyStatus(cmPolicies::CMP0037)) {
-      case cmPolicies::WARN:
-        e << cmPolicies::GetPolicyWarning(cmPolicies::CMP0037) << "\n";
-        issueMessage = true;
-      case cmPolicies::OLD:
-        break;
-      case cmPolicies::NEW:
-      case cmPolicies::REQUIRED_IF_USED:
-      case cmPolicies::REQUIRED_ALWAYS:
-        issueMessage = true;
-        messageType = cmake::FATAL_ERROR;
-    }
-    if (issueMessage) {
-      /* clang-format off */
-      e << "The target name \"" << targetName <<
-          "\" is reserved or not valid for certain "
-          "CMake features, such as generator expressions, and may result "
-          "in undefined behavior.";
-      /* clang-format on */
-      this->Makefile->IssueMessage(messageType, e.str());
-
-      if (messageType == cmake::FATAL_ERROR) {
-        return false;
-      }
-    }
+  if (!nameOk &&
+      !this->Makefile->CheckCMP0037(targetName, cmStateEnums::UTILITY)) {
+    return false;
   }
 
   // Store the last command line finished.
@@ -206,38 +188,36 @@ bool cmAddCustomTargetCommand::InitialPass(
     }
   }
 
-  // Convert working directory to a full path.
-  if (!working_directory.empty()) {
-    const char* build_dir = this->Makefile->GetCurrentBinaryDirectory();
-    working_directory =
-      cmSystemTools::CollapseFullPath(working_directory, build_dir);
-  }
-
   if (commandLines.empty() && !byproducts.empty()) {
     this->Makefile->IssueMessage(
-      cmake::FATAL_ERROR,
+      MessageType::FATAL_ERROR,
       "BYPRODUCTS may not be specified without any COMMAND");
     return true;
   }
   if (commandLines.empty() && uses_terminal) {
     this->Makefile->IssueMessage(
-      cmake::FATAL_ERROR,
+      MessageType::FATAL_ERROR,
       "USES_TERMINAL may not be specified without any COMMAND");
     return true;
   }
   if (commandLines.empty() && command_expand_lists) {
     this->Makefile->IssueMessage(
-      cmake::FATAL_ERROR,
+      MessageType::FATAL_ERROR,
       "COMMAND_EXPAND_LISTS may not be specified without any COMMAND");
     return true;
+  }
+
+  if (uses_terminal && !job_pool.empty()) {
+    this->SetError("JOB_POOL is shadowed by USES_TERMINAL.");
+    return false;
   }
 
   // Add the utility target to the makefile.
   bool escapeOldStyle = !verbatim;
   cmTarget* target = this->Makefile->AddUtilityCommand(
-    targetName, excludeFromAll, working_directory.c_str(), byproducts, depends,
-    commandLines, escapeOldStyle, comment, uses_terminal,
-    command_expand_lists);
+    targetName, cmMakefile::TargetOrigin::Project, excludeFromAll,
+    working_directory.c_str(), byproducts, depends, commandLines,
+    escapeOldStyle, comment, uses_terminal, command_expand_lists, job_pool);
 
   // Add additional user-specified source files to the target.
   target->AddSources(sources);

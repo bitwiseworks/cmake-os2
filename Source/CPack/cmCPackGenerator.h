@@ -12,8 +12,10 @@
 
 #include "cmCPackComponentGroup.h"
 #include "cmSystemTools.h"
+#include "cm_sys_stat.h"
 
 class cmCPackLog;
+class cmGlobalGenerator;
 class cmInstalledFile;
 class cmMakefile;
 
@@ -33,6 +35,16 @@ public:
     this->GeneratorVerbose =
       val ? cmSystemTools::OUTPUT_MERGE : cmSystemTools::OUTPUT_NONE;
   }
+
+  /**
+   * Put underlying cmake scripts in trace mode.
+   */
+  void SetTrace(bool val) { this->Trace = val; }
+
+  /**
+   * Put underlying cmake scripts in expanded trace mode.
+   */
+  void SetTraceExpand(bool val) { this->TraceExpand = val; }
 
   /**
    * Returns true if the generator may work on this system.
@@ -84,7 +96,7 @@ public:
   void SetLogger(cmCPackLog* log) { this->Logger = log; }
 
   //! Display verbose information via logger
-  void DisplayVerboseOutput(const char* msg, float progress);
+  void DisplayVerboseOutput(const std::string& msg, float progress);
 
   bool ReadListFile(const char* moduleName);
 
@@ -157,7 +169,8 @@ protected:
   virtual const char* GetPackagingInstallPrefix();
 
   virtual std::string FindTemplate(const char* name);
-  virtual bool ConfigureFile(const char* inName, const char* outName,
+  virtual bool ConfigureFile(const std::string& inName,
+                             const std::string& outName,
                              bool copyOnly = false);
   virtual bool ConfigureString(const std::string& input, std::string& output);
   virtual int InitializeInternal();
@@ -168,9 +181,22 @@ protected:
   virtual int InstallProjectViaInstallScript(
     bool setDestDir, const std::string& tempInstallDirectory);
   virtual int InstallProjectViaInstalledDirectories(
-    bool setDestDir, const std::string& tempInstallDirectory);
+    bool setDestDir, const std::string& tempInstallDirectory,
+    const mode_t* default_dir_mode);
   virtual int InstallProjectViaInstallCMakeProjects(
-    bool setDestDir, const std::string& tempInstallDirectory);
+    bool setDestDir, const std::string& tempInstallDirectory,
+    const mode_t* default_dir_mode);
+
+  virtual int RunPreinstallTarget(const std::string& installProjectName,
+                                  const std::string& installDirectory,
+                                  cmGlobalGenerator* globalGenerator,
+                                  const std::string& buildConfig);
+  virtual int InstallCMakeProject(
+    bool setDestDir, const std::string& installDirectory,
+    const std::string& baseTempInstallDirectory,
+    const mode_t* default_dir_mode, const std::string& component,
+    bool componentInstall, const std::string& installSubDirectory,
+    const std::string& buildConfig, std::string& absoluteDestFiles);
 
   /**
    * The various level of support of
@@ -258,6 +284,7 @@ protected:
    */
   std::vector<std::string> files;
 
+  std::vector<cmCPackInstallCMakeProject> CMakeProjects;
   std::map<std::string, cmCPackInstallationType> InstallationTypes;
   /**
    * The set of components.
@@ -292,8 +319,9 @@ protected:
   ComponentPackageMethod componentPackageMethod;
 
   cmCPackLog* Logger;
+  bool Trace;
+  bool TraceExpand;
 
-private:
   cmMakefile* MakefileMap;
 };
 

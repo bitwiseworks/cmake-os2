@@ -2,6 +2,7 @@
    file Copyright.txt or https://cmake.org/licensing for details.  */
 #include "cmInstallProgramsCommand.h"
 
+#include "cmAlgorithms.h"
 #include "cmGeneratorExpression.h"
 #include "cmGlobalGenerator.h"
 #include "cmInstallFilesGenerator.h"
@@ -25,7 +26,7 @@ bool cmInstallProgramsCommand::InitialPass(
 
   this->Destination = args[0];
 
-  this->FinalArgs.insert(this->FinalArgs.end(), args.begin() + 1, args.end());
+  cmAppend(this->FinalArgs, args.begin() + 1, args.end());
 
   this->Makefile->GetGlobalGenerator()->AddInstallComponent(
     this->Makefile->GetSafeDefinition("CMAKE_INSTALL_DEFAULT_COMPONENT_NAME"));
@@ -109,11 +110,11 @@ std::string cmInstallProgramsCommand::FindInstallSource(const char* name) const
   ts += "/";
   ts += name;
 
-  if (cmSystemTools::FileExists(tb.c_str())) {
+  if (cmSystemTools::FileExists(tb)) {
     // The file exists in the binary tree.  Use it.
     return tb;
   }
-  if (cmSystemTools::FileExists(ts.c_str())) {
+  if (cmSystemTools::FileExists(ts)) {
     // The file exists in the source tree.  Use it.
     return ts;
   }

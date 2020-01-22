@@ -21,7 +21,7 @@ class cmMakefile;
 class cmLocalVisualStudio10Generator : public cmLocalVisualStudio7Generator
 {
 public:
-  ///! Set cache only and recurse to false by default.
+  //! Set cache only and recurse to false by default.
   cmLocalVisualStudio10Generator(cmGlobalGenerator* gg, cmMakefile* mf);
 
   virtual ~cmLocalVisualStudio10Generator();
@@ -29,14 +29,23 @@ public:
   /**
    * Generate the makefile for this directory.
    */
-  virtual void Generate();
-  virtual void ReadAndStoreExternalGUID(const std::string& name,
-                                        const char* path);
+  void Generate() override;
+  void ReadAndStoreExternalGUID(const std::string& name,
+                                const char* path) override;
+
+  std::set<cmSourceFile const*>& GetSourcesVisited(cmGeneratorTarget* target)
+  {
+    return SourcesVisited[target];
+  };
 
 protected:
-  virtual const char* ReportErrorLabel() const;
-  virtual bool CustomCommandUseLocal() const { return true; }
+  const char* ReportErrorLabel() const override;
+  bool CustomCommandUseLocal() const override { return true; }
 
 private:
+  void GenerateTargetsDepthFirst(cmGeneratorTarget* target,
+                                 std::vector<cmGeneratorTarget*>& remaining);
+
+  std::map<cmGeneratorTarget*, std::set<cmSourceFile const*>> SourcesVisited;
 };
 #endif

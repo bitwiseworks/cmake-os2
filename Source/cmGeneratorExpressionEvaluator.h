@@ -7,6 +7,7 @@
 
 #include <stddef.h>
 #include <string>
+#include <utility>
 #include <vector>
 
 struct cmGeneratorExpressionContext;
@@ -15,8 +16,13 @@ struct cmGeneratorExpressionNode;
 
 struct cmGeneratorExpressionEvaluator
 {
-  cmGeneratorExpressionEvaluator() {}
-  virtual ~cmGeneratorExpressionEvaluator() {}
+  cmGeneratorExpressionEvaluator() = default;
+  virtual ~cmGeneratorExpressionEvaluator() = default;
+
+  cmGeneratorExpressionEvaluator(cmGeneratorExpressionEvaluator const&) =
+    delete;
+  cmGeneratorExpressionEvaluator& operator=(
+    cmGeneratorExpressionEvaluator const&) = delete;
 
   enum Type
   {
@@ -28,9 +34,6 @@ struct cmGeneratorExpressionEvaluator
 
   virtual std::string Evaluate(cmGeneratorExpressionContext* context,
                                cmGeneratorExpressionDAGChecker*) const = 0;
-
-private:
-  CM_DISABLE_COPY(cmGeneratorExpressionEvaluator)
 };
 
 struct TextContent : public cmGeneratorExpressionEvaluator
@@ -64,17 +67,16 @@ private:
 struct GeneratorExpressionContent : public cmGeneratorExpressionEvaluator
 {
   GeneratorExpressionContent(const char* startContent, size_t length);
-  void SetIdentifier(
-    std::vector<cmGeneratorExpressionEvaluator*> const& identifier)
+
+  void SetIdentifier(std::vector<cmGeneratorExpressionEvaluator*> identifier)
   {
-    this->IdentifierChildren = identifier;
+    this->IdentifierChildren = std::move(identifier);
   }
 
   void SetParameters(
-    std::vector<std::vector<cmGeneratorExpressionEvaluator*>> const&
-      parameters)
+    std::vector<std::vector<cmGeneratorExpressionEvaluator*>> parameters)
   {
-    this->ParamChildren = parameters;
+    this->ParamChildren = std::move(parameters);
   }
 
   Type GetType() const override

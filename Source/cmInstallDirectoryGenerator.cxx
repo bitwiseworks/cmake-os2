@@ -31,21 +31,22 @@ cmInstallDirectoryGenerator::cmInstallDirectoryGenerator(
   }
 
   // We need per-config actions if any directories have generator expressions.
-  for (std::vector<std::string>::const_iterator i = dirs.begin();
-       !this->ActionsPerConfig && i != dirs.end(); ++i) {
-    if (cmGeneratorExpression::Find(*i) != std::string::npos) {
-      this->ActionsPerConfig = true;
+  if (!this->ActionsPerConfig) {
+    for (std::string const& dir : dirs) {
+      if (cmGeneratorExpression::Find(dir) != std::string::npos) {
+        this->ActionsPerConfig = true;
+        break;
+      }
     }
   }
 }
 
-cmInstallDirectoryGenerator::~cmInstallDirectoryGenerator()
-{
-}
+cmInstallDirectoryGenerator::~cmInstallDirectoryGenerator() = default;
 
-void cmInstallDirectoryGenerator::Compute(cmLocalGenerator* lg)
+bool cmInstallDirectoryGenerator::Compute(cmLocalGenerator* lg)
 {
-  LocalGenerator = lg;
+  this->LocalGenerator = lg;
+  return true;
 }
 
 void cmInstallDirectoryGenerator::GenerateScriptActions(std::ostream& os,
@@ -72,8 +73,8 @@ void cmInstallDirectoryGenerator::GenerateScriptForConfig(
   // Make sure all dirs have absolute paths.
   cmMakefile const& mf = *this->LocalGenerator->GetMakefile();
   for (std::string& d : dirs) {
-    if (!cmSystemTools::FileIsFullPath(d.c_str())) {
-      d = std::string(mf.GetCurrentSourceDirectory()) + "/" + d;
+    if (!cmSystemTools::FileIsFullPath(d)) {
+      d = mf.GetCurrentSourceDirectory() + "/" + d;
     }
   }
 

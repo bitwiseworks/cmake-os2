@@ -7,8 +7,10 @@
 
 #include "cmCTestGenericHandler.h"
 
+#include "cmDuration.h"
 #include "cmProcessOutput.h"
 #include "cmsys/RegularExpression.hxx"
+#include <chrono>
 #include <deque>
 #include <iosfwd>
 #include <stddef.h>
@@ -50,7 +52,7 @@ private:
 
   //! Run command specialized for make and configure. Returns process status
   // and retVal is return value or exception.
-  int RunMakeCommand(const char* command, int* retVal, const char* dir,
+  int RunMakeCommand(const std::string& command, int* retVal, const char* dir,
                      int timeout, std::ostream& ofs,
                      Encoding encoding = cmProcessOutput::Auto);
 
@@ -86,14 +88,14 @@ private:
   void GenerateXMLHeader(cmXMLWriter& xml);
   void GenerateXMLLaunched(cmXMLWriter& xml);
   void GenerateXMLLogScraped(cmXMLWriter& xml);
-  void GenerateXMLFooter(cmXMLWriter& xml, double elapsed_build_time);
+  void GenerateXMLFooter(cmXMLWriter& xml, cmDuration elapsed_build_time);
   bool IsLaunchedErrorFile(const char* fname);
   bool IsLaunchedWarningFile(const char* fname);
 
   std::string StartBuild;
   std::string EndBuild;
-  double StartBuildTime;
-  double EndBuildTime;
+  std::chrono::system_clock::time_point StartBuildTime;
+  std::chrono::system_clock::time_point EndBuildTime;
 
   std::vector<std::string> CustomErrorMatches;
   std::vector<std::string> CustomErrorExceptions;

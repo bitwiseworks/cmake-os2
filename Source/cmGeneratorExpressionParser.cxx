@@ -2,14 +2,16 @@
    file Copyright.txt or https://cmake.org/licensing for details.  */
 #include "cmGeneratorExpressionParser.h"
 
+#include "cmAlgorithms.h"
 #include "cmGeneratorExpressionEvaluator.h"
 
 #include <assert.h>
 #include <stddef.h>
+#include <utility>
 
 cmGeneratorExpressionParser::cmGeneratorExpressionParser(
-  const std::vector<cmGeneratorExpressionToken>& tokens)
-  : Tokens(tokens)
+  std::vector<cmGeneratorExpressionToken> tokens)
+  : Tokens(std::move(tokens))
   , NestingLevel(0)
 {
 }
@@ -46,14 +48,14 @@ static void extendResult(
   if (!result.empty() &&
       (*(result.end() - 1))->GetType() ==
         cmGeneratorExpressionEvaluator::Text &&
-      (*contents.begin())->GetType() == cmGeneratorExpressionEvaluator::Text) {
+      contents.front()->GetType() == cmGeneratorExpressionEvaluator::Text) {
     TextContent* textContent = static_cast<TextContent*>(*(result.end() - 1));
     textContent->Extend(
-      static_cast<TextContent*>(*contents.begin())->GetLength());
-    delete *contents.begin();
-    result.insert(result.end(), contents.begin() + 1, contents.end());
+      static_cast<TextContent*>(contents.front())->GetLength());
+    delete contents.front();
+    cmAppend(result, contents.begin() + 1, contents.end());
   } else {
-    result.insert(result.end(), contents.begin(), contents.end());
+    cmAppend(result, contents);
   }
 }
 
@@ -86,13 +88,13 @@ void cmGeneratorExpressionParser::ParseGeneratorExpression(
 
   if (this->it != this->Tokens.end() &&
       this->it->TokenType == cmGeneratorExpressionToken::EndExpression) {
-    GeneratorExpressionContent* content =
-      new GeneratorExpressionContent(startToken->Content, this->it->Content -
-                                       startToken->Content + this->it->Length);
+    GeneratorExpressionContent* content = new GeneratorExpressionContent(
+      startToken->Content,
+      this->it->Content - startToken->Content + this->it->Length);
     assert(this->it != this->Tokens.end());
     ++this->it;
     --this->NestingLevel;
-    content->SetIdentifier(identifier);
+    content->SetIdentifier(std::move(identifier));
     result.push_back(content);
     return;
   }
@@ -198,8 +200,8 @@ void cmGeneratorExpressionParser::ParseGeneratorExpression(
     ((this->it - 1)->Content - startToken->Content) + (this->it - 1)->Length;
   GeneratorExpressionContent* content =
     new GeneratorExpressionContent(startToken->Content, contentLength);
-  content->SetIdentifier(identifier);
-  content->SetParameters(parameters);
+  content->SetIdentifier(std::move(identifier));
+  content->SetParameters(std::move(parameters));
   result.push_back(content);
 }
 

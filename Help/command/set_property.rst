@@ -3,37 +3,40 @@ set_property
 
 Set a named property in a given scope.
 
-::
+.. code-block:: cmake
 
-  set_property(<GLOBAL                            |
-                DIRECTORY [dir]                   |
-                TARGET    [target1 [target2 ...]] |
-                SOURCE    [src1 [src2 ...]]       |
-                INSTALL   [file1 [file2 ...]]     |
-                TEST      [test1 [test2 ...]]     |
-                CACHE     [entry1 [entry2 ...]]>
+  set_property(<GLOBAL                      |
+                DIRECTORY [<dir>]           |
+                TARGET    [<target1> ...]   |
+                SOURCE    [<src1> ...]      |
+                INSTALL   [<file1> ...]     |
+                TEST      [<test1> ...]     |
+                CACHE     [<entry1> ...]    >
                [APPEND] [APPEND_STRING]
-               PROPERTY <name> [value1 [value2 ...]])
+               PROPERTY <name> [value1 ...])
 
-Set one property on zero or more objects of a scope.  The first
-argument determines the scope in which the property is set.  It must
-be one of the following:
+Sets one property on zero or more objects of a scope.
+
+The first argument determines the scope in which the property is set.
+It must be one of the following:
 
 ``GLOBAL``
   Scope is unique and does not accept a name.
 
 ``DIRECTORY``
-  Scope defaults to the current directory but another
-  directory (already processed by CMake) may be named by full or
-  relative path.
+  Scope defaults to the current directory but another directory
+  (already processed by CMake) may be named by full or relative path.
+  See also the :command:`set_directory_properties` command.
 
 ``TARGET``
   Scope may name zero or more existing targets.
+  See also the :command:`set_target_properties` command.
 
 ``SOURCE``
   Scope may name zero or more source files.  Note that source
   file properties are visible only to targets added in the same
-  directory (CMakeLists.txt).
+  directory (``CMakeLists.txt``).
+  See also the :command:`set_source_files_properties` command.
 
 ``INSTALL``
   Scope may name zero or more installed file paths.
@@ -45,7 +48,7 @@ be one of the following:
   Path components have to be separated by forward slashes,
   must be normalized and are case sensitive.
 
-  To reference the installation prefix itself with a relative path use ".".
+  To reference the installation prefix itself with a relative path use ``.``.
 
   Currently installed file properties are only defined for
   the WIX generator where the given paths are relative
@@ -53,17 +56,24 @@ be one of the following:
 
 ``TEST``
   Scope may name zero or more existing tests.
+  See also the :command:`set_tests_properties` command.
 
 ``CACHE``
   Scope must name zero or more cache existing entries.
 
 The required ``PROPERTY`` option is immediately followed by the name of
 the property to set.  Remaining arguments are used to compose the
-property value in the form of a semicolon-separated list.  If the
-``APPEND`` option is given the list is appended to any existing property
-value.  If the ``APPEND_STRING`` option is given the string is append to any
-existing property value as string, i.e.  it results in a longer string
-and not a list of strings.
+property value in the form of a semicolon-separated list.
+
+If the ``APPEND`` option is given the list is appended to any existing
+property value.  If the ``APPEND_STRING`` option is given the string is
+appended to any existing property value as string, i.e. it results in a
+longer string and not a list of strings.  When using ``APPEND`` or
+``APPEND_STRING`` with a property defined to support ``INHERITED``
+behavior (see :command:`define_property`), no inheriting occurs when
+finding the initial value to append to.  If the property is not already
+directly set in the nominated scope, the command will behave as though
+``APPEND`` or ``APPEND_STRING`` had not been given.
 
 See the :manual:`cmake-properties(7)` manual for a list of properties
 in each scope.

@@ -10,7 +10,7 @@
 #include <string>
 
 #if !defined(CMAKE_BUILD_WITH_CMAKE)
-#error "cmArchiveWrite not allowed during bootstrap build!"
+#  error "cmArchiveWrite not allowed during bootstrap build!"
 #endif
 
 template <typename T>
@@ -28,6 +28,7 @@ public:
   void Clear() { this->IsValueSet = false; }
   bool IsSet() const { return this->IsValueSet; }
   T Get() const { return Value; }
+
 private:
   T Value;
   bool IsValueSet;
@@ -39,8 +40,6 @@ private:
  */
 class cmArchiveWrite
 {
-  typedef void (cmArchiveWrite::*safe_bool)();
-  void safe_bool_true() {}
 public:
   /** Compression type.  */
   enum Compress
@@ -50,7 +49,8 @@ public:
     CompressGZip,
     CompressBZip2,
     CompressLZMA,
-    CompressXZ
+    CompressXZ,
+    CompressZstd
   };
 
   /** Construct with output stream to which to write archive.  */
@@ -58,6 +58,9 @@ public:
                  std::string const& format = "paxr");
 
   ~cmArchiveWrite();
+
+  cmArchiveWrite(const cmArchiveWrite&) = delete;
+  cmArchiveWrite& operator=(const cmArchiveWrite&) = delete;
 
   /**
    * Add a path (file or directory) to the archive.  Directories are
@@ -71,10 +74,7 @@ public:
            bool recursive = true);
 
   /** Returns true if there has been no error.  */
-  operator safe_bool() const
-  {
-    return this->Okay() ? &cmArchiveWrite::safe_bool_true : nullptr;
-  }
+  explicit operator bool() const { return this->Okay(); }
 
   /** Returns true if there has been an error.  */
   bool operator!() const { return !this->Okay(); }

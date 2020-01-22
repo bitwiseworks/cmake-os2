@@ -9,13 +9,20 @@ endif()
 set(__COMPILER_GNU 1)
 
 include(Compiler/CMakeCommonCompilerMacros)
+include(Internal/CMakeCheckCompilerFlag)
 
 macro(__compiler_gnu lang)
   # Feature flags.
   set(CMAKE_${lang}_VERBOSE_FLAG "-v")
   set(CMAKE_${lang}_COMPILE_OPTIONS_PIC "-fPIC")
+  set (_CMAKE_${lang}_PIE_MAY_BE_SUPPORTED_BY_LINKER NO)
   if(NOT CMAKE_${lang}_COMPILER_VERSION VERSION_LESS 3.4)
     set(CMAKE_${lang}_COMPILE_OPTIONS_PIE "-fPIE")
+    # Support of PIE at link stage depends on various elements : platform, compiler, linker
+    # so to activate it, module CheckPIESupported must be used.
+    set (_CMAKE_${lang}_PIE_MAY_BE_SUPPORTED_BY_LINKER YES)
+    set(CMAKE_${lang}_LINK_OPTIONS_PIE ${CMAKE_${lang}_COMPILE_OPTIONS_PIE} "-pie")
+    set(CMAKE_${lang}_LINK_OPTIONS_NO_PIE "-no-pie")
   endif()
   if(NOT CMAKE_${lang}_COMPILER_VERSION VERSION_LESS 4.0)
     set(CMAKE_${lang}_COMPILE_OPTIONS_VISIBILITY "-fvisibility=")
@@ -23,6 +30,9 @@ macro(__compiler_gnu lang)
   set(CMAKE_SHARED_LIBRARY_${lang}_FLAGS "-fPIC")
   set(CMAKE_SHARED_LIBRARY_CREATE_${lang}_FLAGS "-shared")
   set(CMAKE_${lang}_COMPILE_OPTIONS_SYSROOT "--sysroot=")
+
+  set(CMAKE_${lang}_LINKER_WRAPPER_FLAG "-Wl,")
+  set(CMAKE_${lang}_LINKER_WRAPPER_FLAG_SEP ",")
 
   # Older versions of gcc (< 4.5) contain a bug causing them to report a missing
   # header file as a warning if depfiles are enabled, causing check_header_file
@@ -86,4 +96,12 @@ macro(__compiler_gnu lang)
       "\"${CMAKE_${lang}_COMPILER_RANLIB}\" <TARGET>"
     )
   endif()
+
+  set(CMAKE_${lang}_COMPILER_PREDEFINES_COMMAND "${CMAKE_${lang}_COMPILER}")
+  if(CMAKE_${lang}_COMPILER_ARG1)
+    separate_arguments(_COMPILER_ARGS NATIVE_COMMAND "${CMAKE_${lang}_COMPILER_ARG1}")
+    list(APPEND CMAKE_${lang}_COMPILER_PREDEFINES_COMMAND ${_COMPILER_ARGS})
+    unset(_COMPILER_ARGS)
+  endif()
+  list(APPEND CMAKE_${lang}_COMPILER_PREDEFINES_COMMAND "-dM" "-E" "-c" "${CMAKE_ROOT}/Modules/CMakeCXXCompilerABI.cpp")
 endmacro()

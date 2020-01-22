@@ -6,8 +6,8 @@
 #include "cmExecutionStatus.h"
 #include "cmExpandedCommandArgument.h"
 #include "cmMakefile.h"
+#include "cmMessageType.h"
 #include "cmSystemTools.h"
-#include "cmake.h"
 
 #include <memory> // IWYU pragma: keep
 
@@ -28,16 +28,16 @@ bool cmWhileFunctionBlocker::IsFunctionBlocked(const cmListFileFunction& lff,
                                                cmExecutionStatus& inStatus)
 {
   // at end of for each execute recorded commands
-  if (!cmSystemTools::Strucmp(lff.Name.c_str(), "while")) {
+  if (lff.Name.Lower == "while") {
     // record the number of while commands past this one
     this->Depth++;
-  } else if (!cmSystemTools::Strucmp(lff.Name.c_str(), "endwhile")) {
+  } else if (lff.Name.Lower == "endwhile") {
     // if this is the endwhile for this while loop then execute
     if (!this->Depth) {
       // Remove the function blocker for this scope or bail.
       std::unique_ptr<cmFunctionBlocker> fb(
         mf.RemoveFunctionBlocker(this, lff));
-      if (!fb.get()) {
+      if (!fb) {
         return false;
       }
 
@@ -45,7 +45,7 @@ bool cmWhileFunctionBlocker::IsFunctionBlocked(const cmListFileFunction& lff,
 
       std::vector<cmExpandedCommandArgument> expandedArguments;
       mf.ExpandArguments(this->Args, expandedArguments);
-      cmake::MessageType messageType;
+      MessageType messageType;
 
       cmListFileContext execContext = this->GetStartingContext();
 
@@ -72,7 +72,7 @@ bool cmWhileFunctionBlocker::IsFunctionBlocked(const cmListFileFunction& lff,
           err += errorString;
           err += ").";
           mf.IssueMessage(messageType, err);
-          if (messageType == cmake::FATAL_ERROR) {
+          if (messageType == MessageType::FATAL_ERROR) {
             cmSystemTools::SetFatalErrorOccured();
             return true;
           }
@@ -117,7 +117,7 @@ bool cmWhileFunctionBlocker::IsFunctionBlocked(const cmListFileFunction& lff,
 bool cmWhileFunctionBlocker::ShouldRemove(const cmListFileFunction& lff,
                                           cmMakefile&)
 {
-  if (!cmSystemTools::Strucmp(lff.Name.c_str(), "endwhile")) {
+  if (lff.Name.Lower == "endwhile") {
     // if the endwhile has arguments, then make sure
     // they match the arguments of the matching while
     if (lff.Arguments.empty() || lff.Arguments == this->Args) {

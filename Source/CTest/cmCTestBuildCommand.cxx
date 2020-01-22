@@ -4,9 +4,9 @@
 
 #include "cmCTest.h"
 #include "cmCTestBuildHandler.h"
-#include "cmCTestGenericHandler.h"
 #include "cmGlobalGenerator.h"
 #include "cmMakefile.h"
+#include "cmMessageType.h"
 #include "cmSystemTools.h"
 #include "cmake.h"
 
@@ -38,12 +38,10 @@ cmCTestBuildCommand::~cmCTestBuildCommand()
 
 cmCTestGenericHandler* cmCTestBuildCommand::InitializeHandler()
 {
-  cmCTestGenericHandler* handler = this->CTest->GetInitializedHandler("build");
-  if (!handler) {
-    this->SetError("internal CTest error. Cannot instantiate build handler");
-    return nullptr;
-  }
-  this->Handler = static_cast<cmCTestBuildHandler*>(handler);
+  cmCTestBuildHandler* handler = this->CTest->GetBuildHandler();
+  handler->Initialize();
+
+  this->Handler = handler;
 
   const char* ctestBuildCommand =
     this->Makefile->GetDefinition("CTEST_BUILD_COMMAND");
@@ -53,10 +51,6 @@ cmCTestGenericHandler* cmCTestBuildCommand::InitializeHandler()
   } else {
     const char* cmakeGeneratorName =
       this->Makefile->GetDefinition("CTEST_CMAKE_GENERATOR");
-    const char* cmakeProjectName =
-      (this->Values[ctb_PROJECT_NAME] && *this->Values[ctb_PROJECT_NAME])
-      ? this->Values[ctb_PROJECT_NAME]
-      : this->Makefile->GetDefinition("CTEST_PROJECT_NAME");
 
     // Build configuration is determined by: CONFIGURATION argument,
     // or CTEST_BUILD_CONFIGURATION script variable, or
@@ -81,8 +75,7 @@ cmCTestGenericHandler* cmCTestBuildCommand::InitializeHandler()
       ? this->Values[ctb_TARGET]
       : this->Makefile->GetDefinition("CTEST_BUILD_TARGET");
 
-    if (cmakeGeneratorName && *cmakeGeneratorName && cmakeProjectName &&
-        *cmakeProjectName) {
+    if (cmakeGeneratorName && *cmakeGeneratorName) {
       if (!cmakeBuildConfiguration) {
         cmakeBuildConfiguration = "Release";
       }
@@ -100,7 +93,7 @@ cmCTestGenericHandler* cmCTestBuildCommand::InitializeHandler()
           std::string e = "could not create generator named \"";
           e += cmakeGeneratorName;
           e += "\"";
-          this->Makefile->IssueMessage(cmake::FATAL_ERROR, e);
+          this->Makefile->IssueMessage(MessageType::FATAL_ERROR, e);
           cmSystemTools::SetFatalErrorOccured();
           return nullptr;
         }
@@ -132,14 +125,7 @@ cmCTestGenericHandler* cmCTestBuildCommand::InitializeHandler()
       /* clang-format off */
       ostr << "has no project to build. If this is a "
         "\"built with CMake\" project, verify that CTEST_CMAKE_GENERATOR "
-        "and CTEST_PROJECT_NAME are set."
-        "\n"
-        "CTEST_PROJECT_NAME is usually set in CTestConfig.cmake. Verify "
-        "that CTestConfig.cmake exists, or CTEST_PROJECT_NAME "
-        "is set in the script, or PROJECT_NAME is passed as an argument "
-        "to ctest_build."
-        "\n"
-        "Alternatively, set CTEST_BUILD_COMMAND to build the project "
+        "is set. Otherwise, set CTEST_BUILD_COMMAND to build the project "
         "with a custom command line.";
       /* clang-format on */
       this->SetError(ostr.str());

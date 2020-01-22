@@ -6,19 +6,16 @@
 #include <sstream>
 #include <stdio.h>
 #include <string>
+#include <vector>
 
 #include "cmCPackGenerator.h"
 #include "cmCPackLog.h"
 #include "cmSystemTools.h"
 #include "cm_sys_stat.h"
 
-cmCPackSTGZGenerator::cmCPackSTGZGenerator()
-{
-}
+cmCPackSTGZGenerator::cmCPackSTGZGenerator() = default;
 
-cmCPackSTGZGenerator::~cmCPackSTGZGenerator()
-{
-}
+cmCPackSTGZGenerator::~cmCPackSTGZGenerator() = default;
 
 int cmCPackSTGZGenerator::InitializeInternal()
 {
@@ -56,7 +53,7 @@ int cmCPackSTGZGenerator::PackageFiles()
                                               S_IRGRP | S_IWGRP | S_IXGRP |
                                               S_IROTH | S_IWOTH | S_IXOTH
 #endif
-                                            );
+    );
   }
   return retval;
 }
@@ -100,8 +97,8 @@ int cmCPackSTGZGenerator::GenerateHeader(std::ostream* os)
     ++ptr;
   }
   counter++;
-  cmCPackLogger(cmCPackLog::LOG_DEBUG, "Number of lines: " << counter
-                                                           << std::endl);
+  cmCPackLogger(cmCPackLog::LOG_DEBUG,
+                "Number of lines: " << counter << std::endl);
   char buffer[1024];
   sprintf(buffer, "%d", counter);
   cmSystemTools::ReplaceString(res, headerLengthTag, buffer);

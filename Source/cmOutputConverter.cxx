@@ -6,12 +6,10 @@
 #include <assert.h>
 #include <ctype.h>
 #include <set>
-#include <sstream>
+#include <string.h>
 #include <vector>
 
-#include "cmAlgorithms.h"
 #include "cmState.h"
-#include "cmStateDirectory.h"
 #include "cmSystemTools.h"
 
 cmOutputConverter::cmOutputConverter(cmStateSnapshot const& snapshot)
@@ -29,7 +27,7 @@ std::string cmOutputConverter::ConvertToOutputForExisting(
   // space.
   if (this->GetState()->UseWindowsShell() &&
       remote.find(' ') != std::string::npos &&
-      cmSystemTools::FileExists(remote.c_str())) {
+      cmSystemTools::FileExists(remote)) {
     std::string tmp;
     if (cmSystemTools::GetShortPath(remote, tmp)) {
       return this->ConvertToOutputFormat(tmp, format);
@@ -71,121 +69,6 @@ std::string cmOutputConverter::ConvertDirectorySeparatorsForShell(
     std::replace(result.begin(), result.end(), '/', '\\');
   }
   return result;
-}
-
-static bool cmOutputConverterNotAbove(const char* a, const char* b)
-{
-  return (cmSystemTools::ComparePath(a, b) ||
-          cmSystemTools::IsSubDirectory(a, b));
-}
-
-bool cmOutputConverter::ContainedInDirectory(std::string const& local_path,
-                                             std::string const& remote_path,
-                                             cmStateDirectory const& directory)
-{
-  const std::string relativePathTopBinary =
-    directory.GetRelativePathTopBinary();
-  const std::string relativePathTopSource =
-    directory.GetRelativePathTopSource();
-
-  const bool bothInBinary =
-    cmOutputConverterNotAbove(local_path.c_str(),
-                              relativePathTopBinary.c_str()) &&
-    cmOutputConverterNotAbove(remote_path.c_str(),
-                              relativePathTopBinary.c_str());
-
-  const bool bothInSource =
-    cmOutputConverterNotAbove(local_path.c_str(),
-                              relativePathTopSource.c_str()) &&
-    cmOutputConverterNotAbove(remote_path.c_str(),
-                              relativePathTopSource.c_str());
-
-  return bothInSource || bothInBinary;
-}
-
-std::string cmOutputConverter::ConvertToRelativePath(
-  std::string const& local_path, std::string const& remote_path) const
-{
-  if (!ContainedInDirectory(local_path, remote_path,
-                            this->StateSnapshot.GetDirectory())) {
-    return remote_path;
-  }
-
-  return this->ForceToRelativePath(local_path, remote_path);
-}
-
-std::string cmOutputConverter::ForceToRelativePath(
-  std::string const& local_path, std::string const& remote_path)
-{
-  // The paths should never be quoted.
-  assert(local_path[0] != '\"');
-  assert(remote_path[0] != '\"');
-
-  // The local path should never have a trailing slash.
-  assert(local_path.empty() || local_path[local_path.size() - 1] != '/');
-
-  // If the path is already relative then just return the path.
-  if (!cmSystemTools::FileIsFullPath(remote_path.c_str())) {
-    return remote_path;
-  }
-
-  // Identify the longest shared path component between the remote
-  // path and the local path.
-  std::vector<std::string> local;
-  cmSystemTools::SplitPath(local_path, local);
-  std::vector<std::string> remote;
-  cmSystemTools::SplitPath(remote_path, remote);
-  unsigned int common = 0;
-  while (common < remote.size() && common < local.size() &&
-         cmSystemTools::ComparePath(remote[common], local[common])) {
-    ++common;
-  }
-
-  // If no part of the path is in common then return the full path.
-  if (common == 0) {
-    return remote_path;
-  }
-
-  // If the entire path is in common then just return a ".".
-  if (common == remote.size() && common == local.size()) {
-    return ".";
-  }
-
-  // If the entire path is in common except for a trailing slash then
-  // just return a "./".
-  if (common + 1 == remote.size() && remote[common].empty() &&
-      common == local.size()) {
-    return "./";
-  }
-
-  // Construct the relative path.
-  std::string relative;
-
-  // First add enough ../ to get up to the level of the shared portion
-  // of the path.  Leave off the trailing slash.  Note that the last
-  // component of local will never be empty because local should never
-  // have a trailing slash.
-  for (unsigned int i = common; i < local.size(); ++i) {
-    relative += "..";
-    if (i < local.size() - 1) {
-      relative += "/";
-    }
-  }
-
-  // Now add the portion of the destination path that is not included
-  // in the shared portion of the path.  Add a slash the first time
-  // only if there was already something in the path.  If there was a
-  // trailing slash in the input then the last iteration of the loop
-  // will add a slash followed by an empty string which will preserve
-  // the trailing slash in the output.
-
-  if (!relative.empty() && !remote.empty()) {
-    relative += "/";
-  }
-  relative += cmJoin(cmMakeRange(remote).advance(common), "/");
-
-  // Finally return the path.
-  return relative;
 }
 
 static bool cmOutputConverterIsShellOperator(const std::string& str)
@@ -341,12 +224,13 @@ redirection character (for example, ^>, ^<, or ^| ). If you need to
 use the caret character itself (^), use two in a row (^^).
 */
 
-int cmOutputConverter::Shell__CharIsWhitespace(char c)
+/* Some helpers to identify character classes */
+static int Shell__CharIsWhitespace(char c)
 {
   return ((c == ' ') || (c == '\t'));
 }
 
-int cmOutputConverter::Shell__CharNeedsQuotesOnUnix(char c)
+static int Shell__CharNeedsQuotesOnUnix(char c)
 {
   return ((c == '\'') || (c == '`') || (c == ';') || (c == '#') ||
           (c == '&') || (c == '$') || (c == '(') || (c == ')') || (c == '~') ||
@@ -354,10 +238,15 @@ int cmOutputConverter::Shell__CharNeedsQuotesOnUnix(char c)
           (c == '\\'));
 }
 
-int cmOutputConverter::Shell__CharNeedsQuotesOnWindows(char c)
+static int Shell__CharNeedsQuotesOnWindows(char c)
 {
   return ((c == '\'') || (c == '#') || (c == '&') || (c == '<') ||
           (c == '>') || (c == '|') || (c == '^'));
+}
+
+static int Shell__CharIsMakeVariableName(char c)
+{
+  return c && (c == '_' || isalpha((static_cast<int>(c))));
 }
 
 int cmOutputConverter::Shell__CharNeedsQuotes(char c, int flags)
@@ -384,11 +273,6 @@ int cmOutputConverter::Shell__CharNeedsQuotes(char c, int flags)
     }
   }
   return 0;
-}
-
-int cmOutputConverter::Shell__CharIsMakeVariableName(char c)
-{
-  return c && (c == '_' || isalpha((static_cast<int>(c))));
 }
 
 const char* cmOutputConverter::Shell__SkipMakeVariables(const char* c)
@@ -481,7 +365,9 @@ int cmOutputConverter::Shell__ArgumentNeedsQuotes(const char* in, int flags)
 
 std::string cmOutputConverter::Shell__GetArgument(const char* in, int flags)
 {
-  std::ostringstream out;
+  /* Output will be at least as long as input string.  */
+  std::string out;
+  out.reserve(strlen(in));
 
   /* String iterator.  */
   const char* c;
@@ -495,11 +381,11 @@ std::string cmOutputConverter::Shell__GetArgument(const char* in, int flags)
     /* Add the opening quote for this argument.  */
     if (flags & Shell_Flag_WatcomQuote) {
       if (flags & Shell_Flag_IsUnix) {
-        out << '"';
+        out += '"';
       }
-      out << '\'';
+      out += '\'';
     } else {
-      out << '"';
+      out += '"';
     }
   }
 
@@ -511,7 +397,7 @@ std::string cmOutputConverter::Shell__GetArgument(const char* in, int flags)
       if (skip != c) {
         /* Copy to the end of the make variable references.  */
         while (c != skip) {
-          out << *c++;
+          out += *c++;
         }
 
         /* The make variable reference eliminates any escaping needed
@@ -531,7 +417,7 @@ std::string cmOutputConverter::Shell__GetArgument(const char* in, int flags)
          quoted argument.  */
       if (*c == '\\' || *c == '"' || *c == '`' || *c == '$') {
         /* This character needs a backslash to escape it.  */
-        out << '\\';
+        out += '\\';
       }
     } else if (flags & Shell_Flag_EchoWindows) {
       /* On Windows the built-in command shell echo never needs escaping.  */
@@ -545,11 +431,11 @@ std::string cmOutputConverter::Shell__GetArgument(const char* in, int flags)
            backslashes.  */
         while (windows_backslashes > 0) {
           --windows_backslashes;
-          out << '\\';
+          out += '\\';
         }
 
         /* Add the backslash to escape the double-quote.  */
-        out << '\\';
+        out += '\\';
       } else {
         /* We encountered a normal character.  This eliminates any
            escaping needed for preceding backslashes.  */
@@ -562,7 +448,7 @@ std::string cmOutputConverter::Shell__GetArgument(const char* in, int flags)
       if (flags & Shell_Flag_Make) {
         /* In Makefiles a dollar is written $$.  The make tool will
            replace it with just $ before passing it to the shell.  */
-        out << "$$";
+        out += "$$";
       } else if (flags & Shell_Flag_VSIDE) {
         /* In a VS IDE a dollar is written "$".  If this is written in
            an un-quoted argument it starts a quoted segment, inserts
@@ -570,30 +456,30 @@ std::string cmOutputConverter::Shell__GetArgument(const char* in, int flags)
            argument it ends quoting, inserts the $ and restarts
            quoting.  Either way the $ is isolated from surrounding
            text to avoid looking like a variable reference.  */
-        out << "\"$\"";
+        out += "\"$\"";
       } else {
         /* Otherwise a dollar is written just $. */
-        out << '$';
+        out += '$';
       }
     } else if (*c == '#') {
       if ((flags & Shell_Flag_Make) && (flags & Shell_Flag_WatcomWMake)) {
         /* In Watcom WMake makefiles a pound is written $#.  The make
            tool will replace it with just # before passing it to the
            shell.  */
-        out << "$#";
+        out += "$#";
       } else {
         /* Otherwise a pound is written just #. */
-        out << '#';
+        out += '#';
       }
     } else if (*c == '%') {
       if ((flags & Shell_Flag_VSIDE) ||
           ((flags & Shell_Flag_Make) &&
            ((flags & Shell_Flag_MinGWMake) || (flags & Shell_Flag_NMake)))) {
         /* In the VS IDE, NMake, or MinGW make a percent is written %%.  */
-        out << "%%";
+        out += "%%";
       } else {
         /* Otherwise a percent is written just %. */
-        out << '%';
+        out += '%';
       }
     } else if (*c == ';') {
       if (flags & Shell_Flag_VSIDE) {
@@ -602,14 +488,14 @@ std::string cmOutputConverter::Shell__GetArgument(const char* in, int flags)
            inserts the ; and ends the segment.  If it is written in a
            quoted argument it ends quoting, inserts the ; and restarts
            quoting.  Either way the ; is isolated.  */
-        out << "\";\"";
+        out += "\";\"";
       } else {
         /* Otherwise a semicolon is written just ;. */
-        out << ';';
+        out += ';';
       }
     } else {
       /* Store this character.  */
-      out << *c;
+      out += *c;
     }
   }
 
@@ -617,19 +503,19 @@ std::string cmOutputConverter::Shell__GetArgument(const char* in, int flags)
     /* Add enough backslashes to escape any trailing ones.  */
     while (windows_backslashes > 0) {
       --windows_backslashes;
-      out << '\\';
+      out += '\\';
     }
 
     /* Add the closing quote for this argument.  */
     if (flags & Shell_Flag_WatcomQuote) {
-      out << '\'';
+      out += '\'';
       if (flags & Shell_Flag_IsUnix) {
-        out << '"';
+        out += '"';
       }
     } else {
-      out << '"';
+      out += '"';
     }
   }
 
-  return out.str();
+  return out;
 }

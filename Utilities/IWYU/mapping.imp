@@ -23,8 +23,11 @@
   # HACK: check whether this can be removed with next iwyu release.
   { include: [ "<bits/shared_ptr.h>", private, "<memory>", public ] },
   { include: [ "<bits/std_function.h>", private, "<functional>", public ] },
+  { include: [ "<bits/stdint-intn.h>", private, "<stdint.h>", public ] },
+  { include: [ "<bits/stdint-uintn.h>", private, "<stdint.h>", public ] },
   { include: [ "<bits/time.h>", private, "<time.h>", public ] },
   { include: [ "<bits/types/clock_t.h>", private, "<time.h>", public ] },
+  { include: [ "<bits/types/mbstate_t.h>", private, "<wchar.h>", public ] },
   { include: [ "<bits/types/struct_timespec.h>", private, "<time.h>", public ] },
   { include: [ "<bits/types/struct_timeval.h>", private, "<time.h>", public ] },
   { include: [ "<bits/types/struct_tm.h>", private, "<time.h>", public ] },
@@ -49,18 +52,32 @@
   #{ symbol: [ "std::pair", private, "<map>", public ] },
   #{ symbol: [ "std::pair", private, "<set>", public ] },
 
+  # HACK: iwyu wrongly thinks that <system_error> is needed for std::hash
+  { symbol: [ "std::hash", private, "<functional>", public ] },
+
+  # HACK: iwyu thinks we use a libstdc++ private type
+  { symbol: [ "__gnu_cxx::size_t", private, "<cstddef>", public ] },
+
   # __decay_and_strip is used internally in the C++11 standard library.
   # IWYU does not classify it as internal and suggests to add <type_traits>.
   # To ignore it, we simply map it to a file that is included anyway.
+  # Use '-Xiwyu -v7' to see the fully qualified names that need this.
   # TODO: Can this be simplified with an @-expression?
   #{ symbol: [ "@std::__decay_and_strip<.*>::__type", private, "\"cmConfigure.h\"", public ] },
   { symbol: [ "std::__decay_and_strip<cmCommand *&>::__type", private, "\"cmConfigure.h\"", public ] },
   { symbol: [ "std::__decay_and_strip<cmGeneratorTarget *&>::__type", private, "\"cmConfigure.h\"", public ] },
   { symbol: [ "std::__decay_and_strip<cmFindCommon::PathLabel &>::__type", private, "\"cmConfigure.h\"", public ] },
+  { symbol: [ "std::__decay_and_strip<cmSearchPath>::__type", private, "\"cmConfigure.h\"", public ] },
+  { symbol: [ "std::__decay_and_strip<cm::string_view>::__type", private, "\"cmConfigure.h\"", public ] },
   { symbol: [ "std::__decay_and_strip<std::basic_string<char> &>::__type", private, "\"cmConfigure.h\"", public ] },
   { symbol: [ "std::__decay_and_strip<const std::basic_string<char> &>::__type", private, "\"cmConfigure.h\"", public ] },
   { symbol: [ "std::__decay_and_strip<cmFindPackageCommand::PathLabel &>::__type", private, "\"cmConfigure.h\"", public ] },
   { symbol: [ "std::__decay_and_strip<__gnu_cxx::__normal_iterator<const cmCTestTestHandler::cmCTestTestProperties *, std::vector<cmCTestTestHandler::cmCTestTestProperties, std::allocator<cmCTestTestHandler::cmCTestTestProperties> > > &>::__type", private, "\"cmConfigure.h\"", public ] },
+  { symbol: [ "std::__success_type<std::chrono::duration<double, std::ratio<1, 1> > >::type", private, "\"cmConfigure.h\"", public ] },
+  { symbol: [ "std::__success_type<std::chrono::duration<long, std::ratio<1, 1000000000> > >::type", private, "\"cmConfigure.h\"", public ] },
+  { symbol: [ "std::enable_if<true, std::chrono::duration<long, std::ratio<1, 1> > >::type", private, "\"cmConfigure.h\"", public ] },
+  { symbol: [ "std::enable_if<true, std::chrono::duration<long, std::ratio<60, 1> > >::type", private, "\"cmConfigure.h\"", public ] },
+  { symbol: [ "std::enable_if<true, std::chrono::duration<long, std::ratio<1, 1000> > >::type", private, "\"cmConfigure.h\"", public ] },
 
   # KWIML
   { include: [ "<stdint.h>", public, "\"cm_kwiml.h\"", public ] },
@@ -81,12 +98,9 @@
   { include: [ "<json/writer.h>", private, "\"cm_jsoncpp_writer.h\"", public ] },
   { include: [ "<rhash.h>", private, "\"cm_rhash.h\"", public ] },
   { include: [ "<uv.h>", private, "\"cm_uv.h\"", public ] },
-  { include: [ "@<uv-.+\\.h>", private, "\"cm_uv.h\"", public ] },
+  { include: [ "@<uv[/-].+\\.h>", private, "\"cm_uv.h\"", public ] },
   { include: [ "<kwiml/abi.h>", private, "\"cm_kwiml.h\"", public ] },
   { include: [ "<kwiml/int.h>", private, "\"cm_kwiml.h\"", public ] },
-  { include: [ "<xmlrpc.h>", private, "\"cm_xmlrpc.h\"", public ] },
-  { include: [ "<xmlrpc_client.h>", private, "\"cm_xmlrpc.h\"", public ] },
-  { include: [ "@<xmlrpc-c/.+\\.h>", private, "\"cm_xmlrpc.h\"", public ] },
   { include: [ "<zconf.h>", private, "\"cm_zlib.h\"", public ] },
   { include: [ "<zlib.h>", private, "\"cm_zlib.h\"", public ] },
 
@@ -101,7 +115,7 @@
   { include: [ "\"cmjsoncpp/include/json/writer.h\"", private, "\"cm_jsoncpp_writer.h\"", public ] },
   { include: [ "\"cmlibrhash/librhash/rhash.h\"", private, "\"cm_rhash.h\"", public ] },
   { include: [ "\"cmlibuv/include/uv.h\"", private, "\"cm_uv.h\"", public ] },
-  { include: [ "@\"cmlibuv/include/uv-.+\\.h\"", private, "\"cm_uv.h\"", public ] },
+  { include: [ "@\"cmlibuv/include/uv/.+\\.h\"", private, "\"cm_uv.h\"", public ] },
   { include: [ "\"KWIML/include/kwiml/abi.h\"", private, "\"cm_kwiml.h\"", public ] },
   { include: [ "\"KWIML/include/kwiml/int.h\"", private, "\"cm_kwiml.h\"", public ] },
   { include: [ "\"cmzlib/cm_zlib_mangle.h\"", private, "\"cm_zlib.h\"", public ] },
@@ -112,6 +126,8 @@
   { symbol: [ "SIGHUP", private, "\"cm_uv.h\"", public ] },
   { symbol: [ "SIGINT", private, "\"cm_uv.h\"", public ] },
   { symbol: [ "ssize_t", private, "\"cm_uv.h\"", public ] },
+
+  { symbol: [ "Json::ArrayIndex", private, "\"cm_jsoncpp_value.h\"", public ] },
 
   { symbol: [ "std::ifstream", private, "\"cmsys/FStream.hxx\"", public ] },
   { symbol: [ "std::ofstream", private, "\"cmsys/FStream.hxx\"", public ] },

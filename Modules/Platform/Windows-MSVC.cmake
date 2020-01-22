@@ -17,7 +17,7 @@ set(MSVC 1)
 # and still cmake didn't fail in CMakeFindBinUtils.cmake (because it isn't rerun)
 # hardcode CMAKE_LINKER here to link, so it behaves as it did before, Alex
 if(NOT DEFINED CMAKE_LINKER)
-   set(CMAKE_LINKER link)
+  set(CMAKE_LINKER link)
 endif()
 
 if(CMAKE_VERBOSE_MAKEFILE)
@@ -48,7 +48,11 @@ else()
 endif()
 
 if(NOT MSVC_VERSION)
-  if(CMAKE_C_SIMULATE_VERSION)
+  if("x${CMAKE_C_COMPILER_ID}" STREQUAL "xMSVC")
+    set(_compiler_version ${CMAKE_C_COMPILER_VERSION})
+  elseif("x${CMAKE_CXX_COMPILER_ID}" STREQUAL "xMSVC")
+    set(_compiler_version ${CMAKE_CXX_COMPILER_VERSION})
+  elseif(CMAKE_C_SIMULATE_VERSION)
     set(_compiler_version ${CMAKE_C_SIMULATE_VERSION})
   elseif(CMAKE_CXX_SIMULATE_VERSION)
     set(_compiler_version ${CMAKE_CXX_SIMULATE_VERSION})
@@ -65,6 +69,34 @@ if(NOT MSVC_VERSION)
     math(EXPR MSVC_VERSION "${CMAKE_MATCH_1}*100 + ${CMAKE_MATCH_2}")
   else()
     message(FATAL_ERROR "MSVC compiler version not detected properly: ${_compiler_version}")
+  endif()
+
+  if(MSVC_VERSION GREATER_EQUAL 1920)
+    # VS 2019 or greater
+    set(MSVC_TOOLSET_VERSION 142)
+  elseif(MSVC_VERSION GREATER_EQUAL 1910)
+    # VS 2017 or greater
+    set(MSVC_TOOLSET_VERSION 141)
+  elseif(MSVC_VERSION EQUAL 1900)
+    # VS 2015
+    set(MSVC_TOOLSET_VERSION 140)
+  elseif(MSVC_VERSION EQUAL 1800)
+    # VS 2013
+    set(MSVC_TOOLSET_VERSION 120)
+  elseif(MSVC_VERSION EQUAL 1700)
+    # VS 2012
+    set(MSVC_TOOLSET_VERSION 110)
+  elseif(MSVC_VERSION EQUAL 1600)
+    # VS 2010
+    set(MSVC_TOOLSET_VERSION 100)
+  elseif(MSVC_VERSION EQUAL 1500)
+    # VS 2008
+    set(MSVC_TOOLSET_VERSION 90)
+  elseif(MSVC_VERSION EQUAL 1400)
+    # VS 2005
+    set(MSVC_TOOLSET_VERSION 80)
+  else()
+    # We don't support MSVC_TOOLSET_VERSION for earlier compiler.
   endif()
 
   set(MSVC10)
@@ -266,11 +298,19 @@ endforeach()
 string(APPEND CMAKE_STATIC_LINKER_FLAGS_INIT " ${_MACHINE_ARCH_FLAG}")
 unset(_MACHINE_ARCH_FLAG)
 
+cmake_policy(GET CMP0091 __WINDOWS_MSVC_CMP0091)
+if(__WINDOWS_MSVC_CMP0091 STREQUAL "NEW")
+  set(CMAKE_MSVC_RUNTIME_LIBRARY_DEFAULT "MultiThreaded$<$<CONFIG:Debug>:Debug>DLL")
+else()
+  set(CMAKE_MSVC_RUNTIME_LIBRARY_DEFAULT "")
+endif()
+unset(__WINDOWS_MSVC_CMP0091)
+
 macro(__windows_compiler_msvc lang)
   if(NOT MSVC_VERSION LESS 1400)
     # for 2005 make sure the manifest is put in the dll with mt
-    set(_CMAKE_VS_LINK_DLL "<CMAKE_COMMAND> -E vs_link_dll --intdir=<OBJECT_DIR> --manifests <MANIFESTS> -- ")
-    set(_CMAKE_VS_LINK_EXE "<CMAKE_COMMAND> -E vs_link_exe --intdir=<OBJECT_DIR> --manifests <MANIFESTS> -- ")
+    set(_CMAKE_VS_LINK_DLL "<CMAKE_COMMAND> -E vs_link_dll --intdir=<OBJECT_DIR> --rc=<CMAKE_RC_COMPILER> --mt=<CMAKE_MT> --manifests <MANIFESTS> -- ")
+    set(_CMAKE_VS_LINK_EXE "<CMAKE_COMMAND> -E vs_link_exe --intdir=<OBJECT_DIR> --rc=<CMAKE_RC_COMPILER> --mt=<CMAKE_MT> --manifests <MANIFESTS> -- ")
   endif()
   set(CMAKE_${lang}_CREATE_SHARED_LIBRARY
     "${_CMAKE_VS_LINK_DLL}<CMAKE_LINKER> ${CMAKE_CL_NOLOGO} <OBJECTS> ${CMAKE_START_TEMP_FILE} /out:<TARGET> /implib:<TARGET_IMPLIB> /pdb:<TARGET_PDB> /dll /version:<TARGET_VERSION_MAJOR>.<TARGET_VERSION_MINOR>${_PLATFORM_LINK_FLAGS} <LINK_FLAGS> <LINK_LIBRARIES> ${CMAKE_END_TEMP_FILE}")
@@ -289,37 +329,99 @@ macro(__windows_compiler_msvc lang)
   set(CMAKE_${lang}_LINK_EXECUTABLE
     "${_CMAKE_VS_LINK_EXE}<CMAKE_LINKER> ${CMAKE_CL_NOLOGO} <OBJECTS> ${CMAKE_START_TEMP_FILE} /out:<TARGET> /implib:<TARGET_IMPLIB> /pdb:<TARGET_PDB> /version:<TARGET_VERSION_MAJOR>.<TARGET_VERSION_MINOR>${_PLATFORM_LINK_FLAGS} <CMAKE_${lang}_LINK_FLAGS> <LINK_FLAGS> <LINK_LIBRARIES>${CMAKE_END_TEMP_FILE}")
 
+  if("x${CMAKE_${lang}_COMPILER_ID}" STREQUAL "xMSVC")
+    set(_CMAKE_${lang}_IPO_SUPPORTED_BY_CMAKE YES)
+    set(_CMAKE_${lang}_IPO_MAY_BE_SUPPORTED_BY_COMPILER YES)
+
+    set(CMAKE_${lang}_COMPILE_OPTIONS_IPO "/GL")
+    set(CMAKE_${lang}_LINK_OPTIONS_IPO "/INCREMENTAL:NO" "/LTCG")
+    string(REPLACE "<LINK_FLAGS> " "/LTCG <LINK_FLAGS> "
+      CMAKE_${lang}_CREATE_STATIC_LIBRARY_IPO "${CMAKE_${lang}_CREATE_STATIC_LIBRARY}")
+  elseif("x${CMAKE_${lang}_COMPILER_ID}" STREQUAL "xClang" OR
+         "x${CMAKE_${lang}_COMPILER_ID}" STREQUAL "xFlang")
+    set(_CMAKE_${lang}_IPO_SUPPORTED_BY_CMAKE YES)
+    set(_CMAKE_${lang}_IPO_MAY_BE_SUPPORTED_BY_COMPILER YES)
+
+    # '-flto=thin' available since Clang 3.9 and Xcode 8
+    # * http://clang.llvm.org/docs/ThinLTO.html#clang-llvm
+    # * https://trac.macports.org/wiki/XcodeVersionInfo
+    set(_CMAKE_LTO_THIN TRUE)
+    if(CMAKE_${lang}_COMPILER_VERSION VERSION_LESS 3.9)
+      set(_CMAKE_LTO_THIN FALSE)
+    endif()
+
+    if(_CMAKE_LTO_THIN)
+      set(CMAKE_${lang}_COMPILE_OPTIONS_IPO "-flto=thin")
+    else()
+      set(CMAKE_${lang}_COMPILE_OPTIONS_IPO "-flto")
+    endif()
+  endif()
+
   if("x${lang}" STREQUAL "xC" OR
       "x${lang}" STREQUAL "xCXX")
+    if(CMAKE_MSVC_RUNTIME_LIBRARY_DEFAULT)
+      set(_MDd "")
+      set(_MD "")
+    else()
+      set(_MDd " /MDd")
+      set(_MD " /MD")
+    endif()
+
+    cmake_policy(GET CMP0092 _cmp0092)
+    if(_cmp0092 STREQUAL "NEW")
+      set(_W3 "")
+      set(_Wall "")
+    else()
+      set(_W3 " /W3")
+      set(_Wall " -Wall")
+    endif()
+    unset(_cmp0092)
+
     if(CMAKE_VS_PLATFORM_TOOLSET MATCHES "v[0-9]+_clang_.*")
       # note: MSVC 14 2015 Update 1 sets -fno-ms-compatibility by default, but this does not allow one to compile many projects
       # that include MS's own headers. CMake itself is affected project too.
-      string(APPEND CMAKE_${lang}_FLAGS_INIT " ${_PLATFORM_DEFINES}${_PLATFORM_DEFINES_${lang}} -fms-extensions -fms-compatibility -D_WINDOWS -Wall${_FLAGS_${lang}}")
-      string(APPEND CMAKE_${lang}_FLAGS_DEBUG_INIT " /MDd -gline-tables-only -fno-inline -O0 ${_RTC1}")
-      string(APPEND CMAKE_${lang}_FLAGS_RELEASE_INIT " /MD -O2 -DNDEBUG")
-      string(APPEND CMAKE_${lang}_FLAGS_RELWITHDEBINFO_INIT " /MD -gline-tables-only -O2 -fno-inline -DNDEBUG")
-      string(APPEND CMAKE_${lang}_FLAGS_MINSIZEREL_INIT " /MD -DNDEBUG") # TODO: Add '-Os' once VS generator maps it properly for Clang
+      string(APPEND CMAKE_${lang}_FLAGS_INIT " ${_PLATFORM_DEFINES}${_PLATFORM_DEFINES_${lang}} -fms-extensions -fms-compatibility -D_WINDOWS${_Wall}${_FLAGS_${lang}}")
+      string(APPEND CMAKE_${lang}_FLAGS_DEBUG_INIT "${_MDd} -gline-tables-only -fno-inline -O0 ${_RTC1}")
+      string(APPEND CMAKE_${lang}_FLAGS_RELEASE_INIT "${_MD} -O2 -DNDEBUG")
+      string(APPEND CMAKE_${lang}_FLAGS_RELWITHDEBINFO_INIT "${_MD} -gline-tables-only -O2 -fno-inline -DNDEBUG")
+      string(APPEND CMAKE_${lang}_FLAGS_MINSIZEREL_INIT "${_MD} -DNDEBUG") # TODO: Add '-Os' once VS generator maps it properly for Clang
     else()
-      string(APPEND CMAKE_${lang}_FLAGS_INIT " ${_PLATFORM_DEFINES}${_PLATFORM_DEFINES_${lang}} /D_WINDOWS /W3${_FLAGS_${lang}}")
-      string(APPEND CMAKE_${lang}_FLAGS_DEBUG_INIT " /MDd /Zi /Ob0 /Od ${_RTC1}")
-      string(APPEND CMAKE_${lang}_FLAGS_RELEASE_INIT " /MD /O2 /Ob2 /DNDEBUG")
-      string(APPEND CMAKE_${lang}_FLAGS_RELWITHDEBINFO_INIT " /MD /Zi /O2 /Ob1 /DNDEBUG")
-      string(APPEND CMAKE_${lang}_FLAGS_MINSIZEREL_INIT " /MD /O1 /Ob1 /DNDEBUG")
+      string(APPEND CMAKE_${lang}_FLAGS_INIT " ${_PLATFORM_DEFINES}${_PLATFORM_DEFINES_${lang}} /D_WINDOWS${_W3}${_FLAGS_${lang}}")
+      string(APPEND CMAKE_${lang}_FLAGS_DEBUG_INIT "${_MDd} /Zi /Ob0 /Od ${_RTC1}")
+      string(APPEND CMAKE_${lang}_FLAGS_RELEASE_INIT "${_MD} /O2 /Ob2 /DNDEBUG")
+      string(APPEND CMAKE_${lang}_FLAGS_RELWITHDEBINFO_INIT "${_MD} /Zi /O2 /Ob1 /DNDEBUG")
+      string(APPEND CMAKE_${lang}_FLAGS_MINSIZEREL_INIT "${_MD} /O1 /Ob1 /DNDEBUG")
     endif()
+    unset(_Wall)
+    unset(_W3)
+    unset(_MDd)
+    unset(_MD)
+
+    set(CMAKE_${lang}_COMPILE_OPTIONS_MSVC_RUNTIME_LIBRARY_MultiThreaded         -MT)
+    set(CMAKE_${lang}_COMPILE_OPTIONS_MSVC_RUNTIME_LIBRARY_MultiThreadedDLL      -MD)
+    set(CMAKE_${lang}_COMPILE_OPTIONS_MSVC_RUNTIME_LIBRARY_MultiThreadedDebug    -MTd)
+    set(CMAKE_${lang}_COMPILE_OPTIONS_MSVC_RUNTIME_LIBRARY_MultiThreadedDebugDLL -MDd)
   endif()
   set(CMAKE_${lang}_LINKER_SUPPORTS_PDB ON)
   set(CMAKE_NINJA_DEPTYPE_${lang} msvc)
+  __windows_compiler_msvc_enable_rc("${_PLATFORM_DEFINES} ${_PLATFORM_DEFINES_${lang}}")
+endmacro()
 
+macro(__windows_compiler_msvc_enable_rc flags)
   if(NOT CMAKE_RC_COMPILER_INIT)
     set(CMAKE_RC_COMPILER_INIT rc)
   endif()
   if(NOT CMAKE_RC_FLAGS_INIT)
-    string(APPEND CMAKE_RC_FLAGS_INIT " ${_PLATFORM_DEFINES} ${_PLATFORM_DEFINES_${lang}}")
+    # llvm-rc fails when flags are specified with /D and no space after
+    string(REPLACE " /D" " -D" fixed_flags " ${flags}")
+    string(APPEND CMAKE_RC_FLAGS_INIT " ${fixed_flags}")
   endif()
   if(NOT CMAKE_RC_FLAGS_DEBUG_INIT)
-    string(APPEND CMAKE_RC_FLAGS_DEBUG_INIT " /D_DEBUG")
+    string(APPEND CMAKE_RC_FLAGS_DEBUG_INIT " -D_DEBUG")
   endif()
 
   enable_language(RC)
-  set(CMAKE_NINJA_CMCLDEPS_RC 1)
+  if(NOT DEFINED CMAKE_NINJA_CMCLDEPS_RC)
+    set(CMAKE_NINJA_CMCLDEPS_RC 1)
+  endif()
 endmacro()

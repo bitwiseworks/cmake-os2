@@ -10,17 +10,18 @@ Add a library to the project using the specified source files.
 Normal Libraries
 ^^^^^^^^^^^^^^^^
 
-::
+.. code-block:: cmake
 
   add_library(<name> [STATIC | SHARED | MODULE]
               [EXCLUDE_FROM_ALL]
-              source1 [source2 ...])
+              [source1] [source2 ...])
 
 Adds a library target called ``<name>`` to be built from the source files
-listed in the command invocation.  The ``<name>`` corresponds to the
-logical target name and must be globally unique within a project.  The
-actual file name of the library built is constructed based on
-conventions of the native platform (such as ``lib<name>.a`` or
+listed in the command invocation.  (The source files can be omitted here
+if they are added later using :command:`target_sources`.)  The ``<name>``
+corresponds to the logical target name and must be globally unique within
+a project.  The actual file name of the library built is constructed based
+on conventions of the native platform (such as ``lib<name>.a`` or
 ``<name>.lib``).
 
 ``STATIC``, ``SHARED``, or ``MODULE`` may be given to specify the type of
@@ -34,7 +35,7 @@ variable :variable:`BUILD_SHARED_LIBS` is ``ON``.  For ``SHARED`` and
 ``MODULE`` libraries the :prop_tgt:`POSITION_INDEPENDENT_CODE` target
 property is set to ``ON`` automatically.
 A ``SHARED`` or ``STATIC`` library may be marked with the :prop_tgt:`FRAMEWORK`
-target property to create an OS X Framework.
+target property to create an macOS Framework.
 
 If a library does not export any symbols, it must not be declared as a
 ``SHARED`` library.  For example, a Windows resource DLL or a managed C++/CLI
@@ -66,7 +67,7 @@ within IDE.
 Imported Libraries
 ^^^^^^^^^^^^^^^^^^
 
-::
+.. code-block:: cmake
 
   add_library(<name> <SHARED|STATIC|MODULE|OBJECT|UNKNOWN> IMPORTED
               [GLOBAL])
@@ -79,16 +80,30 @@ option extends visibility.  It may be referenced like any target built
 within the project.  ``IMPORTED`` libraries are useful for convenient
 reference from commands like :command:`target_link_libraries`.  Details
 about the imported library are specified by setting properties whose names
-begin in ``IMPORTED_`` and ``INTERFACE_``.  The most important such
-property is :prop_tgt:`IMPORTED_LOCATION` (and its per-configuration
-variant :prop_tgt:`IMPORTED_LOCATION_<CONFIG>`) which specifies the
-location of the main library file on disk.  See documentation of the
-``IMPORTED_*`` and ``INTERFACE_*`` properties for more information.
+begin in ``IMPORTED_`` and ``INTERFACE_``.
+
+The most important properties are:
+
+* :prop_tgt:`IMPORTED_LOCATION` (and its per-configuration
+  variant :prop_tgt:`IMPORTED_LOCATION_<CONFIG>`) which specifies the
+  location of the main library file on disk.
+* :prop_tgt:`IMPORTED_OBJECTS` (and :prop_tgt:`IMPORTED_OBJECTS_<CONFIG>`)
+  for object libraries, specifies the locations of object files on disk.
+* :prop_tgt:`PUBLIC_HEADER` files to be installed during :command:`install` invocation
+
+See documentation of the ``IMPORTED_*`` and ``INTERFACE_*`` properties
+for more information.
+
+An ``UNKNOWN`` library type is typically only used in the implementation of
+:ref:`Find Modules`.  It allows the path to an imported library (often found
+using the :command:`find_library` command) to be used without having to know
+what type of library it is.  This is especially useful on Windows where a
+static library and a DLL's import library both have the same file extension.
 
 Object Libraries
 ^^^^^^^^^^^^^^^^
 
-::
+.. code-block:: cmake
 
   add_library(<name> OBJECT <src>...)
 
@@ -109,22 +124,23 @@ along with those compiled from their own sources.  Object libraries
 may contain only sources that compile, header files, and other files
 that would not affect linking of a normal library (e.g. ``.txt``).
 They may contain custom commands generating such sources, but not
-``PRE_BUILD``, ``PRE_LINK``, or ``POST_BUILD`` commands.  Object libraries
-cannot be linked.  Some native build systems may not like targets that
-have only object files, so consider adding at least one real source file
-to any target that references ``$<TARGET_OBJECTS:objlib>``.
+``PRE_BUILD``, ``PRE_LINK``, or ``POST_BUILD`` commands.  Some native build
+systems (such as Xcode) may not like targets that have only object files, so
+consider adding at least one real source file to any target that references
+``$<TARGET_OBJECTS:objlib>``.
 
 Alias Libraries
 ^^^^^^^^^^^^^^^
 
-::
+.. code-block:: cmake
 
   add_library(<name> ALIAS <target>)
 
 Creates an :ref:`Alias Target <Alias Targets>`, such that ``<name>`` can be
 used to refer to ``<target>`` in subsequent commands.  The ``<name>`` does
 not appear in the generated buildsystem as a make target.  The ``<target>``
-may not be an :ref:`Imported Target <Imported Targets>` or an ``ALIAS``.
+may not be a non-``GLOBAL`` :ref:`Imported Target <Imported Targets>` or an
+``ALIAS``.
 ``ALIAS`` targets can be used as linkable targets and as targets to
 read properties from.  They can also be tested for existence with the
 regular :command:`if(TARGET)` subcommand.  The ``<name>`` may not be used
@@ -136,7 +152,7 @@ installed or exported.
 Interface Libraries
 ^^^^^^^^^^^^^^^^^^^
 
-::
+.. code-block:: cmake
 
   add_library(<name> INTERFACE [IMPORTED [GLOBAL]])
 
@@ -148,6 +164,7 @@ the interface target using the commands:
 
 * :command:`set_property`,
 * :command:`target_link_libraries(INTERFACE)`,
+* :command:`target_link_options(INTERFACE)`,
 * :command:`target_include_directories(INTERFACE)`,
 * :command:`target_compile_options(INTERFACE)`,
 * :command:`target_compile_definitions(INTERFACE)`, and

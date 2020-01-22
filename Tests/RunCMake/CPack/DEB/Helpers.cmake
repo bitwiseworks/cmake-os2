@@ -1,7 +1,7 @@
-set(ALL_FILES_GLOB "*.deb")
+set(ALL_FILES_GLOB "*.deb" "*.ddeb")
 
 function(getPackageContent FILE RESULT_VAR)
-  execute_process(COMMAND ${DPKG_EXECUTABLE} -c "${FILE}"
+  execute_process(COMMAND ${CMAKE_COMMAND} -E env TZ=Etc/UTC ${DPKG_EXECUTABLE} -c "${FILE}"
           OUTPUT_VARIABLE package_content_
           ERROR_QUIET
           OUTPUT_STRIP_TRAILING_WHITESPACE)
@@ -47,7 +47,20 @@ function(getPackageContentList FILE RESULT_VAR)
 endfunction()
 
 function(toExpectedContentList FILE_NO CONTENT_VAR)
-  # no need to do anything
+  # add install prefix to expected paths
+  if(DEFINED EXPECTED_FILE_${FILE_NO}_PACKAGING_PREFIX)
+    set(EXPECTED_FILE_PACKAGING_PREFIX
+      "${EXPECTED_FILE_${FILE_NO}_PACKAGING_PREFIX}")
+  elseif(NOT DEFINED EXPECTED_FILE_PACKAGING_PREFIX)
+    # default CPackDeb packaging install prefix
+    set(EXPECTED_FILE_PACKAGING_PREFIX "/usr")
+  endif()
+  set(prepared_ "${EXPECTED_FILE_PACKAGING_PREFIX}")
+  foreach(part_ IN LISTS ${CONTENT_VAR})
+    list(APPEND prepared_ "${EXPECTED_FILE_PACKAGING_PREFIX}${part_}")
+  endforeach()
+
+  set(${CONTENT_VAR} "${prepared_}" PARENT_SCOPE)
 endfunction()
 
 function(getMissingShlibsErrorExtra FILE RESULT_VAR)

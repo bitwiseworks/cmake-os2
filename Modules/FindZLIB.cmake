@@ -1,53 +1,54 @@
 # Distributed under the OSI-approved BSD 3-Clause License.  See accompanying
 # file Copyright.txt or https://cmake.org/licensing for details.
 
-#.rst:
-# FindZLIB
-# --------
-#
-# Find the native ZLIB includes and library.
-#
-# IMPORTED Targets
-# ^^^^^^^^^^^^^^^^
-#
-# This module defines :prop_tgt:`IMPORTED` target ``ZLIB::ZLIB``, if
-# ZLIB has been found.
-#
-# Result Variables
-# ^^^^^^^^^^^^^^^^
-#
-# This module defines the following variables:
-#
-# ::
-#
-#   ZLIB_INCLUDE_DIRS   - where to find zlib.h, etc.
-#   ZLIB_LIBRARIES      - List of libraries when using zlib.
-#   ZLIB_FOUND          - True if zlib found.
-#
-# ::
-#
-#   ZLIB_VERSION_STRING - The version of zlib found (x.y.z)
-#   ZLIB_VERSION_MAJOR  - The major version of zlib
-#   ZLIB_VERSION_MINOR  - The minor version of zlib
-#   ZLIB_VERSION_PATCH  - The patch version of zlib
-#   ZLIB_VERSION_TWEAK  - The tweak version of zlib
-#
-# Backward Compatibility
-# ^^^^^^^^^^^^^^^^^^^^^^
-#
-# The following variable are provided for backward compatibility
-#
-# ::
-#
-#   ZLIB_MAJOR_VERSION  - The major version of zlib
-#   ZLIB_MINOR_VERSION  - The minor version of zlib
-#   ZLIB_PATCH_VERSION  - The patch version of zlib
-#
-# Hints
-# ^^^^^
-#
-# A user may set ``ZLIB_ROOT`` to a zlib installation root to tell this
-# module where to look.
+#[=======================================================================[.rst:
+FindZLIB
+--------
+
+Find the native ZLIB includes and library.
+
+IMPORTED Targets
+^^^^^^^^^^^^^^^^
+
+This module defines :prop_tgt:`IMPORTED` target ``ZLIB::ZLIB``, if
+ZLIB has been found.
+
+Result Variables
+^^^^^^^^^^^^^^^^
+
+This module defines the following variables:
+
+::
+
+  ZLIB_INCLUDE_DIRS   - where to find zlib.h, etc.
+  ZLIB_LIBRARIES      - List of libraries when using zlib.
+  ZLIB_FOUND          - True if zlib found.
+
+::
+
+  ZLIB_VERSION_STRING - The version of zlib found (x.y.z)
+  ZLIB_VERSION_MAJOR  - The major version of zlib
+  ZLIB_VERSION_MINOR  - The minor version of zlib
+  ZLIB_VERSION_PATCH  - The patch version of zlib
+  ZLIB_VERSION_TWEAK  - The tweak version of zlib
+
+Backward Compatibility
+^^^^^^^^^^^^^^^^^^^^^^
+
+The following variable are provided for backward compatibility
+
+::
+
+  ZLIB_MAJOR_VERSION  - The major version of zlib
+  ZLIB_MINOR_VERSION  - The minor version of zlib
+  ZLIB_PATCH_VERSION  - The patch version of zlib
+
+Hints
+^^^^^
+
+A user may set ``ZLIB_ROOT`` to a zlib installation root to tell this
+module where to look.
+#]=======================================================================]
 
 set(_ZLIB_SEARCHES)
 
@@ -58,14 +59,16 @@ if(ZLIB_ROOT)
 endif()
 
 # Normal search.
+set(_ZLIB_x86 "(x86)")
 set(_ZLIB_SEARCH_NORMAL
-  PATHS "[HKEY_LOCAL_MACHINE\\SOFTWARE\\GnuWin32\\Zlib;InstallPath]"
-        "$ENV{PROGRAMFILES}/zlib"
-  )
+    PATHS "[HKEY_LOCAL_MACHINE\\SOFTWARE\\GnuWin32\\Zlib;InstallPath]"
+          "$ENV{ProgramFiles}/zlib"
+          "$ENV{ProgramFiles${_ZLIB_x86}}/zlib")
+unset(_ZLIB_x86)
 list(APPEND _ZLIB_SEARCHES _ZLIB_SEARCH_NORMAL)
 
-set(ZLIB_NAMES z zlib zdll zlib1)
-set(ZLIB_NAMES_DEBUG zlibd zlibd1)
+set(ZLIB_NAMES z zlib zdll zlib1 zlibstatic)
+set(ZLIB_NAMES_DEBUG zd zlibd zdlld zlibd1 zlib1d zlibstaticd)
 
 # Try each search configuration.
 foreach(search ${_ZLIB_SEARCHES})
@@ -75,8 +78,8 @@ endforeach()
 # Allow ZLIB_LIBRARY to be set manually, as the location of the zlib library
 if(NOT ZLIB_LIBRARY)
   foreach(search ${_ZLIB_SEARCHES})
-    find_library(ZLIB_LIBRARY_RELEASE NAMES ${ZLIB_NAMES} ${${search}} PATH_SUFFIXES lib)
-    find_library(ZLIB_LIBRARY_DEBUG NAMES ${ZLIB_NAMES_DEBUG} ${${search}} PATH_SUFFIXES lib)
+    find_library(ZLIB_LIBRARY_RELEASE NAMES ${ZLIB_NAMES} NAMES_PER_DIR ${${search}} PATH_SUFFIXES lib)
+    find_library(ZLIB_LIBRARY_DEBUG NAMES ${ZLIB_NAMES_DEBUG} NAMES_PER_DIR ${${search}} PATH_SUFFIXES lib)
   endforeach()
 
   include(${CMAKE_CURRENT_LIST_DIR}/SelectLibraryConfigurations.cmake)

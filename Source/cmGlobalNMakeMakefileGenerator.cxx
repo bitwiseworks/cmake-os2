@@ -6,6 +6,7 @@
 #include "cmLocalUnixMakefileGenerator3.h"
 #include "cmMakefile.h"
 #include "cmState.h"
+#include "cmake.h"
 
 cmGlobalNMakeMakefileGenerator::cmGlobalNMakeMakefileGenerator(cmake* cm)
   : cmGlobalUnixMakefileGenerator3(cm)
@@ -51,4 +52,41 @@ void cmGlobalNMakeMakefileGenerator::PrintCompilerAdvice(
     /* clang-format on */
   }
   this->cmGlobalUnixMakefileGenerator3::PrintCompilerAdvice(os, lang, envVar);
+}
+
+std::vector<cmGlobalGenerator::GeneratedMakeCommand>
+cmGlobalNMakeMakefileGenerator::GenerateBuildCommand(
+  const std::string& makeProgram, const std::string& projectName,
+  const std::string& projectDir, std::vector<std::string> const& targetNames,
+  const std::string& config, bool fast, int /*jobs*/, bool verbose,
+  std::vector<std::string> const& makeOptions)
+{
+  std::vector<std::string> nmakeMakeOptions;
+
+  // Since we have full control over the invocation of nmake, let us
+  // make it quiet.
+  nmakeMakeOptions.push_back(this->MakeSilentFlag);
+  cmAppend(nmakeMakeOptions, makeOptions);
+
+  return this->cmGlobalUnixMakefileGenerator3::GenerateBuildCommand(
+    makeProgram, projectName, projectDir, targetNames, config, fast,
+    cmake::NO_BUILD_PARALLEL_LEVEL, verbose, nmakeMakeOptions);
+}
+
+void cmGlobalNMakeMakefileGenerator::PrintBuildCommandAdvice(std::ostream& os,
+                                                             int jobs) const
+{
+  if (jobs != cmake::NO_BUILD_PARALLEL_LEVEL) {
+    // nmake does not support parallel build level
+    // see https://msdn.microsoft.com/en-us/library/afyyse50.aspx
+
+    /* clang-format off */
+    os <<
+      "Warning: NMake does not support parallel builds. "
+      "Ignoring parallel build command line option.\n";
+    /* clang-format on */
+  }
+
+  this->cmGlobalUnixMakefileGenerator3::PrintBuildCommandAdvice(
+    os, cmake::NO_BUILD_PARALLEL_LEVEL);
 }

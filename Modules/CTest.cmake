@@ -27,12 +27,8 @@ to creating tests when testing is enabled.
 To enable submissions to a CDash server, create a ``CTestConfig.cmake``
 file at the top of the project with content such as::
 
-  set(CTEST_PROJECT_NAME "MyProject")
   set(CTEST_NIGHTLY_START_TIME "01:00:00 UTC")
-  set(CTEST_DROP_METHOD "http")
-  set(CTEST_DROP_SITE "my.cdash.org")
-  set(CTEST_DROP_LOCATION "/submit.php?project=MyProject")
-  set(CTEST_DROP_SITE_CDASH TRUE)
+  set(CTEST_SUBMIT_URL "http://my.cdash.org/submit.php?project=MyProject")
 
 (the CDash server can provide the file to a project administrator who
 configures ``MyProject``).  Settings in the config file are shared by
@@ -54,7 +50,7 @@ in the ``CTestConfig.cmake`` file.
 option(BUILD_TESTING "Build the testing tree." ON)
 
 # function to turn generator name into a version string
-# like vs8 vs9
+# like vs9 or vs10
 function(GET_VS_VERSION_STRING generator var)
   string(REGEX REPLACE "Visual Studio ([0-9][0-9]?)($|.*)" "\\1"
     NUMBER "${generator}")
@@ -65,7 +61,7 @@ endfunction()
 include(CTestUseLaunchers)
 
 if(BUILD_TESTING)
-  # Setup some auxilary macros
+  # Setup some auxiliary macros
   macro(SET_IF_NOT_SET var val)
     if(NOT DEFINED "${var}")
       set("${var}" "${val}")
@@ -90,6 +86,7 @@ if(BUILD_TESTING)
   if(EXISTS "${PROJECT_SOURCE_DIR}/CTestConfig.cmake")
     include("${PROJECT_SOURCE_DIR}/CTestConfig.cmake")
     SET_IF_SET_AND_NOT_SET(NIGHTLY_START_TIME "${CTEST_NIGHTLY_START_TIME}")
+    SET_IF_SET_AND_NOT_SET(SUBMIT_URL "${CTEST_SUBMIT_URL}")
     SET_IF_SET_AND_NOT_SET(DROP_METHOD "${CTEST_DROP_METHOD}")
     SET_IF_SET_AND_NOT_SET(DROP_SITE "${CTEST_DROP_SITE}")
     SET_IF_SET_AND_NOT_SET(DROP_SITE_USER "${CTEST_DROP_SITE_USER}")
@@ -111,6 +108,18 @@ if(BUILD_TESTING)
     SET_IF_NOT_SET (COMPRESS_SUBMISSION ON)
   endif()
   SET_IF_NOT_SET (NIGHTLY_START_TIME "00:00:00 EDT")
+
+  if(NOT SUBMIT_URL)
+    set(SUBMIT_URL "${DROP_METHOD}://")
+    if(DROP_SITE_USER)
+      string(APPEND SUBMIT_URL "${DROP_SITE_USER}")
+      if(DROP_SITE_PASSWORD)
+        string(APPEND SUBMIT_URL ":${DROP_SITE_PASSWORD}")
+      endif()
+      string(APPEND SUBMIT_URL "@")
+    endif()
+    string(APPEND SUBMIT_URL "${DROP_SITE}${DROP_LOCATION}")
+  endif()
 
   find_program(CVSCOMMAND cvs )
   set(CVS_UPDATE_OPTIONS "-d -A -P" CACHE STRING
@@ -178,9 +187,6 @@ if(BUILD_TESTING)
     )
   set(MEMORYCHECK_SUPPRESSIONS_FILE "" CACHE FILEPATH
     "File that contains suppressions for the memory checker")
-  find_program(SCPCOMMAND scp DOC
-    "Path to scp command, used by CTest for submitting results to a Dart server"
-    )
   find_program(COVERAGE_COMMAND gcov DOC
     "Path to the coverage program that CTest uses for performing coverage inspection"
     )

@@ -19,9 +19,8 @@ cmCursesLongMessageForm::cmCursesLongMessageForm(
   std::vector<std::string> const& messages, const char* title)
 {
   // Append all messages into on big string
-  std::vector<std::string>::const_iterator it;
-  for (it = messages.begin(); it != messages.end(); it++) {
-    this->Messages += (*it);
+  for (std::string const& message : messages) {
+    this->Messages += message;
     // Add one blank line after each message
     this->Messages += "\n\n";
   }
@@ -43,7 +42,7 @@ void cmCursesLongMessageForm::UpdateStatusBar()
   getmaxyx(stdscr, y, x);
 
   char bar[cmCursesMainForm::MAX_WIDTH];
-  size_t size = strlen(this->Title.c_str());
+  size_t size = this->Title.size();
   if (size >= cmCursesMainForm::MAX_WIDTH) {
     size = cmCursesMainForm::MAX_WIDTH - 1;
   }

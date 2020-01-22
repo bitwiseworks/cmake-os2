@@ -1,21 +1,22 @@
 # Distributed under the OSI-approved BSD 3-Clause License.  See accompanying
 # file Copyright.txt or https://cmake.org/licensing for details.
 
-#.rst:
-# FindOpenAL
-# ----------
-#
-#
-#
-# Locate OpenAL This module defines OPENAL_LIBRARY OPENAL_FOUND, if
-# false, do not try to link to OpenAL OPENAL_INCLUDE_DIR, where to find
-# the headers
-#
-# $OPENALDIR is an environment variable that would correspond to the
-# ./configure --prefix=$OPENALDIR used in building OpenAL.
-#
-# Created by Eric Wing.  This was influenced by the FindSDL.cmake
-# module.
+#[=======================================================================[.rst:
+FindOpenAL
+----------
+
+
+Finds Open Audio Library (OpenAL).
+This module defines ``OPENAL_LIBRARY OPENAL_FOUND``, if
+false, do not try to link to OpenAL ``OPENAL_INCLUDE_DIR``, where to find
+the headers.
+
+``$OPENALDIR`` is an environment variable that would correspond to the
+``./configure --prefix=$OPENALDIR`` used in building OpenAL.
+
+Created by Eric Wing.  This was influenced by the ``FindSDL.cmake``
+module.
+#]=======================================================================]
 
 # This makes the presumption that you are include al.h like
 # #include "al.h"
@@ -58,13 +59,10 @@
 find_path(OPENAL_INCLUDE_DIR al.h
   HINTS
     ENV OPENALDIR
-  PATH_SUFFIXES include/AL include/OpenAL include
+  PATH_SUFFIXES include/AL include/OpenAL include AL OpenAL
   PATHS
   ~/Library/Frameworks
   /Library/Frameworks
-  /sw # Fink
-  /opt/local # DarwinPorts
-  /opt/csw # Blastwave
   /opt
   [HKEY_LOCAL_MACHINE\\SOFTWARE\\Creative\ Labs\\OpenAL\ 1.1\ Software\ Development\ Kit\\1.00.0000;InstallDir]
 )
@@ -83,9 +81,6 @@ find_library(OPENAL_LIBRARY
   PATHS
   ~/Library/Frameworks
   /Library/Frameworks
-  /sw
-  /opt/local
-  /opt/csw
   /opt
   [HKEY_LOCAL_MACHINE\\SOFTWARE\\Creative\ Labs\\OpenAL\ 1.1\ Software\ Development\ Kit\\1.00.0000;InstallDir]
 )

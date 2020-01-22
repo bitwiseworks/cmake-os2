@@ -13,18 +13,11 @@ class cmParseCoberturaCoverage::XMLParser : public cmXMLParser
 {
 public:
   XMLParser(cmCTest* ctest, cmCTestCoverageHandlerContainer& cont)
-    : CTest(ctest)
+    : FilePaths{ cont.SourceDir, cont.BinaryDir }
+    , CTest(ctest)
     , Coverage(cont)
   {
-    this->InSources = false;
-    this->InSource = false;
-    this->SkipThisClass = false;
-    this->FilePaths.push_back(this->Coverage.SourceDir);
-    this->FilePaths.push_back(this->Coverage.BinaryDir);
-    this->CurFileName.clear();
   }
-
-  ~XMLParser() override {}
 
 protected:
   void EndElement(const std::string& name) override
@@ -83,7 +76,7 @@ protected:
             // binary directories.
             for (std::string const& filePath : FilePaths) {
               finalpath = filePath + "/" + filename;
-              if (cmSystemTools::FileExists(finalpath.c_str())) {
+              if (cmSystemTools::FileExists(finalpath)) {
                 this->CurFileName = finalpath;
                 break;
               }
@@ -144,9 +137,9 @@ protected:
   }
 
 private:
-  bool InSources;
-  bool InSource;
-  bool SkipThisClass;
+  bool InSources = false;
+  bool InSource = false;
+  bool SkipThisClass = false;
   std::vector<std::string> FilePaths;
   typedef cmCTestCoverageHandlerContainer::SingleFileCoverageVector
     FileLinesType;

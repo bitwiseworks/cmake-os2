@@ -8,6 +8,7 @@
 #include "cmCTestGlobalVC.h"
 
 #include <iosfwd>
+#include <list>
 #include <string>
 #include <vector>
 
@@ -40,7 +41,7 @@ private:
   struct SVNInfo
   {
 
-    SVNInfo(const char* path)
+    SVNInfo(std::string const& path = std::string())
       : LocalPath(path)
     {
     }
@@ -70,7 +71,8 @@ private:
   friend struct Revision;
 
   // Info of all the repositories (root, externals and nested ones).
-  std::vector<SVNInfo> Repositories;
+  // Use std::list so the elements don't move in memory.
+  std::list<SVNInfo> Repositories;
 
   // Pointer to the infos of the root repository.
   SVNInfo* RootInfo;

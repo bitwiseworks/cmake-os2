@@ -72,6 +72,9 @@ public:
   /// Wizard style name
   std::string WizardStyle;
 
+  /// Filename for a style sheet
+  std::string StyleSheet;
+
   /// Wizard width
   std::string WizardDefaultWidth;
 
@@ -98,6 +101,10 @@ public:
 
   /// Set to true if the installation path can contain non-ASCII characters
   std::string AllowNonAsciiCharacters;
+
+  /// Set to false if the target directory should not be deleted when
+  /// uninstalling
+  std::string RemoveTargetDir;
 
   /// Set to false if the installation path cannot contain space characters
   std::string AllowSpaceInPath;

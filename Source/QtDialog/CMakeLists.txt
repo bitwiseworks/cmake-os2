@@ -2,9 +2,6 @@
 # file Copyright.txt or https://cmake.org/licensing for details.
 
 project(QtDialog)
-if(POLICY CMP0020)
-  cmake_policy(SET CMP0020 NEW) # Drop when CMake >= 2.8.11 required
-endif()
 CMake_OPTIONAL_COMPONENT(cmake-gui)
 find_package(Qt5Widgets QUIET)
 if (Qt5Widgets_FOUND)
@@ -19,8 +16,19 @@ if (Qt5Widgets_FOUND)
   macro(qt4_add_resources)
     qt5_add_resources(${ARGN})
   endmacro()
+
   set(CMake_QT_LIBRARIES ${Qt5Widgets_LIBRARIES})
   set(QT_QTMAIN_LIBRARY ${Qt5Core_QTMAIN_LIBRARIES})
+
+  # Try to find the package WinExtras for the task bar progress
+  if(WIN32)
+    find_package(Qt5WinExtras QUIET)
+    if (Qt5WinExtras_FOUND)
+      include_directories(${Qt5WinExtras_INCLUDE_DIRS})
+      add_definitions(-DQT_WINEXTRAS)
+      list(APPEND CMake_QT_LIBRARIES ${Qt5WinExtras_LIBRARIES})
+    endif()
+  endif()
 
   # Remove this when the minimum version of Qt is 4.6.
   add_definitions(-DQT_DISABLE_DEPRECATED_BEFORE=0)
@@ -40,7 +48,7 @@ if (Qt5Widgets_FOUND)
   endif()
 
   # We need to install platform plugin and add qt.conf for Qt5 on Mac and Windows.
-  # FIXME: This should be part of Qt5 CMake scripts, but unfortunatelly
+  # FIXME: This should be part of Qt5 CMake scripts, but unfortunately
   # Qt5 support is missing there.
   if(CMake_INSTALL_DEPENDENCIES AND (APPLE OR WIN32))
     macro(install_qt5_plugin _qt_plugin_name _qt_plugins_var)
@@ -173,6 +181,9 @@ if(OS2)
    OS2_DEF_VERSION "${CMake_VERSION}"
    OS2_DEF_EXEType "WINDOWAPI")
 endif(OS2)
+if(WIN32)
+  target_sources(cmake-gui PRIVATE $<TARGET_OBJECTS:CMakeVersion>)
+endif()
 
 # cmake-gui has not been updated for `include-what-you-use`.
 # Block the tool until this is done.

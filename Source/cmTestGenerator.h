@@ -20,15 +20,24 @@ class cmTest;
  */
 class cmTestGenerator : public cmScriptGenerator
 {
-  CM_DISABLE_COPY(cmTestGenerator)
-
 public:
   cmTestGenerator(cmTest* test,
                   std::vector<std::string> const& configurations =
                     std::vector<std::string>());
   ~cmTestGenerator() override;
 
+  cmTestGenerator(cmTestGenerator const&) = delete;
+  cmTestGenerator& operator=(cmTestGenerator const&) = delete;
+
   void Compute(cmLocalGenerator* lg);
+
+  /** Test if this generator installs the test for a given configuration.  */
+  bool TestsForConfig(const std::string& config);
+
+  cmTest* GetTest() const;
+
+private:
+  void GenerateInternalProperties(std::ostream& os);
 
 protected:
   void GenerateScriptConfigs(std::ostream& os, Indent indent) override;

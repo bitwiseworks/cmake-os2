@@ -9,9 +9,7 @@
 
 #include <vector>
 
-cmFilePathChecksum::cmFilePathChecksum()
-{
-}
+cmFilePathChecksum::cmFilePathChecksum() = default;
 
 cmFilePathChecksum::cmFilePathChecksum(std::string const& currentSrcDir,
                                        std::string const& currentBinDir,
@@ -34,10 +32,10 @@ void cmFilePathChecksum::setupParentDirs(std::string const& currentSrcDir,
                                          std::string const& projectSrcDir,
                                          std::string const& projectBinDir)
 {
-  this->parentDirs[0].first = cmsys::SystemTools::GetRealPath(currentSrcDir);
-  this->parentDirs[1].first = cmsys::SystemTools::GetRealPath(currentBinDir);
-  this->parentDirs[2].first = cmsys::SystemTools::GetRealPath(projectSrcDir);
-  this->parentDirs[3].first = cmsys::SystemTools::GetRealPath(projectBinDir);
+  this->parentDirs[0].first = cmSystemTools::GetRealPath(currentSrcDir);
+  this->parentDirs[1].first = cmSystemTools::GetRealPath(currentBinDir);
+  this->parentDirs[2].first = cmSystemTools::GetRealPath(projectSrcDir);
+  this->parentDirs[3].first = cmSystemTools::GetRealPath(projectBinDir);
 
   this->parentDirs[0].second = "CurrentSource";
   this->parentDirs[1].second = "CurrentBinary";
@@ -50,7 +48,7 @@ std::string cmFilePathChecksum::get(std::string const& filePath) const
   std::string relPath;
   std::string relSeed;
   {
-    std::string const fileReal = cmsys::SystemTools::GetRealPath(filePath);
+    std::string const fileReal = cmSystemTools::GetRealPath(filePath);
     std::string parentDir;
     // Find closest project parent directory
     for (auto const& pDir : this->parentDirs) {
@@ -76,7 +74,7 @@ std::string cmFilePathChecksum::get(std::string const& filePath) const
     cmCryptoHash(cmCryptoHash::AlgoSHA256).ByteHashString(relSeed + relPath);
 
   // Convert binary checksum to string
-  return cmBase32Encoder().encodeString(&hashBytes.front(), hashBytes.size(),
+  return cmBase32Encoder().encodeString(hashBytes.data(), hashBytes.size(),
                                         false);
 }
 

@@ -1,20 +1,21 @@
 # Distributed under the OSI-approved BSD 3-Clause License.  See accompanying
 # file Copyright.txt or https://cmake.org/licensing for details.
 
-#.rst:
-# FindJasper
-# ----------
-#
-# Try to find the Jasper JPEG2000 library
-#
-# Once done this will define
-#
-# ::
-#
-#   JASPER_FOUND - system has Jasper
-#   JASPER_INCLUDE_DIR - the Jasper include directory
-#   JASPER_LIBRARIES - the libraries needed to use Jasper
-#   JASPER_VERSION_STRING - the version of Jasper found (since CMake 2.8.8)
+#[=======================================================================[.rst:
+FindJasper
+----------
+
+Try to find the Jasper JPEG2000 library
+
+Once done this will define
+
+::
+
+  JASPER_FOUND - system has Jasper
+  JASPER_INCLUDE_DIR - the Jasper include directory
+  JASPER_LIBRARIES - the libraries needed to use Jasper
+  JASPER_VERSION_STRING - the version of Jasper found (since CMake 2.8.8)
+#]=======================================================================]
 
 find_path(JASPER_INCLUDE_DIR jasper/jasper.h)
 
@@ -40,7 +41,7 @@ FIND_PACKAGE_HANDLE_STANDARD_ARGS(Jasper
                                   VERSION_VAR JASPER_VERSION_STRING)
 
 if (JASPER_FOUND)
-   set(JASPER_LIBRARIES ${JASPER_LIBRARIES} ${JPEG_LIBRARIES} )
+  set(JASPER_LIBRARIES ${JASPER_LIBRARIES} ${JPEG_LIBRARIES} )
 endif ()
 
 mark_as_advanced(JASPER_INCLUDE_DIR)

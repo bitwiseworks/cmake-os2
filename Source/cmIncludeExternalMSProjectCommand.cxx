@@ -3,10 +3,12 @@
 #include "cmIncludeExternalMSProjectCommand.h"
 
 #ifdef _WIN32
-#include "cmMakefile.h"
-#include "cmStateTypes.h"
-#include "cmSystemTools.h"
-#include "cmTarget.h"
+#  include "cmGlobalGenerator.h"
+#  include "cmMakefile.h"
+#  include "cmStateTypes.h"
+#  include "cmSystemTools.h"
+#  include "cmTarget.h"
+#  include "cmake.h"
 #endif
 
 class cmExecutionStatus;
@@ -22,7 +24,9 @@ bool cmIncludeExternalMSProjectCommand::InitialPass(
   }
 // only compile this for win32 to avoid coverage errors
 #ifdef _WIN32
-  if (this->Makefile->GetDefinition("WIN32")) {
+  if (this->Makefile->GetDefinition("WIN32") ||
+      this->Makefile->GetGlobalGenerator()
+        ->IsIncludeExternalMSProjectSupported()) {
     enum Doing
     {
       DoingNone,
@@ -81,10 +85,12 @@ bool cmIncludeExternalMSProjectCommand::InitialPass(
     // Create a target instance for this utility.
     cmTarget* target = this->Makefile->AddNewTarget(cmStateEnums::UTILITY,
                                                     utility_name.c_str());
+    if (this->Makefile->GetPropertyAsBool("EXCLUDE_FROM_ALL")) {
+      target->SetProperty("EXCLUDE_FROM_ALL", "TRUE");
+    }
 
     target->SetProperty("GENERATOR_FILE_NAME", utility_name.c_str());
     target->SetProperty("EXTERNAL_MSPROJECT", path.c_str());
-    target->SetProperty("EXCLUDE_FROM_ALL", "FALSE");
 
     if (!customType.empty())
       target->SetProperty("VS_PROJECT_TYPE", customType.c_str());

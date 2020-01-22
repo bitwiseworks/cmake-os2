@@ -5,20 +5,15 @@
 #include "cmDocumentationEntry.h"
 #include "cmDocumentationSection.h"
 
+#include <iomanip>
 #include <ostream>
 #include <string.h>
 #include <string>
 #include <vector>
 
-cmDocumentationFormatter::cmDocumentationFormatter()
-  : TextWidth(77)
-  , TextIndent("")
-{
-}
+cmDocumentationFormatter::cmDocumentationFormatter() = default;
 
-cmDocumentationFormatter::~cmDocumentationFormatter()
-{
-}
+cmDocumentationFormatter::~cmDocumentationFormatter() = default;
 
 void cmDocumentationFormatter::PrintFormatted(std::ostream& os,
                                               const char* text)
@@ -90,7 +85,7 @@ void cmDocumentationFormatter::SetIndent(const char* indent)
 
 void cmDocumentationFormatter::PrintColumn(std::ostream& os, const char* text)
 {
-  // Print text arranged in an indented column of fixed witdh.
+  // Print text arranged in an indented column of fixed width.
   const char* l = text;
   long column = 0;
   bool newSentence = false;
@@ -170,7 +165,7 @@ void cmDocumentationFormatter::PrintSection(
   const std::vector<cmDocumentationEntry>& entries = section.GetEntries();
   for (cmDocumentationEntry const& entry : entries) {
     if (!entry.Name.empty()) {
-      os << "  " << entry.Name;
+      os << std::setw(2) << std::left << entry.CustomNamePrefix << entry.Name;
       this->TextIndent = "                                 ";
       int align = static_cast<int>(strlen(this->TextIndent)) - 4;
       for (int i = static_cast<int>(entry.Name.size()); i < align; ++i) {

@@ -14,6 +14,7 @@
 #include "cmGlobalGenerator.h"
 #include "cmLocalGenerator.h"
 #include "cmMakefile.h"
+#include "cmMessageType.h"
 #include "cmSourceFile.h"
 #include "cmStateTypes.h"
 #include "cmSystemTools.h"
@@ -55,7 +56,6 @@ cmExtraSublimeTextGenerator::GetFactory()
 }
 
 cmExtraSublimeTextGenerator::cmExtraSublimeTextGenerator()
-  : cmExternalMakefileProjectGenerator()
 {
   this->ExcludeBuildFolder = false;
 }
@@ -91,7 +91,7 @@ void cmExtraSublimeTextGenerator::CreateNewProjectFile(
 {
   const cmMakefile* mf = lgs[0]->GetMakefile();
 
-  cmGeneratedFileStream fout(filename.c_str());
+  cmGeneratedFileStream fout(filename);
   if (!fout) {
     return;
   }
@@ -155,7 +155,7 @@ void cmExtraSublimeTextGenerator::CreateNewProjectFile(
         e << "Could not parse Env Vars specified in "
              "\"CMAKE_SUBLIME_TEXT_2_ENV_SETTINGS\""
           << ", corrupted string " << t;
-        mf->IssueMessage(cmake::FATAL_ERROR, e.str());
+        mf->IssueMessage(MessageType::FATAL_ERROR, e.str());
       }
     }
     fout << "\n\t\t}";
@@ -168,7 +168,7 @@ void cmExtraSublimeTextGenerator::AppendAllTargets(
   const std::vector<cmLocalGenerator*>& lgs, const cmMakefile* mf,
   cmGeneratedFileStream& fout, MapSourceFileFlags& sourceFileFlags)
 {
-  std::string make = mf->GetRequiredDefinition("CMAKE_MAKE_PROGRAM");
+  const std::string& make = mf->GetRequiredDefinition("CMAKE_MAKE_PROGRAM");
   std::string compiler;
   if (!lgs.empty()) {
     this->AppendTarget(fout, "all", lgs[0], nullptr, make.c_str(), mf,
@@ -188,8 +188,7 @@ void cmExtraSublimeTextGenerator::AppendAllTargets(
         case cmStateEnums::GLOBAL_TARGET: {
           // Only add the global targets from CMAKE_BINARY_DIR,
           // not from the subdirs
-          if (strcmp(lg->GetCurrentBinaryDirectory(),
-                     lg->GetBinaryDirectory()) == 0) {
+          if (lg->GetCurrentBinaryDirectory() == lg->GetBinaryDirectory()) {
             this->AppendTarget(fout, targetName, lg, nullptr, make.c_str(),
                                makefile, compiler.c_str(), sourceFileFlags,
                                false);
@@ -257,14 +256,17 @@ void cmExtraSublimeTextGenerator::AppendTarget(
       std::string flagsString =
         this->ComputeFlagsForObject(sourceFile, lg, target);
       std::string definesString = this->ComputeDefines(sourceFile, lg, target);
+      std::string includesString =
+        this->ComputeIncludes(sourceFile, lg, target);
       flags.clear();
       cmsys::RegularExpression flagRegex;
       // Regular expression to extract compiler flags from a string
       // https://gist.github.com/3944250
       const char* regexString =
-        "(^|[ ])-[DIOUWfgs][^= ]+(=\\\"[^\"]+\\\"|=[^\"][^ ]+)?";
+        R"((^|[ ])-[DIOUWfgs][^= ]+(=\"[^"]+\"|=[^"][^ ]+)?)";
       flagRegex.compile(regexString);
-      std::string workString = flagsString + " " + definesString;
+      std::string workString =
+        flagsString + " " + definesString + " " + includesString;
       while (flagRegex.find(workString)) {
         std::string::size_type start = flagRegex.start();
         if (workString[start] == ' ') {
@@ -313,12 +315,12 @@ std::string cmExtraSublimeTextGenerator::BuildMakeCommand(
   std::string generator = this->GlobalGenerator->GetName();
   if (generator == "NMake Makefiles") {
     std::string makefileName = cmSystemTools::ConvertToOutputPath(makefile);
-    command += ", \"/NOLOGO\", \"/f\", \"";
+    command += R"(, "/NOLOGO", "/f", ")";
     command += makefileName + "\"";
     command += ", \"" + target + "\"";
   } else if (generator == "Ninja") {
     std::string makefileName = cmSystemTools::ConvertToOutputPath(makefile);
-    command += ", \"-f\", \"";
+    command += R"(, "-f", ")";
     command += makefileName + "\"";
     command += ", \"" + target + "\"";
   } else {
@@ -330,7 +332,7 @@ std::string cmExtraSublimeTextGenerator::BuildMakeCommand(
     } else {
       makefileName = cmSystemTools::ConvertToOutputPath(makefile);
     }
-    command += ", \"-f\", \"";
+    command += R"(, "-f", ")";
     command += makefileName + "\"";
     command += ", \"" + target + "\"";
   }
@@ -351,20 +353,19 @@ std::string cmExtraSublimeTextGenerator::ComputeFlagsForObject(
 
   lg->GetTargetCompileFlags(gtgt, config, language, flags);
 
-  // Add include directory flags.
-  {
-    std::vector<std::string> includes;
-    lg->GetIncludeDirectories(includes, gtgt, language, config);
-    std::string includeFlags = lg->GetIncludeFlags(includes, gtgt, language,
-                                                   true); // full include paths
-    lg->AppendFlags(flags, includeFlags);
+  // Add source file specific flags.
+  cmGeneratorExpressionInterpreter genexInterpreter(lg, config, gtgt,
+                                                    language);
+
+  const std::string COMPILE_FLAGS("COMPILE_FLAGS");
+  if (const char* cflags = source->GetProperty(COMPILE_FLAGS)) {
+    lg->AppendFlags(flags, genexInterpreter.Evaluate(cflags, COMPILE_FLAGS));
   }
 
-  // Add source file specific flags.
-  if (const char* cflags = source->GetProperty("COMPILE_FLAGS")) {
-    cmGeneratorExpression ge;
-    const char* processed = ge.Parse(cflags)->Evaluate(lg, config);
-    lg->AppendFlags(flags, processed);
+  const std::string COMPILE_OPTIONS("COMPILE_OPTIONS");
+  if (const char* coptions = source->GetProperty(COMPILE_OPTIONS)) {
+    lg->AppendCompileOptions(
+      flags, genexInterpreter.Evaluate(coptions, COMPILE_OPTIONS));
   }
 
   return flags;
@@ -380,23 +381,78 @@ std::string cmExtraSublimeTextGenerator::ComputeDefines(
   cmMakefile* makefile = lg->GetMakefile();
   const std::string& language = source->GetLanguage();
   const std::string& config = makefile->GetSafeDefinition("CMAKE_BUILD_TYPE");
-
-  // Add the export symbol definition for shared library objects.
-  if (const char* exportMacro = target->GetExportMacro()) {
-    lg->AppendDefines(defines, exportMacro);
-  }
+  cmGeneratorExpressionInterpreter genexInterpreter(lg, config, target,
+                                                    language);
 
   // Add preprocessor definitions for this target and configuration.
-  lg->AddCompileDefinitions(defines, target, config, language);
-  lg->AppendDefines(defines, source->GetProperty("COMPILE_DEFINITIONS"));
-  {
-    std::string defPropName = "COMPILE_DEFINITIONS_";
-    defPropName += cmSystemTools::UpperCase(config);
-    lg->AppendDefines(defines, source->GetProperty(defPropName));
+  lg->GetTargetDefines(target, config, language, defines);
+  const std::string COMPILE_DEFINITIONS("COMPILE_DEFINITIONS");
+  if (const char* compile_defs = source->GetProperty(COMPILE_DEFINITIONS)) {
+    lg->AppendDefines(
+      defines, genexInterpreter.Evaluate(compile_defs, COMPILE_DEFINITIONS));
+  }
+
+  std::string defPropName = "COMPILE_DEFINITIONS_";
+  defPropName += cmSystemTools::UpperCase(config);
+  if (const char* config_compile_defs = source->GetProperty(defPropName)) {
+    lg->AppendDefines(
+      defines,
+      genexInterpreter.Evaluate(config_compile_defs, COMPILE_DEFINITIONS));
   }
 
   std::string definesString;
   lg->JoinDefines(defines, definesString, language);
 
   return definesString;
+}
+
+std::string cmExtraSublimeTextGenerator::ComputeIncludes(
+  cmSourceFile* source, cmLocalGenerator* lg, cmGeneratorTarget* target)
+
+{
+  std::vector<std::string> includes;
+  cmMakefile* makefile = lg->GetMakefile();
+  const std::string& language = source->GetLanguage();
+  const std::string& config = makefile->GetSafeDefinition("CMAKE_BUILD_TYPE");
+  cmGeneratorExpressionInterpreter genexInterpreter(lg, config, target,
+                                                    language);
+
+  // Add include directories for this source file
+  const std::string INCLUDE_DIRECTORIES("INCLUDE_DIRECTORIES");
+  if (const char* cincludes = source->GetProperty(INCLUDE_DIRECTORIES)) {
+    lg->AppendIncludeDirectories(
+      includes, genexInterpreter.Evaluate(cincludes, INCLUDE_DIRECTORIES),
+      *source);
+  }
+
+  // Add include directory flags.
+  lg->GetIncludeDirectories(includes, target, language, config);
+
+  std::string includesString =
+    lg->GetIncludeFlags(includes, target, language, true, false, config);
+
+  return includesString;
+}
+
+bool cmExtraSublimeTextGenerator::Open(const std::string& bindir,
+                                       const std::string& projectName,
+                                       bool dryRun)
+{
+  const char* sublExecutable =
+    this->GlobalGenerator->GetCMakeInstance()->GetCacheDefinition(
+      "CMAKE_SUBLIMETEXT_EXECUTABLE");
+  if (!sublExecutable) {
+    return false;
+  }
+  if (cmSystemTools::IsNOTFOUND(sublExecutable)) {
+    return false;
+  }
+
+  std::string filename = bindir + "/" + projectName + ".sublime-project";
+  if (dryRun) {
+    return cmSystemTools::FileExists(filename, true);
+  }
+
+  return cmSystemTools::RunSingleCommand(
+    { sublExecutable, "--project", filename });
 }

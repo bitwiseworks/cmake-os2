@@ -1,82 +1,83 @@
 # Distributed under the OSI-approved BSD 3-Clause License.  See accompanying
 # file Copyright.txt or https://cmake.org/licensing for details.
 
-#.rst:
-# FindDCMTK
-# ---------
-#
-# Find DCMTK libraries and applications
-#
-# The module defines the following variables::
-#
-#  DCMTK_INCLUDE_DIRS  - Directories to include to use DCMTK
-#  DCMTK_LIBRARIES     - Files to link against to use DCMTK
-#  DCMTK_FOUND         - If false, don't try to use DCMTK
-#  DCMTK_DIR           - (optional) Source directory for DCMTK
-#
-# Compatibility
-# ^^^^^^^^^^^^^
-#
-# This module is able to find a version of DCMTK that does or does not export
-# a *DCMTKConfig.cmake* file. It applies a two step process:
-#
-# * Step 1:  Attempt to find DCMTK version providing a *DCMTKConfig.cmake* file.
-# * Step 2:  If step 1 failed, rely on *FindDCMTK.cmake* to set `DCMTK_*` variables details below.
-#
-#
-# `Recent DCMTK
-# <http://git.dcmtk.org/web?p=dcmtk.git;a=commit;h=662ae187c493c6b9a73dd5e3875372cebd0c11fe>`_
-# provides a *DCMTKConfig.cmake* :manual:`package configuration file
-# <cmake-packages(7)>`. To exclusively use the package configuration file
-# (recommended when possible), pass the `NO_MODULE` option to
-# :command:`find_package`. For example, `find_package(DCMTK NO_MODULE)`.
-# This requires official DCMTK snapshot *3.6.1_20140617* or newer.
-#
-#
-# Until all clients update to the more recent DCMTK, build systems will need
-# to support different versions of DCMTK.
-#
-# On any given system, the following combinations of DCMTK versions could be
-# considered:
-#
-# +--------+---------------------+-----------------------+-------------------+
-# |        |   SYSTEM DCMTK      |      LOCAL DCMTK      |     Supported ?   |
-# +--------+---------------------+-----------------------+-------------------+
-# | Case A |   NA                |      [ ] DCMTKConfig  |         YES       |
-# +--------+---------------------+-----------------------+-------------------+
-# | Case B |   NA                |      [X] DCMTKConfig  |         YES       |
-# +--------+---------------------+-----------------------+-------------------+
-# | Case C |   [ ] DCMTKConfig   |      NA               |         YES       |
-# +--------+---------------------+-----------------------+-------------------+
-# | Case D |   [X] DCMTKConfig   |      NA               |         YES       |
-# +--------+---------------------+-----------------------+-------------------+
-# | Case E |   [ ] DCMTKConfig   |      [ ] DCMTKConfig  |         YES (*)   |
-# +--------+---------------------+-----------------------+-------------------+
-# | Case F |   [X] DCMTKConfig   |      [ ] DCMTKConfig  |         NO        |
-# +--------+---------------------+-----------------------+-------------------+
-# | Case G |   [ ] DCMTKConfig   |      [X] DCMTKConfig  |         YES       |
-# +--------+---------------------+-----------------------+-------------------+
-# | Case H |   [X] DCMTKConfig   |      [X] DCMTKConfig  |         YES       |
-# +--------+---------------------+-----------------------+-------------------+
-#
-#  (*) See Troubleshooting section.
-#
-# Legend:
-#
-#   NA ...............: Means that no System or Local DCMTK is available
-#
-#   [ ] DCMTKConfig ..: Means that the version of DCMTK does NOT export a DCMTKConfig.cmake file.
-#
-#   [X] DCMTKConfig ..: Means that the version of DCMTK exports a DCMTKConfig.cmake file.
-#
-#
-# Troubleshooting
-# ^^^^^^^^^^^^^^^
-#
-# What to do if my project finds a different version of DCMTK?
-#
-# Remove DCMTK entry from the CMake cache per :command:`find_package`
-# documentation.
+#[=======================================================================[.rst:
+FindDCMTK
+---------
+
+Find DICOM ToolKit (DCMTK) libraries and applications
+
+The module defines the following variables::
+
+ DCMTK_INCLUDE_DIRS  - Directories to include to use DCMTK
+ DCMTK_LIBRARIES     - Files to link against to use DCMTK
+ DCMTK_FOUND         - If false, don't try to use DCMTK
+ DCMTK_DIR           - (optional) Source directory for DCMTK
+
+Compatibility
+^^^^^^^^^^^^^
+
+This module is able to find a version of DCMTK that does or does not export
+a *DCMTKConfig.cmake* file. It applies a two step process:
+
+* Step 1:  Attempt to find DCMTK version providing a *DCMTKConfig.cmake* file.
+* Step 2:  If step 1 failed, rely on *FindDCMTK.cmake* to set `DCMTK_*` variables details below.
+
+
+`Recent DCMTK
+<http://git.dcmtk.org/web?p=dcmtk.git;a=commit;h=662ae187c493c6b9a73dd5e3875372cebd0c11fe>`_
+provides a *DCMTKConfig.cmake* :manual:`package configuration file
+<cmake-packages(7)>`. To exclusively use the package configuration file
+(recommended when possible), pass the `NO_MODULE` option to
+:command:`find_package`. For example, `find_package(DCMTK NO_MODULE)`.
+This requires official DCMTK snapshot *3.6.1_20140617* or newer.
+
+
+Until all clients update to the more recent DCMTK, build systems will need
+to support different versions of DCMTK.
+
+On any given system, the following combinations of DCMTK versions could be
+considered:
+
++--------+---------------------+-----------------------+-------------------+
+|        |   SYSTEM DCMTK      |      LOCAL DCMTK      |     Supported ?   |
++--------+---------------------+-----------------------+-------------------+
+| Case A |   NA                |      [ ] DCMTKConfig  |         YES       |
++--------+---------------------+-----------------------+-------------------+
+| Case B |   NA                |      [X] DCMTKConfig  |         YES       |
++--------+---------------------+-----------------------+-------------------+
+| Case C |   [ ] DCMTKConfig   |      NA               |         YES       |
++--------+---------------------+-----------------------+-------------------+
+| Case D |   [X] DCMTKConfig   |      NA               |         YES       |
++--------+---------------------+-----------------------+-------------------+
+| Case E |   [ ] DCMTKConfig   |      [ ] DCMTKConfig  |         YES (*)   |
++--------+---------------------+-----------------------+-------------------+
+| Case F |   [X] DCMTKConfig   |      [ ] DCMTKConfig  |         NO        |
++--------+---------------------+-----------------------+-------------------+
+| Case G |   [ ] DCMTKConfig   |      [X] DCMTKConfig  |         YES       |
++--------+---------------------+-----------------------+-------------------+
+| Case H |   [X] DCMTKConfig   |      [X] DCMTKConfig  |         YES       |
++--------+---------------------+-----------------------+-------------------+
+
+ (*) See Troubleshooting section.
+
+Legend:
+
+  NA ...............: Means that no System or Local DCMTK is available
+
+  [ ] DCMTKConfig ..: Means that the version of DCMTK does NOT export a DCMTKConfig.cmake file.
+
+  [X] DCMTKConfig ..: Means that the version of DCMTK exports a DCMTKConfig.cmake file.
+
+
+Troubleshooting
+^^^^^^^^^^^^^^^
+
+What to do if my project finds a different version of DCMTK?
+
+Remove DCMTK entry from the CMake cache per :command:`find_package`
+documentation.
+#]=======================================================================]
 
 #
 # Written for VXL by Amitha Perera.
@@ -199,7 +200,6 @@ if(DCMTK_oflog_LIBRARY_RELEASE OR DCMTK_oflog_LIBRARY_DEBUG)
   # Hack - Not having a DCMTKConfig.cmake file to read the settings from, we will attempt to
   # find the library in all cases.
   # Ideally, pthread library should be discovered only if DCMTK_WITH_THREADS is enabled.
-  set(CMAKE_THREAD_PREFER_PTHREAD TRUE)
   find_package(Threads)
 endif()
 
@@ -217,7 +217,7 @@ if(EXISTS ${DCMTK_DIR}/CMakeCache.txt)
   if(NOT EXISTS ${EXTDCMTK_SOURCE_DIR})
     message(FATAL_ERROR
       "DCMTK build directory references
-nonexistant DCMTK source directory ${EXTDCMTK_SOURCE_DIR}")
+nonexistent DCMTK source directory ${EXTDCMTK_SOURCE_DIR}")
   endif()
 endif()
 
@@ -301,7 +301,7 @@ endif()
 # Compatibility: This variable is deprecated
 set(DCMTK_INCLUDE_DIR ${DCMTK_INCLUDE_DIRS})
 
-include(FindPackageHandleStandardArgs)
+include(${CMAKE_CURRENT_LIST_DIR}/FindPackageHandleStandardArgs.cmake)
 find_package_handle_standard_args(DCMTK
   REQUIRED_VARS ${DCMTK_INCLUDE_DIR_NAMES} DCMTK_LIBRARIES
   FAIL_MESSAGE "Please set DCMTK_DIR and re-run configure")
@@ -309,20 +309,14 @@ find_package_handle_standard_args(DCMTK
 # Workaround bug in packaging of DCMTK 3.6.0 on Debian.
 # See http://bugs.debian.org/cgi-bin/bugreport.cgi?bug=637687
 if(DCMTK_FOUND AND UNIX AND NOT APPLE)
-  include(CheckCXXSourceCompiles)
+  include(${CMAKE_CURRENT_LIST_DIR}/CheckIncludeFiles.cmake)
   set(CMAKE_REQUIRED_FLAGS )
   set(CMAKE_REQUIRED_DEFINITIONS )
   set(CMAKE_REQUIRED_INCLUDES ${DCMTK_INCLUDE_DIRS})
   set(CMAKE_REQUIRED_LIBRARIES ${DCMTK_LIBRARIES})
   set(CMAKE_REQUIRED_QUIET ${DCMTK_FIND_QUIETLY})
-  check_cxx_source_compiles("#include <dcmtk/config/osconfig.h>\n#include <dcmtk/ofstd/ofstream.h>\nint main(int,char*[]){return 0;}"
-    DCMTK_HAVE_CONFIG_H_OPTIONAL
-    )
+  check_include_files("dcmtk/config/osconfig.h;dcmtk/ofstd/ofstream.h" DCMTK_HAVE_CONFIG_H_OPTIONAL LANGUAGE CXX)
   if(NOT DCMTK_HAVE_CONFIG_H_OPTIONAL)
     set(DCMTK_DEFINITIONS "HAVE_CONFIG_H")
   endif()
-endif()
-
-if(NOT DCMTK_FIND_QUIETLY)
-  message(STATUS "Trying to find DCMTK relying on FindDCMTK.cmake - ok")
 endif()

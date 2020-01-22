@@ -9,6 +9,10 @@ run_cmake(PrependNoArgs)
 run_cmake(Concat)
 run_cmake(ConcatNoArgs)
 
+run_cmake(Join)
+run_cmake(JoinNoArgs)
+run_cmake(JoinNoVar)
+
 run_cmake(Timestamp)
 run_cmake(TimestampEmpty)
 run_cmake(TimestampInvalid)
@@ -29,3 +33,7 @@ run_cmake(UTF-16BE)
 run_cmake(UTF-16LE)
 run_cmake(UTF-32BE)
 run_cmake(UTF-32LE)
+
+run_cmake(Repeat)
+run_cmake(RepeatNoArgs)
+run_cmake(RepeatNegativeCount)

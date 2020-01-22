@@ -9,19 +9,14 @@
 
 #include <utility>
 
-cmInstalledFile::cmInstalledFile()
-  : NameExpression(nullptr)
-{
-}
+cmInstalledFile::cmInstalledFile() = default;
 
 cmInstalledFile::~cmInstalledFile()
 {
   delete NameExpression;
 }
 
-cmInstalledFile::Property::Property()
-{
-}
+cmInstalledFile::Property::Property() = default;
 
 cmInstalledFile::Property::~Property()
 {
@@ -102,7 +97,7 @@ bool cmInstalledFile::GetPropertyAsBool(const std::string& prop) const
 {
   std::string value;
   bool isSet = this->GetProperty(prop, value);
-  return isSet && cmSystemTools::IsOn(value.c_str());
+  return isSet && cmSystemTools::IsOn(value);
 }
 
 void cmInstalledFile::GetPropertyAsList(const std::string& prop,

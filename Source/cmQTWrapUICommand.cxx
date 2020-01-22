@@ -4,8 +4,11 @@
 
 #include "cmCustomCommandLines.h"
 #include "cmMakefile.h"
+#include "cmRange.h"
 #include "cmSourceFile.h"
 #include "cmSystemTools.h"
+
+#include <utility>
 
 class cmExecutionStatus;
 
@@ -19,9 +22,9 @@ bool cmQTWrapUICommand::InitialPass(std::vector<std::string> const& args,
   }
 
   // Get the uic and moc executables to run in the custom commands.
-  const char* uic_exe =
+  std::string const& uic_exe =
     this->Makefile->GetRequiredDefinition("QT_UIC_EXECUTABLE");
-  const char* moc_exe =
+  std::string const& moc_exe =
     this->Makefile->GetRequiredDefinition("QT_MOC_EXECUTABLE");
 
   // Get the variable holding the list of sources.
@@ -31,13 +34,13 @@ bool cmQTWrapUICommand::InitialPass(std::vector<std::string> const& args,
   std::string sourceListValue = this->Makefile->GetSafeDefinition(sourceList);
 
   // Create rules for all sources listed.
-  for (std::vector<std::string>::const_iterator j = (args.begin() + 3);
-       j != args.end(); ++j) {
-    cmSourceFile* curr = this->Makefile->GetSource(*j);
+  for (std::string const& arg : cmMakeRange(args).advance(3)) {
+    cmSourceFile* curr = this->Makefile->GetSource(arg);
     // if we should wrap the class
     if (!(curr && curr->GetPropertyAsBool("WRAP_EXCLUDE"))) {
       // Compute the name of the files to generate.
-      std::string srcName = cmSystemTools::GetFilenameWithoutLastExtension(*j);
+      std::string srcName =
+        cmSystemTools::GetFilenameWithoutLastExtension(arg);
       std::string hName = this->Makefile->GetCurrentBinaryDirectory();
       hName += "/";
       hName += srcName;
@@ -53,16 +56,16 @@ bool cmQTWrapUICommand::InitialPass(std::vector<std::string> const& args,
 
       // Compute the name of the ui file from which to generate others.
       std::string uiName;
-      if (cmSystemTools::FileIsFullPath(j->c_str())) {
-        uiName = *j;
+      if (cmSystemTools::FileIsFullPath(arg)) {
+        uiName = arg;
       } else {
-        if (curr && curr->GetPropertyAsBool("GENERATED")) {
+        if (curr && curr->GetIsGenerated()) {
           uiName = this->Makefile->GetCurrentBinaryDirectory();
         } else {
           uiName = this->Makefile->GetCurrentSourceDirectory();
         }
         uiName += "/";
-        uiName += *j;
+        uiName += arg;
       }
 
       // create the list of headers
@@ -86,7 +89,7 @@ bool cmQTWrapUICommand::InitialPass(std::vector<std::string> const& args,
       hCommand.push_back(hName);
       hCommand.push_back(uiName);
       cmCustomCommandLines hCommandLines;
-      hCommandLines.push_back(hCommand);
+      hCommandLines.push_back(std::move(hCommand));
 
       cmCustomCommandLine cxxCommand;
       cxxCommand.push_back(uic_exe);
@@ -96,7 +99,7 @@ bool cmQTWrapUICommand::InitialPass(std::vector<std::string> const& args,
       cxxCommand.push_back(cxxName);
       cxxCommand.push_back(uiName);
       cmCustomCommandLines cxxCommandLines;
-      cxxCommandLines.push_back(cxxCommand);
+      cxxCommandLines.push_back(std::move(cxxCommand));
 
       cmCustomCommandLine mocCommand;
       mocCommand.push_back(moc_exe);
@@ -104,7 +107,7 @@ bool cmQTWrapUICommand::InitialPass(std::vector<std::string> const& args,
       mocCommand.push_back(mocName);
       mocCommand.push_back(hName);
       cmCustomCommandLines mocCommandLines;
-      mocCommandLines.push_back(mocCommand);
+      mocCommandLines.push_back(std::move(mocCommand));
 
       std::vector<std::string> depends;
       depends.push_back(uiName);

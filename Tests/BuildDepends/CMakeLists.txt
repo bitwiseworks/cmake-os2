@@ -42,7 +42,7 @@ list(APPEND _cmake_options "-DTEST_LINK_DEPENDS=${TEST_LINK_DEPENDS}")
 
 list(APPEND _cmake_options "-DCMAKE_FORCE_DEPFILES=1")
 
-if(NOT CMAKE_GENERATOR MATCHES "Visual Studio ([^89]|[89][0-9])")
+if(NOT CMAKE_GENERATOR MATCHES "Visual Studio ([^9]|9[0-9])")
   set(TEST_MULTI3 1)
   list(APPEND _cmake_options "-DTEST_MULTI3=1")
 endif()
@@ -341,6 +341,17 @@ if(TEST_LINK_DEPENDS)
   else()
     message(SEND_ERROR "LINK_DEPENDS failed.  Executable
   ${linkdep}
+is not newer than dependency
+  ${TEST_LINK_DEPENDS}
+")
+  endif()
+
+  set(linkdep2 ${BuildDepends_BINARY_DIR}/Project/linkdep2${CMAKE_EXECUTABLE_SUFFIX})
+  if(${linkdep2} IS_NEWER_THAN ${TEST_LINK_DEPENDS})
+    message("INTERFACE_LINK_DEPENDS worked")
+  else()
+    message(SEND_ERROR "INTERFACE_LINK_DEPENDS failed.  Executable
+  ${linkdep2}
 is not newer than dependency
   ${TEST_LINK_DEPENDS}
 ")

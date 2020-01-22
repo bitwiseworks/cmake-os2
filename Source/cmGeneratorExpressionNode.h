@@ -20,9 +20,11 @@ struct cmGeneratorExpressionNode
   {
     DynamicParameters = 0,
     OneOrMoreParameters = -1,
-    OneOrZeroParameters = -2
+    TwoOrMoreParameters = -2,
+    ZeroOrMoreParameters = -3,
+    OneOrZeroParameters = -4
   };
-  virtual ~cmGeneratorExpressionNode() {}
+  virtual ~cmGeneratorExpressionNode() = default;
 
   virtual bool GeneratesContent() const { return true; }
 

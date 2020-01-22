@@ -6,6 +6,7 @@
 #include "cmConfigure.h" // IWYU pragma: keep
 
 #include "cmCTestGenericHandler.h"
+#include "cmDuration.h"
 
 #include <sstream>
 #include <stddef.h>
@@ -43,7 +44,7 @@ public:
   void Initialize() override;
 
 protected:
-  ///! Run CMake and build a test and then run it as a single test.
+  //! Run CMake and build a test and then run it as a single test.
   int RunCMakeAndTest(std::string* output);
   int RunCMake(std::string* outstring, std::ostringstream& out,
                std::string& cmakeOutString, cmake* cm);
@@ -67,7 +68,7 @@ protected:
   std::vector<std::string> TestCommandArgs;
   std::vector<std::string> BuildTargets;
   bool BuildNoCMake;
-  double Timeout;
+  cmDuration Timeout;
 };
 
 #endif

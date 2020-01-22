@@ -56,6 +56,9 @@ static void cmFortran_yyerror(yyscan_t yyscanner, const char* message)
 # pragma warning (disable: 4127) /* Conditional expression is constant.  */
 # pragma warning (disable: 4244) /* Conversion to smaller type, data loss. */
 #endif
+#if defined(__GNUC__) && __GNUC__ >= 8
+# pragma GCC diagnostic ignored "-Wconversion"
+#endif
 %}
 
 /* Generate a reentrant parser object.  */
@@ -118,13 +121,13 @@ stmt:
   }
 | SUBMODULE LPAREN WORD RPAREN WORD other EOSTMT {
     cmFortranParser* parser = cmFortran_yyget_extra(yyscanner);
-    cmFortranParser_RuleUse(parser, $3);
+    cmFortranParser_RuleSubmodule(parser, $3, $5);
     free($3);
     free($5);
   }
 | SUBMODULE LPAREN WORD COLON WORD RPAREN WORD other EOSTMT {
     cmFortranParser* parser = cmFortran_yyget_extra(yyscanner);
-    cmFortranParser_RuleUse(parser, $3);
+    cmFortranParser_RuleSubmoduleNested(parser, $3, $5, $7);
     free($3);
     free($5);
     free($7);

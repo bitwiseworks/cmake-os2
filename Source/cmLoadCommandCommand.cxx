@@ -18,7 +18,7 @@
 class cmExecutionStatus;
 
 #ifdef __QNX__
-#include <malloc.h> /* for malloc/free on QNX */
+#  include <malloc.h> /* for malloc/free on QNX */
 #endif
 
 extern "C" void TrapsForSignalsCFunction(int sig);
@@ -33,7 +33,7 @@ public:
     this->info.CAPI = &cmStaticCAPI;
   }
 
-  ///! clean up any memory allocated by the plugin
+  //! clean up any memory allocated by the plugin
   ~cmLoadedCommand() override;
 
   /**

@@ -8,9 +8,12 @@
 #include "cmsys/SystemInformation.hxx"
 
 #if defined(_WIN32)
-#include "cmSystemTools.h"
-#include "cmVSSetupHelper.h"
-#define HAVE_VS_SETUP_HELPER
+#  include "cmAlgorithms.h"
+#  include "cmGlobalGenerator.h"
+#  include "cmGlobalVisualStudioVersionedGenerator.h"
+#  include "cmSystemTools.h"
+#  include "cmVSSetupHelper.h"
+#  define HAVE_VS_SETUP_HELPER
 #endif
 
 class cmExecutionStatus;
@@ -127,7 +130,34 @@ bool cmCMakeHostSystemInformationCommand::GetValue(
     value = this->ValueToString(info.GetOSPlatform());
 #ifdef HAVE_VS_SETUP_HELPER
   } else if (key == "VS_15_DIR") {
-    cmVSSetupAPIHelper vsSetupAPIHelper;
+    // If generating for the VS 15 IDE, use the same instance.
+    cmGlobalGenerator* gg = this->Makefile->GetGlobalGenerator();
+    if (cmHasLiteralPrefix(gg->GetName(), "Visual Studio 15 ")) {
+      cmGlobalVisualStudioVersionedGenerator* vs15gen =
+        static_cast<cmGlobalVisualStudioVersionedGenerator*>(gg);
+      if (vs15gen->GetVSInstance(value)) {
+        return true;
+      }
+    }
+
+    // Otherwise, find a VS 15 instance ourselves.
+    cmVSSetupAPIHelper vsSetupAPIHelper(15);
+    if (vsSetupAPIHelper.GetVSInstanceInfo(value)) {
+      cmSystemTools::ConvertToUnixSlashes(value);
+    }
+  } else if (key == "VS_16_DIR") {
+    // If generating for the VS 16 IDE, use the same instance.
+    cmGlobalGenerator* gg = this->Makefile->GetGlobalGenerator();
+    if (cmHasLiteralPrefix(gg->GetName(), "Visual Studio 16 ")) {
+      cmGlobalVisualStudioVersionedGenerator* vs16gen =
+        static_cast<cmGlobalVisualStudioVersionedGenerator*>(gg);
+      if (vs16gen->GetVSInstance(value)) {
+        return true;
+      }
+    }
+
+    // Otherwise, find a VS 16 instance ourselves.
+    cmVSSetupAPIHelper vsSetupAPIHelper(16);
     if (vsSetupAPIHelper.GetVSInstanceInfo(value)) {
       cmSystemTools::ConvertToUnixSlashes(value);
     }

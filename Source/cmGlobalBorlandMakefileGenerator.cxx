@@ -5,6 +5,7 @@
 #include "cmDocumentationEntry.h"
 #include "cmLocalUnixMakefileGenerator3.h"
 #include "cmMakefile.h"
+#include "cmMessageType.h"
 #include "cmState.h"
 #include "cmake.h"
 
@@ -33,7 +34,7 @@ void cmGlobalBorlandMakefileGenerator::EnableLanguage(
   this->cmGlobalUnixMakefileGenerator3::EnableLanguage(l, mf, optional);
 }
 
-///! Create a local generator appropriate to this Global Generator
+//! Create a local generator appropriate to this Global Generator
 cmLocalGenerator* cmGlobalBorlandMakefileGenerator::CreateLocalGenerator(
   cmMakefile* mf)
 {
@@ -50,4 +51,34 @@ void cmGlobalBorlandMakefileGenerator::GetDocumentation(
 {
   entry.Name = cmGlobalBorlandMakefileGenerator::GetActualName();
   entry.Brief = "Generates Borland makefiles.";
+}
+
+std::vector<cmGlobalGenerator::GeneratedMakeCommand>
+cmGlobalBorlandMakefileGenerator::GenerateBuildCommand(
+  const std::string& makeProgram, const std::string& projectName,
+  const std::string& projectDir, std::vector<std::string> const& targetNames,
+  const std::string& config, bool fast, int /*jobs*/, bool verbose,
+  std::vector<std::string> const& makeOptions)
+{
+  return this->cmGlobalUnixMakefileGenerator3::GenerateBuildCommand(
+    makeProgram, projectName, projectDir, targetNames, config, fast,
+    cmake::NO_BUILD_PARALLEL_LEVEL, verbose, makeOptions);
+}
+
+void cmGlobalBorlandMakefileGenerator::PrintBuildCommandAdvice(
+  std::ostream& os, int jobs) const
+{
+  if (jobs != cmake::NO_BUILD_PARALLEL_LEVEL) {
+    // Borland's make does not support parallel builds
+    // see http://docwiki.embarcadero.com/RADStudio/Tokyo/en/Make
+
+    /* clang-format off */
+    os <<
+      "Warning: Borland's make does not support parallel builds. "
+      "Ignoring parallel build command line option.\n";
+    /* clang-format on */
+  }
+
+  this->cmGlobalUnixMakefileGenerator3::PrintBuildCommandAdvice(
+    os, cmake::NO_BUILD_PARALLEL_LEVEL);
 }

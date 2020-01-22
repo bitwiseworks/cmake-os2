@@ -2,6 +2,26 @@
 #if 0
 ! Identify the compiler
 #endif
+#if defined(_MSC_VER)
+       PRINT *, 'INFO:simulate[MSVC]'
+# if _MSC_VER >= 1900
+       PRINT *, 'INFO:simulate_version[019.00]'
+# elif _MSC_VER >= 1800
+       PRINT *, 'INFO:simulate_version[018.00]'
+# elif _MSC_VER >= 1700
+       PRINT *, 'INFO:simulate_version[017.00]'
+# elif _MSC_VER >= 1600
+       PRINT *, 'INFO:simulate_version[016.00]'
+# elif _MSC_VER >= 1500
+       PRINT *, 'INFO:simulate_version[015.00]'
+# elif _MSC_VER >= 1400
+       PRINT *, 'INFO:simulate_version[014.00]'
+# elif _MSC_VER >= 1310
+       PRINT *, 'INFO:simulate_version[013.01]'
+# else
+       PRINT *, 'INFO:simulate_version[013.00]'
+# endif
+#endif
 #if defined(__INTEL_COMPILER) || defined(__ICC)
         PRINT *, 'INFO:compiler[Intel]'
 # define COMPILER_VERSION_MAJOR DEC(__INTEL_COMPILER/100)
@@ -13,27 +33,6 @@
 # endif
 # if defined(__INTEL_COMPILER_BUILD_DATE)
 #  define COMPILER_VERSION_TWEAK DEC(__INTEL_COMPILER_BUILD_DATE)
-# endif
-
-# if defined(_MSC_VER)
-        PRINT *, 'INFO:simulate[MSVC]'
-#  if _MSC_VER >= 1900
-        PRINT *, 'INFO:simulate_version[019.00]'
-#  elif _MSC_VER >= 1800
-        PRINT *, 'INFO:simulate_version[018.00]'
-#  elif _MSC_VER >= 1700
-        PRINT *, 'INFO:simulate_version[017.00]'
-#  elif _MSC_VER >= 1600
-        PRINT *, 'INFO:simulate_version[016.00]'
-#  elif _MSC_VER >= 1500
-        PRINT *, 'INFO:simulate_version[015.00]'
-#  elif _MSC_VER >= 1400
-        PRINT *, 'INFO:simulate_version[014.00]'
-#  elif _MSC_VER >= 1310
-        PRINT *, 'INFO:simulate_version[013.01]'
-#  else
-        PRINT *, 'INFO:simulate_version[013.00]'
-#  endif
 # endif
 #elif defined(__SUNPRO_F95)
         PRINT *, 'INFO:compiler[SunPro]'
@@ -97,17 +96,8 @@
 # if defined(__FLANG_PATCHLEVEL__)
 #  define COMPILER_VERSION_PATCH DEC(__FLANG_PATCHLEVEL__)
 # endif
-#elif defined(_SGI_COMPILER_VERSION) || defined(_COMPILER_VERSION)
-        PRINT *, 'INFO:compiler[MIPSpro]'
-#       if 0
-!       This compiler is either not known or is too old to define an
-!       identification macro.  Try to identify the platform and guess that
-!       it is the native compiler.
-#       endif
 #elif defined(_AIX) || defined(__AIX) || defined(__AIX__) || defined(__aix) || defined(__aix__)
         PRINT *, 'INFO:compiler[VisualAge]'
-#elif defined(__sgi) || defined(__sgi__) || defined(_SGI)
-        PRINT *, 'INFO:compiler[MIPSpro]'
 #elif defined(__hpux) || defined(__hpux__)
         PRINT *, 'INFO:compiler[HP]'
 #elif defined(NAGFOR)
@@ -115,11 +105,7 @@
 #define COMPILER_VERSION_MAJOR DEC(__NAG_COMPILER_RELEASE/10)
 #define COMPILER_VERSION_MINOR DEC(__NAG_COMPILER_RELEASE % 10)
 #define COMPILER_VERSION_PATCH DEC(__NAG_COMPILER_BUILD)
-#elif 1
-#       if 0
-!       The above 'elif 1' instead of 'else' is to work around a bug in the
-!       SGI preprocessor which produces both the __sgi and else blocks.
-#       endif
+#else
         PRINT *, 'INFO:compiler[]'
 #endif
 #if defined(__CRAYXE) || defined(__CRAYXC)
@@ -149,8 +135,6 @@
         PRINT *, 'INFO:platform[SunOS]'
 #elif defined(_AIX) || defined(__AIX) || defined(__AIX__) || defined(__aix) || defined(__aix__)
         PRINT *, 'INFO:platform[AIX]'
-#elif defined(__sgi) || defined(__sgi__) || defined(_SGI)
-        PRINT *, 'INFO:platform[IRIX]'
 #elif defined(__hpux) || defined(__hpux__)
         PRINT *, 'INFO:platform[HP-UX]'
 #elif defined(__HAIKU__)
@@ -179,11 +163,7 @@
         PRINT *, 'INFO:platform[ULTRIX]'
 #elif defined(__XENIX__) || defined(_XENIX) || defined(XENIX)
         PRINT *, 'INFO:platform[Xenix]'
-#elif 1
-#       if 0
-!       The above 'elif 1' instead of 'else' is to work around a bug in the
-!       SGI preprocessor which produces both the __sgi and else blocks.
-#       endif
+#else
         PRINT *, 'INFO:platform[]'
 #endif
 #if defined(_WIN32) && (defined(__INTEL_COMPILER) || defined(__ICC))

@@ -28,7 +28,7 @@ bool cmUtilitySourceCommand::InitialPass(std::vector<std::string> const& args,
   // If it exists already and appears up to date then we are done.  If
   // the string contains "(IntDir)" but that is not the
   // CMAKE_CFG_INTDIR setting then the value is out of date.
-  const char* intDir =
+  std::string const& intDir =
     this->Makefile->GetRequiredDefinition("CMAKE_CFG_INTDIR");
 
   bool haveCacheValue = false;
@@ -40,15 +40,15 @@ bool cmUtilitySourceCommand::InitialPass(std::vector<std::string> const& args,
       msg += ". If your intention is to run this executable, you need to "
              "preload the cache with the full path to a version of that "
              "program, which runs on this build machine.";
-      cmSystemTools::Message(msg.c_str(), "Warning");
+      cmSystemTools::Message(msg, "Warning");
     }
   } else {
     cmState* state = this->Makefile->GetState();
-    haveCacheValue =
-      (cacheValue && (strstr(cacheValue, "(IntDir)") == nullptr ||
-                      (intDir && strcmp(intDir, "$(IntDir)") == 0)) &&
-       (state->GetCacheMajorVersion() != 0 &&
-        state->GetCacheMinorVersion() != 0));
+    haveCacheValue = (cacheValue &&
+                      (strstr(cacheValue, "(IntDir)") == nullptr ||
+                       (intDir == "$(IntDir)")) &&
+                      (state->GetCacheMajorVersion() != 0 &&
+                       state->GetCacheMinorVersion() != 0));
   }
 
   if (haveCacheValue) {
@@ -66,20 +66,20 @@ bool cmUtilitySourceCommand::InitialPass(std::vector<std::string> const& args,
   utilitySource = utilitySource + "/" + relativeSource;
 
   // If the directory doesn't exist, the source has not been included.
-  if (!cmSystemTools::FileExists(utilitySource.c_str())) {
+  if (!cmSystemTools::FileExists(utilitySource)) {
     return true;
   }
 
   // Make sure all the files exist in the source directory.
   while (arg != args.end()) {
     std::string file = utilitySource + "/" + *arg++;
-    if (!cmSystemTools::FileExists(file.c_str())) {
+    if (!cmSystemTools::FileExists(file)) {
       return true;
     }
   }
 
   // The source exists.
-  std::string cmakeCFGout =
+  const std::string& cmakeCFGout =
     this->Makefile->GetRequiredDefinition("CMAKE_CFG_INTDIR");
   std::string utilityDirectory = this->Makefile->GetCurrentBinaryDirectory();
   std::string exePath;

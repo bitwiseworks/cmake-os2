@@ -5,11 +5,15 @@
 
 #include "cmConfigure.h" // IWYU pragma: keep
 
+#include "cm_jsoncpp_value.h"
+
 #include "cmCommonTargetGenerator.h"
 #include "cmGlobalNinjaGenerator.h"
 #include "cmNinjaTypes.h"
 #include "cmOSXBundleGenerator.h"
 
+#include <map>
+#include <memory> // IWYU pragma: keep
 #include <set>
 #include <string>
 #include <vector>
@@ -25,7 +29,8 @@ class cmNinjaTargetGenerator : public cmCommonTargetGenerator
 {
 public:
   /// Create a cmNinjaTargetGenerator according to the @a target's type.
-  static cmNinjaTargetGenerator* New(cmGeneratorTarget* target);
+  static std::unique_ptr<cmNinjaTargetGenerator> New(
+    cmGeneratorTarget* target);
 
   /// Build a NinjaTargetGenerator.
   cmNinjaTargetGenerator(cmGeneratorTarget* target);
@@ -64,6 +69,7 @@ protected:
   bool NeedExplicitPreprocessing(std::string const& lang) const;
   std::string LanguageDyndepRule(std::string const& lang) const;
   bool NeedDyndep(std::string const& lang) const;
+  bool UsePreprocessedSource(std::string const& lang) const;
 
   std::string OrderDependsTargetForTarget();
 
@@ -82,6 +88,9 @@ protected:
   std::string ComputeDefines(cmSourceFile const* source,
                              const std::string& language);
 
+  std::string ComputeIncludes(cmSourceFile const* source,
+                              const std::string& language);
+
   std::string ConvertToNinjaPath(const std::string& path) const
   {
     return this->GetGlobalGenerator()->ConvertToNinjaPath(path);
@@ -92,7 +101,7 @@ protected:
   }
 
   /// @return the list of link dependency for the given target @a target.
-  cmNinjaDeps ComputeLinkDeps() const;
+  cmNinjaDeps ComputeLinkDeps(const std::string& linkLanguage) const;
 
   /// @return the source file path for the given @a source.
   std::string GetSourceFilePath(cmSourceFile const* source) const;
@@ -121,18 +130,22 @@ protected:
   void WriteObjectBuildStatement(cmSourceFile const* source);
   void WriteTargetDependInfo(std::string const& lang);
 
+  void EmitSwiftDependencyInfo(cmSourceFile const* source);
+
   void ExportObjectCompileCommand(
     std::string const& language, std::string const& sourceFileName,
     std::string const& objectDir, std::string const& objectFileName,
     std::string const& objectFileDir, std::string const& flags,
     std::string const& defines, std::string const& includes);
 
+  void AdditionalCleanFiles();
+
   cmNinjaDeps GetObjects() const { return this->Objects; }
 
   void EnsureDirectoryExists(const std::string& dir) const;
   void EnsureParentDirectoryExists(const std::string& path) const;
 
-  // write rules for Mac OS X Application Bundle content.
+  // write rules for macOS Application Bundle content.
   struct MacOSXContentGeneratorType
     : cmOSXBundleGenerator::MacOSXContentGeneratorType
   {
@@ -148,9 +161,9 @@ protected:
   };
   friend struct MacOSXContentGeneratorType;
 
-  MacOSXContentGeneratorType* MacOSXContentGenerator;
+  std::unique_ptr<MacOSXContentGeneratorType> MacOSXContentGenerator;
   // Properly initialized by sub-classes.
-  cmOSXBundleGenerator* OSXBundleGenerator;
+  std::unique_ptr<cmOSXBundleGenerator> OSXBundleGenerator;
   std::set<std::string> MacContentFolders;
 
   void addPoolNinjaVariable(const std::string& pool_property,
@@ -162,7 +175,10 @@ private:
   cmLocalNinjaGenerator* LocalGenerator;
   /// List of object files for this target.
   cmNinjaDeps Objects;
-  cmNinjaDeps DDIFiles; // TODO: Make per-language.
+  // Fortran Support
+  std::map<std::string, cmNinjaDeps> DDIFiles;
+  // Swift Support
+  Json::Value SwiftOutputMap;
   std::vector<cmCustomCommand const*> CustomCommands;
   cmNinjaDeps ExtraFiles;
 };

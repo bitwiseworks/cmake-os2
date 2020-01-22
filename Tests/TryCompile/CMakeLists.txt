@@ -165,6 +165,35 @@ try_compile(TEST_INNER
   OUTPUT_VARIABLE output)
 TEST_ASSERT(TEST_INNER "try_compile project mode failed:\n${output}")
 
+try_compile(COMPILE_DEFINITIONS_LIST_EXPANDED
+    ${TryCompile_BINARY_DIR}${CMAKE_FILES_DIRECTORY}/CMakeTmp
+    ${TryCompile_SOURCE_DIR}/check_a_b.c
+    OUTPUT_VARIABLE output
+    COMPILE_DEFINITIONS "-DDEF_A;-DDEF_B"
+    )
+if(COMPILE_DEFINITIONS_LIST_EXPANDED)
+  message(STATUS "COMPILE_DEFINITIONS list expanded correctly")
+else()
+  string(REPLACE "\n" "\n  " output "  ${output}")
+  message(SEND_ERROR "COMPILE_DEFINITIONS list did not expand correctly\n${output}")
+endif()
+
+try_compile(SHOULD_FAIL_DUE_TO_BAD_SOURCE
+    ${TryCompile_BINARY_DIR}${CMAKE_FILES_DIRECTORY}/CMakeTmp
+    ${TryCompile_SOURCE_DIR}/pass.c
+    OUTPUT_VARIABLE output
+    COMPILE_DEFINITIONS "bad#source.c"
+    )
+if(SHOULD_FAIL_DUE_TO_BAD_SOURCE AND NOT CMAKE_GENERATOR MATCHES "Watcom WMake|NMake Makefiles")
+  string(REPLACE "\n" "\n  " output "  ${output}")
+  message(SEND_ERROR "try_compile with bad#source.c did not fail:\n${output}")
+elseif(NOT output MATCHES [[(bad#source\.c|bad\\)]])
+  string(REPLACE "\n" "\n  " output "  ${output}")
+  message(SEND_ERROR "try_compile with bad#source.c failed without mentioning bad source:\n${output}")
+else()
+  message(STATUS "try_compile with bad#source.c correctly failed")
+endif()
+
 add_executable(TryCompile pass.c)
 
 ######################################
@@ -242,7 +271,7 @@ include(CheckCXXSourceCompiles)
 include(CheckCSourceRuns)
 include(CheckCXXSourceRuns)
 
-CHECK_C_SOURCE_COMPILES("I dont build" C_BUILD_SHOULD_FAIL)
+CHECK_C_SOURCE_COMPILES("I don't build" C_BUILD_SHOULD_FAIL)
 CHECK_C_SOURCE_COMPILES("int main() {return 0;}" C_BUILD_SHOULD_WORK)
 CHECK_C_SOURCE_RUNS("int main() {return 1;}" C_RUN_SHOULD_FAIL)
 CHECK_C_SOURCE_RUNS("int main() {return 0;}" C_RUN_SHOULD_WORK)
@@ -252,7 +281,7 @@ TEST_ASSERT(C_BUILD_SHOULD_WORK "CHECK_C_SOURCE_COMPILES() failed")
 TEST_FAIL(C_RUN_SHOULD_FAIL "CHECK_C_SOURCE_RUNS() succeeded, but should have failed")
 TEST_ASSERT(C_RUN_SHOULD_WORK "CHECK_C_SOURCE_RUNS() failed")
 
-CHECK_CXX_SOURCE_COMPILES("I dont build" CXX_BUILD_SHOULD_FAIL)
+CHECK_CXX_SOURCE_COMPILES("I don't build" CXX_BUILD_SHOULD_FAIL)
 CHECK_CXX_SOURCE_COMPILES("int main() {return 0;}" CXX_BUILD_SHOULD_WORK)
 CHECK_CXX_SOURCE_RUNS("int main() {return 2;}" CXX_RUN_SHOULD_FAIL)
 CHECK_CXX_SOURCE_RUNS("int main() {return 0;}" CXX_RUN_SHOULD_WORK)

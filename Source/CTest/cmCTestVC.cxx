@@ -24,9 +24,7 @@ cmCTestVC::cmCTestVC(cmCTest* ct, std::ostream& log)
   this->Unknown.Rev = "Unknown";
 }
 
-cmCTestVC::~cmCTestVC()
-{
-}
+cmCTestVC::~cmCTestVC() = default;
 
 void cmCTestVC::SetCommandLineTool(std::string const& tool)
 {
@@ -47,7 +45,7 @@ bool cmCTestVC::InitialCheckout(const char* command)
   std::string parent = cmSystemTools::GetFilenamePath(this->SourceDirectory);
   cmCTestLog(this->CTest, HANDLER_OUTPUT,
              "   Perform checkout in directory: " << parent << "\n");
-  if (!cmSystemTools::MakeDirectory(parent.c_str())) {
+  if (!cmSystemTools::MakeDirectory(parent)) {
     cmCTestLog(this->CTest, ERROR_MESSAGE,
                "Cannot create directory: " << parent << std::endl);
     return false;
@@ -69,8 +67,8 @@ bool cmCTestVC::InitialCheckout(const char* command)
   bool result = this->RunChild(&vc_co[0], &out, &err, parent.c_str());
   this->Log << "--- End Initial Checkout ---\n";
   if (!result) {
-    cmCTestLog(this->CTest, ERROR_MESSAGE, "Initial checkout failed!"
-                 << std::endl);
+    cmCTestLog(this->CTest, ERROR_MESSAGE,
+               "Initial checkout failed!" << std::endl);
   }
   return result;
 }
@@ -79,13 +77,13 @@ bool cmCTestVC::RunChild(char const* const* cmd, OutputParser* out,
                          OutputParser* err, const char* workDir,
                          Encoding encoding)
 {
-  this->Log << this->ComputeCommandLine(cmd) << "\n";
+  this->Log << cmCTestVC::ComputeCommandLine(cmd) << "\n";
 
   cmsysProcess* cp = cmsysProcess_New();
   cmsysProcess_SetCommand(cp, cmd);
   workDir = workDir ? workDir : this->SourceDirectory.c_str();
   cmsysProcess_SetWorkingDirectory(cp, workDir);
-  this->RunProcess(cp, out, err, encoding);
+  cmCTestVC::RunProcess(cp, out, err, encoding);
   int result = cmsysProcess_GetExitValue(cp);
   cmsysProcess_Delete(cp);
   return result == 0;
@@ -143,10 +141,19 @@ void cmCTestVC::CleanupImpl()
 bool cmCTestVC::Update()
 {
   bool result = true;
+
+  // Use the explicitly specified version.
+  std::string versionOverride =
+    this->CTest->GetCTestConfiguration("UpdateVersionOverride");
+  if (!versionOverride.empty()) {
+    this->SetNewRevision(versionOverride);
+    return true;
+  }
+
   // if update version only is on then do not actually update,
   // just note the current version and finish
   if (!cmSystemTools::IsOn(
-        this->CTest->GetCTestConfiguration("UpdateVersionOnly").c_str())) {
+        this->CTest->GetCTestConfiguration("UpdateVersionOnly"))) {
     result = this->NoteOldRevision() && result;
     this->Log << "--- Begin Update ---\n";
     result = this->UpdateImpl() && result;
@@ -166,6 +173,11 @@ bool cmCTestVC::NoteNewRevision()
 {
   // We do nothing by default.
   return true;
+}
+
+void cmCTestVC::SetNewRevision(std::string const& /*unused*/)
+{
+  // We do nothing by default.
 }
 
 bool cmCTestVC::UpdateImpl()

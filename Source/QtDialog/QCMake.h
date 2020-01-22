@@ -8,8 +8,8 @@
 #include "cmake.h"
 
 #ifdef _MSC_VER
-#pragma warning(disable : 4127)
-#pragma warning(disable : 4512)
+#  pragma warning(disable : 4127)
+#  pragma warning(disable : 4512)
 #endif
 
 #include <vector>
@@ -75,11 +75,15 @@ public slots:
   /// set the desired generator to use
   void setGenerator(const QString& generator);
   /// set the desired generator to use
+  void setPlatform(const QString& platform);
+  /// set the desired generator to use
   void setToolset(const QString& toolset);
   /// do the configure step
   void configure();
   /// generate the files
   void generate();
+  /// open the project
+  void open();
   /// set the property values
   void setProperties(const QCMakePropertyList&);
   /// interrupt the configure or generate process (if connecting, make a direct
@@ -111,6 +115,8 @@ public slots:
   void setWarnUninitializedMode(bool value);
   /// set whether to run cmake with warnings about unused variables
   void setWarnUnusedMode(bool value);
+  /// check if project IDE open is possible and emit openPossible signal
+  void checkOpenPossible();
 
 public:
   /// get the list of cache properties
@@ -151,22 +157,29 @@ signals:
   void debugOutputChanged(bool);
   /// signal when the toolset changes
   void toolsetChanged(const QString& toolset);
+  /// signal when the platform changes
+  void platformChanged(const QString& platform);
+  /// signal when open is done
+  void openDone(bool successful);
+  /// signal when open is done
+  void openPossible(bool possible);
 
 protected:
   cmake* CMakeInstance;
 
-  static bool interruptCallback(void*);
-  static void progressCallback(const char* msg, float percent, void* cd);
-  static void messageCallback(const char* msg, const char* title, bool&,
-                              void* cd);
-  static void stdoutCallback(const char* msg, size_t len, void* cd);
-  static void stderrCallback(const char* msg, size_t len, void* cd);
+  bool interruptCallback();
+  void progressCallback(std::string const& msg, float percent);
+  void messageCallback(std::string const& msg, const char* title);
+  void stdoutCallback(std::string const& msg);
+  void stderrCallback(std::string const& msg);
+
   bool WarnUninitializedMode;
   bool WarnUnusedMode;
   bool WarnUnusedAllMode;
   QString SourceDirectory;
   QString BinaryDirectory;
   QString Generator;
+  QString Platform;
   QString Toolset;
   std::vector<cmake::GeneratorInfo> AvailableGenerators;
   QString CMakeExecutable;

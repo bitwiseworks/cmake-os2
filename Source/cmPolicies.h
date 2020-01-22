@@ -155,8 +155,9 @@ class cmMakefile;
          3, 0, 0, cmPolicies::WARN)                                           \
   SELECT(POLICY, CMP0051, "List TARGET_OBJECTS in SOURCES target property.",  \
          3, 1, 0, cmPolicies::WARN)                                           \
-  SELECT(POLICY, CMP0052, "Reject source and build dirs in installed "        \
-                          "INTERFACE_INCLUDE_DIRECTORIES.",                   \
+  SELECT(POLICY, CMP0052,                                                     \
+         "Reject source and build dirs in installed "                         \
+         "INTERFACE_INCLUDE_DIRECTORIES.",                                    \
          3, 1, 0, cmPolicies::WARN)                                           \
   SELECT(POLICY, CMP0053,                                                     \
          "Simplify variable reference and escape sequence evaluation.", 3, 1, \
@@ -211,7 +212,74 @@ class cmMakefile;
          "Define file(GENERATE) behavior for relative paths.", 3, 10, 0,      \
          cmPolicies::WARN)                                                    \
   SELECT(POLICY, CMP0071, "Let AUTOMOC and AUTOUIC process GENERATED files.", \
-         3, 10, 0, cmPolicies::WARN)
+         3, 10, 0, cmPolicies::WARN)                                          \
+  SELECT(POLICY, CMP0072,                                                     \
+         "FindOpenGL prefers GLVND by default when available.", 3, 11, 0,     \
+         cmPolicies::WARN)                                                    \
+  SELECT(POLICY, CMP0073,                                                     \
+         "Do not produce legacy _LIB_DEPENDS cache entries.", 3, 12, 0,       \
+         cmPolicies::WARN)                                                    \
+  SELECT(POLICY, CMP0074, "find_package uses <PackageName>_ROOT variables.",  \
+         3, 12, 0, cmPolicies::WARN)                                          \
+  SELECT(POLICY, CMP0075,                                                     \
+         "Include file check macros honor CMAKE_REQUIRED_LIBRARIES.", 3, 12,  \
+         0, cmPolicies::WARN)                                                 \
+  SELECT(POLICY, CMP0076,                                                     \
+         "target_sources() command converts relative paths to absolute.", 3,  \
+         13, 0, cmPolicies::WARN)                                             \
+  SELECT(POLICY, CMP0077, "option() honors normal variables.", 3, 13, 0,      \
+         cmPolicies::WARN)                                                    \
+  SELECT(POLICY, CMP0078, "UseSWIG generates standard target names.", 3, 13,  \
+         0, cmPolicies::WARN)                                                 \
+  SELECT(                                                                     \
+    POLICY, CMP0079,                                                          \
+    "target_link_libraries allows use with targets in other directories.", 3, \
+    13, 0, cmPolicies::WARN)                                                  \
+  SELECT(POLICY, CMP0080,                                                     \
+         "BundleUtilities cannot be included at configure time.", 3, 13, 0,   \
+         cmPolicies::WARN)                                                    \
+  SELECT(POLICY, CMP0081,                                                     \
+         "Relative paths not allowed in LINK_DIRECTORIES target property.",   \
+         3, 13, 0, cmPolicies::WARN)                                          \
+  SELECT(POLICY, CMP0082,                                                     \
+         "Install rules from add_subdirectory() are interleaved with those "  \
+         "in caller.",                                                        \
+         3, 14, 0, cmPolicies::WARN)                                          \
+  SELECT(POLICY, CMP0083, "Add PIE options when linking executable.", 3, 14,  \
+         0, cmPolicies::WARN)                                                 \
+  SELECT(POLICY, CMP0084,                                                     \
+         "The FindQt module does not exist for find_package().", 3, 14, 0,    \
+         cmPolicies::WARN)                                                    \
+  SELECT(POLICY, CMP0085, "$<IN_LIST:...> handles empty list items.", 3, 14,  \
+         0, cmPolicies::WARN)                                                 \
+  SELECT(POLICY, CMP0086,                                                     \
+         "UseSWIG honors SWIG_MODULE_NAME via -module flag.", 3, 14, 0,       \
+         cmPolicies::WARN)                                                    \
+  SELECT(POLICY, CMP0087,                                                     \
+         "Install CODE|SCRIPT allow the use of generator "                    \
+         "expressions.",                                                      \
+         3, 14, 0, cmPolicies::WARN)                                          \
+  SELECT(POLICY, CMP0088,                                                     \
+         "FindBISON runs bison in CMAKE_CURRENT_BINARY_DIR when executing.",  \
+         3, 14, 0, cmPolicies::WARN)                                          \
+  SELECT(POLICY, CMP0089,                                                     \
+         "Compiler id for IBM Clang-based XL compilers is now XLClang.", 3,   \
+         15, 0, cmPolicies::WARN)                                             \
+  SELECT(POLICY, CMP0090,                                                     \
+         "export(PACKAGE) does not populate package registry by default.", 3, \
+         15, 0, cmPolicies::WARN)                                             \
+  SELECT(POLICY, CMP0091,                                                     \
+         "MSVC runtime library flags are selected by an abstraction.", 3, 15, \
+         0, cmPolicies::WARN)                                                 \
+  SELECT(POLICY, CMP0092,                                                     \
+         "MSVC warning flags are not in CMAKE_<LANG>_FLAGS by default.", 3,   \
+         15, 0, cmPolicies::WARN)                                             \
+  SELECT(POLICY, CMP0093, "FindBoost reports Boost_VERSION in x.y.z format.", \
+         3, 15, 0, cmPolicies::WARN)                                          \
+  SELECT(POLICY, CMP0094,                                                     \
+         "FindPython3,  FindPython2 and FindPyton use "                       \
+         "LOCATION for lookup strategy.",                                     \
+         3, 15, 0, cmPolicies::WARN)
 
 #define CM_SELECT_ID(F, A1, A2, A3, A4, A5, A6) F(A1)
 #define CM_FOR_EACH_POLICY_ID(POLICY)                                         \
@@ -225,6 +293,7 @@ class cmMakefile;
   F(CMP0021)                                                                  \
   F(CMP0022)                                                                  \
   F(CMP0027)                                                                  \
+  F(CMP0037)                                                                  \
   F(CMP0038)                                                                  \
   F(CMP0041)                                                                  \
   F(CMP0042)                                                                  \
@@ -234,14 +303,16 @@ class cmMakefile;
   F(CMP0063)                                                                  \
   F(CMP0065)                                                                  \
   F(CMP0068)                                                                  \
-  F(CMP0069)
+  F(CMP0069)                                                                  \
+  F(CMP0073)                                                                  \
+  F(CMP0076)                                                                  \
+  F(CMP0081)                                                                  \
+  F(CMP0083)
 
 /** \class cmPolicies
  * \brief Handles changes in CMake behavior and policies
  *
- * See the cmake wiki section on
- * <a href="https://cmake.org/Wiki/CMake/Policies">policies</a>
- * for an overview of this class's purpose
+ * See the cmake-policies(7) manual for an overview of this class's purpose.
  */
 class cmPolicies
 {
@@ -273,23 +344,27 @@ public:
     CMPCOUNT
   };
 
-  ///! convert a string policy ID into a number
+  //! convert a string policy ID into a number
   static bool GetPolicyID(const char* id, /* out */ cmPolicies::PolicyID& pid);
 
-  ///! Get the default status for a policy
+  //! Get the default status for a policy
   static cmPolicies::PolicyStatus GetPolicyStatus(cmPolicies::PolicyID id);
 
-  ///! Set a policy level for this listfile
-  static bool ApplyPolicyVersion(cmMakefile* mf, const char* version);
+  //! Set a policy level for this listfile
+  static bool ApplyPolicyVersion(cmMakefile* mf,
+                                 std::string const& version_min,
+                                 std::string const& version_max);
+  static bool ApplyPolicyVersion(cmMakefile* mf, unsigned int majorVer,
+                                 unsigned int minorVer, unsigned int patchVer);
 
-  ///! return a warning string for a given policy
+  //! return a warning string for a given policy
   static std::string GetPolicyWarning(cmPolicies::PolicyID id);
   static std::string GetPolicyDeprecatedWarning(cmPolicies::PolicyID id);
 
-  ///! return an error string for when a required policy is unspecified
+  //! return an error string for when a required policy is unspecified
   static std::string GetRequiredPolicyError(cmPolicies::PolicyID id);
 
-  ///! return an error string for when a required policy is unspecified
+  //! return an error string for when a required policy is unspecified
   static std::string GetRequiredAlwaysPolicyError(cmPolicies::PolicyID id);
 
   /** Represent a set of policy values.  */

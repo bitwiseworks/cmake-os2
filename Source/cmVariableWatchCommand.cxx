@@ -7,6 +7,7 @@
 #include "cmExecutionStatus.h"
 #include "cmListFileCache.h"
 #include "cmMakefile.h"
+#include "cmMessageType.h"
 #include "cmSystemTools.h"
 #include "cmVariableWatch.h"
 #include "cmake.h"
@@ -43,16 +44,14 @@ static void cmVariableWatchCommandVariableAccessed(const std::string& variable,
   std::string stack = makefile->GetProperty("LISTFILE_STACK");
   if (!data->Command.empty()) {
     newLFF.Arguments.clear();
-    newLFF.Arguments.push_back(
-      cmListFileArgument(variable, cmListFileArgument::Quoted, 9999));
-    newLFF.Arguments.push_back(
-      cmListFileArgument(accessString, cmListFileArgument::Quoted, 9999));
-    newLFF.Arguments.push_back(cmListFileArgument(
-      newValue ? newValue : "", cmListFileArgument::Quoted, 9999));
-    newLFF.Arguments.push_back(
-      cmListFileArgument(currentListFile, cmListFileArgument::Quoted, 9999));
-    newLFF.Arguments.push_back(
-      cmListFileArgument(stack, cmListFileArgument::Quoted, 9999));
+    newLFF.Arguments.emplace_back(variable, cmListFileArgument::Quoted, 9999);
+    newLFF.Arguments.emplace_back(accessString, cmListFileArgument::Quoted,
+                                  9999);
+    newLFF.Arguments.emplace_back(newValue ? newValue : "",
+                                  cmListFileArgument::Quoted, 9999);
+    newLFF.Arguments.emplace_back(currentListFile, cmListFileArgument::Quoted,
+                                  9999);
+    newLFF.Arguments.emplace_back(stack, cmListFileArgument::Quoted, 9999);
     newLFF.Name = data->Command;
     newLFF.Line = 9999;
     cmExecutionStatus status;
@@ -61,7 +60,7 @@ static void cmVariableWatchCommandVariableAccessed(const std::string& variable,
       error << "Error in cmake code at\nUnknown:0:\n"
             << "A command failed during the invocation of callback \""
             << data->Command << "\".";
-      cmSystemTools::Error(error.str().c_str());
+      cmSystemTools::Error(error.str());
       data->InCallback = false;
       return;
     }
@@ -72,7 +71,7 @@ static void cmVariableWatchCommandVariableAccessed(const std::string& variable,
     msg << "Variable \"" << variable << "\" was accessed using "
         << accessString << " with value \"" << (newValue ? newValue : "")
         << "\".";
-    makefile->IssueMessage(cmake::LOG, msg.str());
+    makefile->IssueMessage(MessageType::LOG, msg.str());
   }
 
   data->InCallback = false;
@@ -85,9 +84,7 @@ static void deleteVariableWatchCallbackData(void* client_data)
   delete data;
 }
 
-cmVariableWatchCommand::cmVariableWatchCommand()
-{
-}
+cmVariableWatchCommand::cmVariableWatchCommand() = default;
 
 cmVariableWatchCommand::~cmVariableWatchCommand()
 {

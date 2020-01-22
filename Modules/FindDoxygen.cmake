@@ -69,6 +69,7 @@ Functions
 
     doxygen_add_docs(targetName
         [filesOrDirs...]
+        [ALL]
         [WORKING_DIRECTORY dir]
         [COMMENT comment])
 
@@ -90,6 +91,8 @@ Functions
   If provided, the optional ``comment`` will be passed as the ``COMMENT`` for
   the :command:`add_custom_target` command used to create the custom target
   internally.
+
+  If ALL is set, the target will be added to the default build target.
 
   The contents of the generated ``Doxyfile`` can be customized by setting CMake
   variables before calling ``doxygen_add_docs()``. Any variable with a name of
@@ -244,7 +247,7 @@ required form if set.
   TAGFILES
   TCL_SUBST
 
-The following single value Doxygen options would be quoted automatically
+The following single value Doxygen options will be quoted automatically
 if they contain at least one space:
 
 ::
@@ -292,6 +295,36 @@ if they contain at least one space:
   WARN_LOGFILE
   XML_OUTPUT
 
+There are situations where it may be undesirable for a particular config option
+to be automatically quoted by ``doxygen_add_docs()``, such as ``ALIASES`` which
+may need to include its own embedded quoting.  The ``DOXYGEN_VERBATIM_VARS``
+variable can be used to specify a list of Doxygen variables (including the
+leading ``DOXYGEN_`` prefix) which should not be quoted.  The project is then
+responsible for ensuring that those variables' values make sense when placed
+directly in the Doxygen input file.  In the case of list variables, list items
+are still separated by spaces, it is only the automatic quoting that is
+skipped.  For example, the following allows ``doxygen_add_docs()`` to apply
+quoting to ``DOXYGEN_PROJECT_BRIEF``, but not each item in the
+``DOXYGEN_ALIASES`` list (:ref:`bracket syntax <Bracket Argument>` can also
+be used to make working with embedded quotes easier):
+
+.. code-block:: cmake
+
+  set(DOXYGEN_PROJECT_BRIEF "String with spaces")
+  set(DOXYGEN_ALIASES
+      [[somealias="@some_command param"]]
+      "anotherAlias=@foobar"
+  )
+  set(DOXYGEN_VERBATIM_VARS DOXYGEN_ALIASES)
+
+The resultant ``Doxyfile`` will contain the following lines:
+
+.. code-block:: text
+
+  PROJECT_BRIEF = "String with spaces"
+  ALIASES       = somealias="@some_command param" anotherAlias=@foobar
+
+
 Deprecated Result Variables
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -331,11 +364,14 @@ Deprecated Hint Variables
 
 .. variable:: DOXYGEN_SKIP_DOT
 
-  This variable has no any effect for component form of ``find_package``.
+  This variable has no effect for the component form of ``find_package``.
   In backward compatibility mode (i.e. without components list) it prevents
   the finder module from searching for Graphviz's ``dot`` utility.
 
 #]=======================================================================]
+
+cmake_policy(PUSH)
+cmake_policy(SET CMP0057 NEW) # if IN_LIST
 
 # For backwards compatibility support
 if(Doxygen_FIND_QUIETLY)
@@ -381,6 +417,8 @@ macro(_Doxygen_find_doxygen)
             "[HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\doxygen_is1;Inno Setup: App Path]/bin"
             /Applications/Doxygen.app/Contents/Resources
             /Applications/Doxygen.app/Contents/MacOS
+            /Applications/Utilities/Doxygen.app/Contents/Resources
+            /Applications/Utilities/Doxygen.app/Contents/MacOS
         DOC "Doxygen documentation generation tool (http://www.doxygen.org)"
     )
     mark_as_advanced(DOXYGEN_EXECUTABLE)
@@ -447,12 +485,18 @@ endmacro()
 # Find Graphviz Dot...
 #
 macro(_Doxygen_find_dot)
-    set(_x86 "(x86)")
-    file(
-        GLOB _Doxygen_GRAPHVIZ_BIN_DIRS
-        "$ENV{ProgramFiles}/Graphviz*/bin"
-        "$ENV{ProgramFiles${_x86}}/Graphviz*/bin"
-    )
+    if(WIN32)
+        set(_x86 "(x86)")
+        file(
+            GLOB _Doxygen_GRAPHVIZ_BIN_DIRS
+            "$ENV{ProgramFiles}/Graphviz*/bin"
+            "$ENV{ProgramFiles${_x86}}/Graphviz*/bin"
+        )
+        unset(_x86)
+    else()
+        set(_Doxygen_GRAPHVIZ_BIN_DIRS "")
+    endif()
+
     find_program(
         DOXYGEN_DOT_EXECUTABLE
         NAMES dot
@@ -462,8 +506,11 @@ macro(_Doxygen_find_dot)
             "C:/Program Files/ATT/Graphviz/bin"
             [HKEY_LOCAL_MACHINE\\SOFTWARE\\ATT\\Graphviz;InstallPath]/bin
             /Applications/Graphviz.app/Contents/MacOS
+            /Applications/Utilities/Graphviz.app/Contents/MacOS
             /Applications/Doxygen.app/Contents/Resources
             /Applications/Doxygen.app/Contents/MacOS
+            /Applications/Utilities/Doxygen.app/Contents/Resources
+            /Applications/Utilities/Doxygen.app/Contents/MacOS
         DOC "Dot tool for use with Doxygen"
     )
     mark_as_advanced(DOXYGEN_DOT_EXECUTABLE)
@@ -488,7 +535,6 @@ macro(_Doxygen_find_dot)
     endif()
 
     unset(_Doxygen_GRAPHVIZ_BIN_DIRS)
-    unset(_x86)
 endmacro()
 
 #
@@ -667,7 +713,9 @@ if(TARGET Doxygen::doxygen)
         if(_line MATCHES "([A-Z][A-Z0-9_]+)( *=)(.*)")
             set(_key "${CMAKE_MATCH_1}")
             set(_eql "${CMAKE_MATCH_2}")
-            string(REPLACE ";" "\\\n" _value "${CMAKE_MATCH_3}")
+            set(_value "${CMAKE_MATCH_3}")
+            string(REPLACE "\\" "\\\\" _value "${_value}")
+            string(REPLACE ";" "\\\n" _value "${_value}")
             list(APPEND _Doxygen_tpl_params "${_key}${_eql}${_value}")
         endif()
     endforeach()
@@ -716,12 +764,15 @@ endif()
 
 function(doxygen_quote_value VARIABLE)
     # Quote a value of the given variable if:
-    # - variable parameter was really given
-    # - a variable it points is defined
-    # - a value doesn't quoted already
-    # - and it has spaces
+    # - VARIABLE parameter was really given
+    # - the variable it names is defined and is not present in the list
+    #   specified by DOXYGEN_VERBATIM_VARS (if set)
+    # - the value of the named variable isn't already quoted
+    # - the value has spaces
     if(VARIABLE AND DEFINED ${VARIABLE} AND
-       NOT ${VARIABLE} MATCHES "^\".* .*\"$" AND ${VARIABLE} MATCHES " ")
+       NOT ${VARIABLE} MATCHES "^\".* .*\"$" AND ${VARIABLE} MATCHES " " AND
+       NOT (DEFINED DOXYGEN_VERBATIM_VARS AND
+            "${VARIABLE}" IN_LIST DOXYGEN_VERBATIM_VARS))
         set(${VARIABLE} "\"${${VARIABLE}}\"" PARENT_SCOPE)
     endif()
 endfunction()
@@ -730,8 +781,18 @@ function(doxygen_list_to_quoted_strings LIST_VARIABLE)
     if(LIST_VARIABLE AND DEFINED ${LIST_VARIABLE})
         unset(_inputs)
         unset(_sep)
+        unset(_verbatim)
+        # Have to test if list items should be treated as verbatim here
+        # because we lose the variable name when we pass just one list item
+        # to doxygen_quote_value() below
+        if(DEFINED DOXYGEN_VERBATIM_VARS AND
+           "${LIST_VARIABLE}" IN_LIST DOXYGEN_VERBATIM_VARS)
+            set(_verbatim True)
+        endif()
         foreach(_in IN LISTS ${LIST_VARIABLE})
-            doxygen_quote_value(_in)
+            if(NOT _verbatim)
+                doxygen_quote_value(_in)
+            endif()
             string(APPEND _inputs "${_sep}${_in}")
             set(_sep " ")
         endforeach()
@@ -740,7 +801,7 @@ function(doxygen_list_to_quoted_strings LIST_VARIABLE)
 endfunction()
 
 function(doxygen_add_docs targetName)
-    set(_options)
+    set(_options ALL)
     set(_one_value_args WORKING_DIRECTORY COMMENT)
     set(_multi_value_args)
     cmake_parse_arguments(_args
@@ -913,7 +974,7 @@ doxygen_add_docs() for target ${targetName}")
                 "${DOXYGEN_OUTPUT_DIRECTORY}/${DOXYGEN_HTML_OUTPUT}")
         endif()
         set_property(DIRECTORY APPEND PROPERTY
-            ADDITIONAL_MAKE_CLEAN_FILES "${_args_clean_html_dir}")
+            ADDITIONAL_CLEAN_FILES "${_args_clean_html_dir}")
     endif()
 
     # Build up a list of files we can identify from the inputs so we can list
@@ -1041,8 +1102,13 @@ doxygen_add_docs() for target ${targetName}")
     set(_target_doxyfile "${CMAKE_CURRENT_BINARY_DIR}/Doxyfile.${targetName}")
     configure_file("${_doxyfile_template}" "${_target_doxyfile}")
 
+    unset(_all)
+    if(${_args_ALL})
+        set(_all ALL)
+    endif()
+
     # Add the target
-    add_custom_target( ${targetName} VERBATIM
+    add_custom_target( ${targetName} ${_all} VERBATIM
         COMMAND ${CMAKE_COMMAND} -E make_directory ${_original_doxygen_output_dir}
         COMMAND "${DOXYGEN_EXECUTABLE}" "${_target_doxyfile}"
         WORKING_DIRECTORY "${_args_WORKING_DIRECTORY}"
@@ -1052,3 +1118,5 @@ doxygen_add_docs() for target ${targetName}")
     )
 
 endfunction()
+
+cmake_policy(POP)
