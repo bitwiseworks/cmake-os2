@@ -89,10 +89,15 @@ static int maybe_new_socket(uv_tcp_t* handle, int domain, unsigned long flags) {
       if (getsockname(uv__stream_fd(handle), (struct sockaddr*) &saddr, &slen))
         return UV__ERR(errno);
 
+#ifdef __OS2__
+      if (saddr.sa_family == AF_INET &&
+          ((struct sockaddr_in*) &saddr)->sin_port != 0) {
+#else
       if ((saddr.ss_family == AF_INET6 &&
           ((struct sockaddr_in6*) &saddr)->sin6_port != 0) ||
           (saddr.ss_family == AF_INET &&
           ((struct sockaddr_in*) &saddr)->sin_port != 0)) {
+#endif
         /* Handle is already bound to a port. */
         handle->flags |= flags;
         return 0;

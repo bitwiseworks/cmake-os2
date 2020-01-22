@@ -45,6 +45,7 @@
 
 #if defined(__OS2__)
 # include "os2-syscalls.h"
+# include <libcx/net.h>
 #endif /* __OS2__ */
 
 #if defined(__sun)

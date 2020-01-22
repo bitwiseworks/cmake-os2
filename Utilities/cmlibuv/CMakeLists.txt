@@ -120,10 +120,14 @@ endif()
 
 if (OS2)
   list(APPEND uv_headers
-    include/uv/os2-syscalls.h
+    include/uv/posix.h
+    include/uv/semaphore.h
     )
   list(APPEND uv_sources
     src/unix/os2-syscalls.c
+    src/unix/no-fsevents.c
+    src/unix/posix-hrtime.c
+    src/unix/posix-poll.c
     )
 endif()
 

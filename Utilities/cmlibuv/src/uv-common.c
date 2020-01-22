@@ -215,6 +215,7 @@ int uv_ip4_addr(const char* ip, int port, struct sockaddr_in* addr) {
 }
 
 
+#ifndef __OS2__
 int uv_ip6_addr(const char* ip, int port, struct sockaddr_in6* addr) {
   char address_part[40];
   size_t address_part_size;
@@ -245,6 +246,7 @@ int uv_ip6_addr(const char* ip, int port, struct sockaddr_in6* addr) {
 
   return uv_inet_pton(AF_INET6, ip, &addr->sin6_addr);
 }
+#endif
 
 
 int uv_ip4_name(const struct sockaddr_in* src, char* dst, size_t size) {
@@ -252,9 +254,11 @@ int uv_ip4_name(const struct sockaddr_in* src, char* dst, size_t size) {
 }
 
 
+#ifndef __OS2__
 int uv_ip6_name(const struct sockaddr_in6* src, char* dst, size_t size) {
   return uv_inet_ntop(AF_INET6, &src->sin6_addr, dst, size);
 }
+#endif
 
 
 int uv_tcp_bind(uv_tcp_t* handle,
@@ -267,8 +271,10 @@ int uv_tcp_bind(uv_tcp_t* handle,
 
   if (addr->sa_family == AF_INET)
     addrlen = sizeof(struct sockaddr_in);
+#ifndef __OS2__
   else if (addr->sa_family == AF_INET6)
     addrlen = sizeof(struct sockaddr_in6);
+#endif
   else
     return UV_EINVAL;
 
@@ -286,8 +292,10 @@ int uv_udp_bind(uv_udp_t* handle,
 
   if (addr->sa_family == AF_INET)
     addrlen = sizeof(struct sockaddr_in);
+#ifndef __OS2__
   else if (addr->sa_family == AF_INET6)
     addrlen = sizeof(struct sockaddr_in6);
+#endif
   else
     return UV_EINVAL;
 
@@ -306,8 +314,10 @@ int uv_tcp_connect(uv_connect_t* req,
 
   if (addr->sa_family == AF_INET)
     addrlen = sizeof(struct sockaddr_in);
+#ifndef __OS2__
   else if (addr->sa_family == AF_INET6)
     addrlen = sizeof(struct sockaddr_in6);
+#endif
   else
     return UV_EINVAL;
 
@@ -328,8 +338,10 @@ int uv_udp_send(uv_udp_send_t* req,
 
   if (addr->sa_family == AF_INET)
     addrlen = sizeof(struct sockaddr_in);
+#ifndef __OS2__
   else if (addr->sa_family == AF_INET6)
     addrlen = sizeof(struct sockaddr_in6);
+#endif
   else
     return UV_EINVAL;
 
@@ -348,8 +360,10 @@ int uv_udp_try_send(uv_udp_t* handle,
 
   if (addr->sa_family == AF_INET)
     addrlen = sizeof(struct sockaddr_in);
+#ifndef __OS2__
   else if (addr->sa_family == AF_INET6)
     addrlen = sizeof(struct sockaddr_in6);
+#endif
   else
     return UV_EINVAL;
 

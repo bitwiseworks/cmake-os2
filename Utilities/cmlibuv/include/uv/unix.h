@@ -64,10 +64,14 @@
       defined(__OpenBSD__)         || \
       defined(__NetBSD__)
 # include "bsd.h"
-#elif defined(__CYGWIN__) || defined(__MSYS__) || defined(__OS2__)
+#elif defined(__CYGWIN__) || defined(__MSYS__)
 # include "posix.h"
 #elif defined(__GNU__)
 # include "posix.h"
+#elif defined(__OS2__)
+# include "posix.h"
+# include "semaphore.h"
+# define sockaddr_storage sockaddr
 #endif
 
 #ifndef NI_MAXHOST
@@ -100,12 +104,8 @@ struct uv__io_s {
   UV_IO_PRIVATE_PLATFORM_FIELDS
 };
 
-#ifndef __OS2__
 #ifndef UV_PLATFORM_SEM_T
 # define UV_PLATFORM_SEM_T sem_t
-#endif
-#else
-# define sockaddr_storage sockaddr
 #endif
 
 #ifndef UV_PLATFORM_LOOP_FIELDS
@@ -148,9 +148,7 @@ typedef pthread_once_t uv_once_t;
 typedef pthread_t uv_thread_t;
 typedef pthread_mutex_t uv_mutex_t;
 typedef pthread_rwlock_t uv_rwlock_t;
-#ifndef __OS2__
 typedef UV_PLATFORM_SEM_T uv_sem_t;
-#endif
 typedef pthread_cond_t uv_cond_t;
 typedef pthread_key_t uv_key_t;
 

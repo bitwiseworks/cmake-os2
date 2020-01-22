@@ -1566,13 +1566,11 @@ UV_EXTERN void uv_rwlock_wrlock(uv_rwlock_t* rwlock);
 UV_EXTERN int uv_rwlock_trywrlock(uv_rwlock_t* rwlock);
 UV_EXTERN void uv_rwlock_wrunlock(uv_rwlock_t* rwlock);
 
-#ifndef __OS2__
 UV_EXTERN int uv_sem_init(uv_sem_t* sem, unsigned int value);
 UV_EXTERN void uv_sem_destroy(uv_sem_t* sem);
 UV_EXTERN void uv_sem_post(uv_sem_t* sem);
 UV_EXTERN void uv_sem_wait(uv_sem_t* sem);
 UV_EXTERN int uv_sem_trywait(uv_sem_t* sem);
-#endif
 
 UV_EXTERN int uv_cond_init(uv_cond_t* cond);
 UV_EXTERN void uv_cond_destroy(uv_cond_t* cond);

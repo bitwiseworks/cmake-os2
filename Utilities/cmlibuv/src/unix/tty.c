@@ -29,7 +29,9 @@
 #include <termios.h>
 #include <errno.h>
 #include <sys/ioctl.h>
-
+#ifdef __OS2__
+#include <termio.h>
+#endif
 #if defined(__MVS__) && !defined(IMAXBEL)
 #define IMAXBEL 0
 #endif
@@ -38,6 +40,7 @@ static int orig_termios_fd = -1;
 static struct termios orig_termios;
 static uv_spinlock_t termios_spinlock = UV_SPINLOCK_INITIALIZER;
 
+#ifndef __OS2__
 static int uv__tty_is_slave(const int fd) {
   int result;
 #if defined(__linux__) || defined(__FreeBSD__) || defined(__FreeBSD_kernel__)
@@ -91,6 +94,7 @@ static int uv__tty_is_slave(const int fd) {
 #endif
   return result;
 }
+#endif
 
 int uv_tty_init(uv_loop_t* loop, uv_tty_t* tty, int fd, int unused) {
   uv_handle_type type;
@@ -135,9 +139,11 @@ int uv_tty_init(uv_loop_t* loop, uv_tty_t* tty, int fd, int unused) {
      * master/slave pair (Linux). Therefore check if the fd points to a
      * slave device.
      */
+#ifndef __OS2__
     if (uv__tty_is_slave(fd) && ttyname_r(fd, path, sizeof(path)) == 0)
       r = uv__open_cloexec(path, mode);
     else
+#endif
       r = -1;
 
     if (r < 0) {
@@ -211,6 +217,8 @@ static void uv__tty_make_raw(struct termios* tio) {
   tio->c_lflag &= ~(ECHO | ECHONL | ICANON | ISIG | IEXTEN);
   tio->c_cflag &= ~(CSIZE | PARENB);
   tio->c_cflag |= CS8;
+#elif defined __OS2__
+  // @todo implement eventually
 #else
   cfmakeraw(tio);
 #endif /* #ifdef __sun */
@@ -264,6 +272,7 @@ int uv_tty_set_mode(uv_tty_t* tty, uv_tty_mode_t mode) {
 
 
 int uv_tty_get_winsize(uv_tty_t* tty, int* width, int* height) {
+#ifndef __OS2__
   struct winsize ws;
   int err;
 
@@ -276,7 +285,10 @@ int uv_tty_get_winsize(uv_tty_t* tty, int* width, int* height) {
 
   *width = ws.ws_col;
   *height = ws.ws_row;
-
+#else
+  *width = 80;
+  *height = 24;
+#endif
   return 0;
 }
 
