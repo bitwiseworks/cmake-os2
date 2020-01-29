@@ -29,6 +29,19 @@ list(APPEND CMAKE_CXX_IMPLICIT_INCLUDE_DIRECTORIES
 
 SET(CMAKE_DL_LIBS "" )
 
+# resource compiler
+# to add a icon to the exe do the following in a CMakeLists.txt file
+# if(OS2)
+#   enable_language(RC)
+#   set_source_files_properties(yourrcfile.rc PROPERTIES LANGUAGE RC)
+#   set(project_SOURCES ${project_SOURCES}
+#    yourrcfile.rc
+#   )
+# endif()
+#
+set(CMAKE_RC_COMPILER_INIT "wrc" )
+set(CMAKE_RC_COMPILE_OBJECT "<CMAKE_RC_COMPILER> -q -r <SOURCE> <INCLUDES> -fo=<OBJECT>")
+
 # set flags for shared libraries
 SET(CMAKE_SHARED_LIBRARY_CREATE_C_FLAGS "-Zdll")
 SET(CMAKE_SHARED_LIBRARY_PREFIX "")
