@@ -164,8 +164,11 @@ if(NOT DEFINED CMAKE_INSTALL_PREFIX)
 endif()
 
 # Choose a default install prefix for this platform.
-if(CMAKE_HOST_UNIX OR CMAKE_HOST_OS2)
+if(CMAKE_HOST_UNIX)
   set(CMAKE_INSTALL_PREFIX "/usr/local"
+    CACHE PATH "Install path prefix, prepended onto install directories.")
+elseif(CMAKE_HOST_OS2)
+  set(CMAKE_INSTALL_PREFIX "/@unixroot/usr/local"
     CACHE PATH "Install path prefix, prepended onto install directories.")
 else()
   GetDefaultWindowsPrefixBase(CMAKE_GENERIC_PROGRAM_FILES)
