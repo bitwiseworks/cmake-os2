@@ -106,6 +106,8 @@ SET(CMAKE_CXX_CREATE_SHARED_MODULE
 # It's important that you add this snippet after the target is created and of
 # course <TARGET> needs to be changed to the real target
 #
+# With the TARGET_SHORT you can create a shorter name for the dll
+#
 # The 2 settings with OS2_DEF_EXE_ are for executables only.
 # Usually the Stack value is not needed, so omit it please.
 #
@@ -114,6 +116,7 @@ SET(CMAKE_CXX_CREATE_SHARED_MODULE
 #    OS2_DEF_VENDOR "whoever you are"
 #    OS2_DEF_PATCH "${VERSION_PATCH}"
 #    OS2_DEF_VERSION "${VERSION}"
+#    TARGET_SHORT shortn
 #    OS2_DEF_EXEType "WINDOWAPI"
 #    OS2_DEF_EXEStack "STACKSIZE 0x8000")
 # endif()
