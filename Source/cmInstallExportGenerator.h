@@ -1,17 +1,18 @@
 /* Distributed under the OSI-approved BSD 3-Clause License.  See accompanying
    file Copyright.txt or https://cmake.org/licensing for details.  */
-#ifndef cmInstallExportGenerator_h
-#define cmInstallExportGenerator_h
+#pragma once
 
 #include "cmConfigure.h" // IWYU pragma: keep
 
-#include "cmInstallGenerator.h"
-#include "cmScriptGenerator.h"
-
+#include <cstddef>
 #include <iosfwd>
-#include <stddef.h>
+#include <memory>
 #include <string>
 #include <vector>
+
+#include "cmInstallGenerator.h"
+#include "cmListFileCache.h"
+#include "cmScriptGenerator.h"
 
 class cmExportInstallFileGenerator;
 class cmExportSet;
@@ -23,14 +24,18 @@ class cmLocalGenerator;
 class cmInstallExportGenerator : public cmInstallGenerator
 {
 public:
-  cmInstallExportGenerator(cmExportSet* exportSet, const char* dest,
-                           const char* file_permissions,
+  cmInstallExportGenerator(cmExportSet* exportSet, std::string const& dest,
+                           std::string file_permissions,
                            const std::vector<std::string>& configurations,
-                           const char* component, MessageLevel message,
-                           bool exclude_from_all, const char* filename,
-                           const char* name_space, bool exportOld,
-                           bool android);
+                           std::string const& component, MessageLevel message,
+                           bool exclude_from_all, std::string filename,
+                           std::string name_space, bool exportOld,
+                           bool android, cmListFileBacktrace backtrace);
+  cmInstallExportGenerator(const cmInstallExportGenerator&) = delete;
   ~cmInstallExportGenerator() override;
+
+  cmInstallExportGenerator& operator=(const cmInstallExportGenerator&) =
+    delete;
 
   cmExportSet* GetExportSet() { return this->ExportSet; }
 
@@ -40,7 +45,11 @@ public:
 
   const std::string& GetNamespace() const { return this->Namespace; }
 
+  std::string const& GetMainImportFile() const { return this->MainImportFile; }
+
   std::string const& GetDestination() const { return this->Destination; }
+  std::string GetDestinationFile() const;
+  std::string GetFileName() const { return this->FileName; }
 
 protected:
   void GenerateScript(std::ostream& os) override;
@@ -51,16 +60,14 @@ protected:
   void ComputeTempDir();
   size_t GetMaxConfigLength() const;
 
-  cmExportSet* ExportSet;
-  std::string FilePermissions;
-  std::string FileName;
-  std::string Namespace;
-  bool ExportOld;
+  cmExportSet* const ExportSet;
+  std::string const FilePermissions;
+  std::string const FileName;
+  std::string const Namespace;
+  bool const ExportOld;
   cmLocalGenerator* LocalGenerator;
 
   std::string TempDir;
   std::string MainImportFile;
-  cmExportInstallFileGenerator* EFGen;
+  std::unique_ptr<cmExportInstallFileGenerator> EFGen;
 };
-
-#endif

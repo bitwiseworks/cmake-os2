@@ -2,6 +2,10 @@
    file Copyright.txt or https://cmake.org/licensing for details.  */
 #include "cmGlobalBorlandMakefileGenerator.h"
 
+#include <utility>
+
+#include <cm/memory>
+
 #include "cmDocumentationEntry.h"
 #include "cmLocalUnixMakefileGenerator3.h"
 #include "cmMakefile.h"
@@ -22,6 +26,15 @@ cmGlobalBorlandMakefileGenerator::cmGlobalBorlandMakefileGenerator(cmake* cm)
   this->DefineWindowsNULL = true;
   this->PassMakeflags = true;
   this->UnixCD = false;
+
+  /*
+   * Borland Make does not support long line depend rule, as we have tested
+   * generate one source file includes 40000 header files, and generate
+   * depend.make in one line(use line continued tag), and error occured:
+   * ** Fatal CMakeFiles\main.dir\depend.make 1224: Rule line too long **
+   * we disable long line dependencies rule generation for Borland make
+   */
+  this->ToolSupportsLongLineDependencies = false;
 }
 
 void cmGlobalBorlandMakefileGenerator::EnableLanguage(
@@ -35,15 +48,14 @@ void cmGlobalBorlandMakefileGenerator::EnableLanguage(
 }
 
 //! Create a local generator appropriate to this Global Generator
-cmLocalGenerator* cmGlobalBorlandMakefileGenerator::CreateLocalGenerator(
-  cmMakefile* mf)
+std::unique_ptr<cmLocalGenerator>
+cmGlobalBorlandMakefileGenerator::CreateLocalGenerator(cmMakefile* mf)
 {
-  cmLocalUnixMakefileGenerator3* lg =
-    new cmLocalUnixMakefileGenerator3(this, mf);
+  auto lg = cm::make_unique<cmLocalUnixMakefileGenerator3>(this, mf);
   lg->SetMakefileVariableSize(32);
   lg->SetMakeCommandEscapeTargetTwice(true);
   lg->SetBorlandMakeCurlyHack(true);
-  return lg;
+  return std::unique_ptr<cmLocalGenerator>(std::move(lg));
 }
 
 void cmGlobalBorlandMakefileGenerator::GetDocumentation(

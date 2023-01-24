@@ -1,20 +1,19 @@
-#include "cmUVProcessChain.h"
-
-#include "cmAlgorithms.h"
-#include "cmGetPipes.h"
-#include "cmUVHandlePtr.h"
-#include "cmUVStreambuf.h"
-
-#include "cm_uv.h"
-
 #include <algorithm>
+#include <csignal>
 #include <functional>
 #include <iostream>
 #include <sstream>
 #include <string>
 #include <vector>
 
-#include <csignal>
+#include <cm/memory>
+
+#include <cm3p/uv.h>
+
+#include "cmGetPipes.h"
+#include "cmUVHandlePtr.h"
+#include "cmUVProcessChain.h"
+#include "cmUVStreambuf.h"
 
 struct ExpectedStatus
 {
@@ -182,6 +181,10 @@ bool checkOutput(std::istream& outputStream, std::istream& errorStream)
   }
 
   std::string error = getInput(errorStream);
+  auto qemu_error_pos = error.find("qemu:");
+  if (qemu_error_pos != std::string::npos) {
+    error.resize(qemu_error_pos);
+  }
   if (error.length() != 3 || error.find('1') == std::string::npos ||
       error.find('2') == std::string::npos ||
       error.find('3') == std::string::npos) {

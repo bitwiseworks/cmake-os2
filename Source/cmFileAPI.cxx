@@ -2,25 +2,28 @@
    file Copyright.txt or https://cmake.org/licensing for details.  */
 #include "cmFileAPI.h"
 
-#include "cmAlgorithms.h"
-#include "cmCryptoHash.h"
-#include "cmFileAPICMakeFiles.h"
-#include "cmFileAPICache.h"
-#include "cmFileAPICodemodel.h"
-#include "cmGlobalGenerator.h"
-#include "cmSystemTools.h"
-#include "cmTimestamp.h"
-#include "cmake.h"
-#include "cmsys/Directory.hxx"
-#include "cmsys/FStream.hxx"
-
 #include <algorithm>
 #include <cassert>
 #include <chrono>
+#include <cstddef>
 #include <ctime>
 #include <iomanip>
 #include <sstream>
 #include <utility>
+
+#include "cmsys/Directory.hxx"
+#include "cmsys/FStream.hxx"
+
+#include "cmCryptoHash.h"
+#include "cmFileAPICMakeFiles.h"
+#include "cmFileAPICache.h"
+#include "cmFileAPICodemodel.h"
+#include "cmFileAPIToolchains.h"
+#include "cmGlobalGenerator.h"
+#include "cmStringAlgorithms.h"
+#include "cmSystemTools.h"
+#include "cmTimestamp.h"
+#include "cmake.h"
 
 cmFileAPI::cmFileAPI(cmake* cm)
   : CMakeInstance(cm)
@@ -94,7 +97,7 @@ void cmFileAPI::RemoveOldReplyFiles()
   std::vector<std::string> files = this->LoadDir(reply_dir);
   for (std::string const& f : files) {
     if (this->ReplyFiles.find(f) == this->ReplyFiles.end()) {
-      std::string file = reply_dir + "/" + f;
+      std::string file = cmStrCat(reply_dir, "/", f);
       cmSystemTools::RemoveFile(file);
     }
   }
@@ -260,6 +263,17 @@ bool cmFileAPI::ReadQuery(std::string const& query,
     objects.push_back(o);
     return true;
   }
+  if (kindName == ObjectKindName(ObjectKind::Toolchains)) {
+    Object o;
+    o.Kind = ObjectKind::Toolchains;
+    if (verStr == "v1") {
+      o.Version = 1;
+    } else {
+      return false;
+    }
+    objects.push_back(o);
+    return true;
+  }
   if (kindName == ObjectKindName(ObjectKind::InternalTest)) {
     Object o;
     o.Kind = ObjectKind::InternalTest;
@@ -400,6 +414,7 @@ const char* cmFileAPI::ObjectKindName(ObjectKind kind)
     "codemodel",  //
     "cache",      //
     "cmakeFiles", //
+    "toolchains", //
     "__test"      //
   };
   return objectKindNames[size_t(kind)];
@@ -407,9 +422,7 @@ const char* cmFileAPI::ObjectKindName(ObjectKind kind)
 
 std::string cmFileAPI::ObjectName(Object const& o)
 {
-  std::string name = ObjectKindName(o.Kind);
-  name += "-v";
-  name += std::to_string(o.Version);
+  std::string name = cmStrCat(ObjectKindName(o.Kind), "-v", o.Version);
   return name;
 }
 
@@ -434,6 +447,9 @@ Json::Value cmFileAPI::BuildObject(Object const& object)
       break;
     case ObjectKind::CMakeFiles:
       value = this->BuildCMakeFiles(object);
+      break;
+    case ObjectKind::Toolchains:
+      value = this->BuildToolchains(object);
       break;
     case ObjectKind::InternalTest:
       value = this->BuildInternalTest(object);
@@ -491,6 +507,8 @@ cmFileAPI::ClientRequest cmFileAPI::BuildClientRequest(
     r.Kind = ObjectKind::Cache;
   } else if (kindName == this->ObjectKindName(ObjectKind::CMakeFiles)) {
     r.Kind = ObjectKind::CMakeFiles;
+  } else if (kindName == this->ObjectKindName(ObjectKind::Toolchains)) {
+    r.Kind = ObjectKind::Toolchains;
   } else if (kindName == this->ObjectKindName(ObjectKind::InternalTest)) {
     r.Kind = ObjectKind::InternalTest;
   } else {
@@ -517,6 +535,9 @@ cmFileAPI::ClientRequest cmFileAPI::BuildClientRequest(
       break;
     case ObjectKind::CMakeFiles:
       this->BuildClientRequestCMakeFiles(r, versions);
+      break;
+    case ObjectKind::Toolchains:
+      this->BuildClientRequestToolchains(r, versions);
       break;
     case ObjectKind::InternalTest:
       this->BuildClientRequestInternalTest(r, versions);
@@ -665,7 +686,7 @@ std::string cmFileAPI::NoSupportedVersion(
 
 // The "codemodel" object kind.
 
-static unsigned int const CodeModelV2Minor = 0;
+static unsigned int const CodeModelV2Minor = 2;
 
 void cmFileAPI::BuildClientRequestCodeModel(
   ClientRequest& r, std::vector<RequestVersion> const& versions)
@@ -684,7 +705,6 @@ void cmFileAPI::BuildClientRequestCodeModel(
 
 Json::Value cmFileAPI::BuildCodeModel(Object const& object)
 {
-  using namespace std::placeholders;
   Json::Value codemodel = cmFileAPICodemodelDump(*this, object.Version);
   codemodel["kind"] = this->ObjectKindName(object.Kind);
 
@@ -719,7 +739,6 @@ void cmFileAPI::BuildClientRequestCache(
 
 Json::Value cmFileAPI::BuildCache(Object const& object)
 {
-  using namespace std::placeholders;
   Json::Value cache = cmFileAPICacheDump(*this, object.Version);
   cache["kind"] = this->ObjectKindName(object.Kind);
 
@@ -754,7 +773,6 @@ void cmFileAPI::BuildClientRequestCMakeFiles(
 
 Json::Value cmFileAPI::BuildCMakeFiles(Object const& object)
 {
-  using namespace std::placeholders;
   Json::Value cmakeFiles = cmFileAPICMakeFilesDump(*this, object.Version);
   cmakeFiles["kind"] = this->ObjectKindName(object.Kind);
 
@@ -766,6 +784,40 @@ Json::Value cmFileAPI::BuildCMakeFiles(Object const& object)
   }
 
   return cmakeFiles;
+}
+
+// The "toolchains" object kind.
+
+static unsigned int const ToolchainsV1Minor = 0;
+
+void cmFileAPI::BuildClientRequestToolchains(
+  ClientRequest& r, std::vector<RequestVersion> const& versions)
+{
+  // Select a known version from those requested.
+  for (RequestVersion const& v : versions) {
+    if ((v.Major == 1 && v.Minor <= ToolchainsV1Minor)) {
+      r.Version = v.Major;
+      break;
+    }
+  }
+  if (!r.Version) {
+    r.Error = NoSupportedVersion(versions);
+  }
+}
+
+Json::Value cmFileAPI::BuildToolchains(Object const& object)
+{
+  Json::Value toolchains = cmFileAPIToolchainsDump(*this, object.Version);
+  toolchains["kind"] = this->ObjectKindName(object.Kind);
+
+  Json::Value& version = toolchains["version"];
+  if (object.Version == 1) {
+    version = BuildVersion(1, ToolchainsV1Minor);
+  } else {
+    return toolchains; // should be unreachable
+  }
+
+  return toolchains;
 }
 
 // The "__test" object kind is for internal testing of CMake.
@@ -828,6 +880,14 @@ Json::Value cmFileAPI::ReportCapabilities()
     request["kind"] = ObjectKindName(ObjectKind::CMakeFiles);
     Json::Value& versions = request["version"] = Json::arrayValue;
     versions.append(BuildVersion(1, CMakeFilesV1Minor));
+    requests.append(std::move(request)); // NOLINT(*)
+  }
+
+  {
+    Json::Value request = Json::objectValue;
+    request["kind"] = ObjectKindName(ObjectKind::Toolchains);
+    Json::Value& versions = request["version"] = Json::arrayValue;
+    versions.append(BuildVersion(1, ToolchainsV1Minor));
     requests.append(std::move(request)); // NOLINT(*)
   }
 

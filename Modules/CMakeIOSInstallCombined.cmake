@@ -3,10 +3,11 @@
 
 cmake_policy(PUSH)
 cmake_policy(SET CMP0057 NEW) # if IN_LIST
+cmake_policy(SET CMP0054 NEW)
 
 # Function to print messages of this module
 function(_ios_install_combined_message)
-  message("[iOS combined] " ${ARGN})
+  message(STATUS "[iOS combined] " ${ARGN})
 endfunction()
 
 # Get build settings for the current target/config/SDK by running
@@ -78,6 +79,17 @@ function(_ios_install_combined_get_valid_archs sdk resultvar)
   set("${resultvar}" "${valid_archs}" PARENT_SCOPE)
 
   cmake_policy(POP)
+endfunction()
+
+# Make both arch lists a disjoint set by preferring the current SDK
+# (starting with Xcode 12 arm64 is available as device and simulator arch on iOS)
+function(_ios_install_combined_prune_common_archs corr_sdk corr_archs_var this_archs_var)
+  list(REMOVE_ITEM ${corr_archs_var} ${${this_archs_var}})
+
+  string(REPLACE ";" " " printable "${${corr_archs_var}}")
+  _ios_install_combined_message("Architectures (${corr_sdk}) after pruning: ${printable}")
+
+  set("${corr_archs_var}" "${${corr_archs_var}}" PARENT_SCOPE)
 endfunction()
 
 # Final target can contain more architectures that specified by SDK. This
@@ -165,29 +177,33 @@ function(_ios_install_combined_keep_archs lib archs)
   endforeach()
 endfunction()
 
-function(_ios_install_combined_detect_sdks this_sdk_var corr_sdk_var)
-  set(this_sdk "$ENV{PLATFORM_NAME}")
-  if("${this_sdk}" STREQUAL "")
-    message(FATAL_ERROR "Environment variable PLATFORM_NAME is empty")
+function(_ios_install_combined_detect_associated_sdk corr_sdk_var)
+  if("${PLATFORM_NAME}" STREQUAL "")
+    message(FATAL_ERROR "PLATFORM_NAME should not be empty")
   endif()
 
   set(all_platforms "$ENV{SUPPORTED_PLATFORMS}")
-  if("${all_platforms}" STREQUAL "")
-    message(FATAL_ERROR "Environment variable SUPPORTED_PLATFORMS is empty")
+  if("${SUPPORTED_PLATFORMS}" STREQUAL "")
+    _ios_install_combined_get_build_setting(
+      ${PLATFORM_NAME} SUPPORTED_PLATFORMS all_platforms)
+    if("${all_platforms}" STREQUAL "")
+      message(FATAL_ERROR
+        "SUPPORTED_PLATFORMS not set as an environment variable nor "
+        "able to be determined from project")
+    endif()
   endif()
 
   separate_arguments(all_platforms)
-  if(NOT this_sdk IN_LIST all_platforms)
-    message(FATAL_ERROR "`${this_sdk}` not found in `${all_platforms}`")
+  if(NOT PLATFORM_NAME IN_LIST all_platforms)
+    message(FATAL_ERROR "`${PLATFORM_NAME}` not found in `${all_platforms}`")
   endif()
 
-  list(REMOVE_ITEM all_platforms "" "${this_sdk}")
+  list(REMOVE_ITEM all_platforms "" "${PLATFORM_NAME}")
   list(LENGTH all_platforms all_platforms_length)
   if(NOT all_platforms_length EQUAL 1)
     message(FATAL_ERROR "Expected one element: ${all_platforms}")
   endif()
 
-  set(${this_sdk_var} "${this_sdk}" PARENT_SCOPE)
   set(${corr_sdk_var} "${all_platforms}" PARENT_SCOPE)
 endfunction()
 
@@ -263,11 +279,12 @@ function(ios_install_combined target destination)
   _ios_install_combined_message("Destination: ${destination}")
 
   # Get SDKs
-  _ios_install_combined_detect_sdks(this_sdk corr_sdk)
+  _ios_install_combined_detect_associated_sdk(corr_sdk)
 
   # Get architectures of the target
+  _ios_install_combined_get_valid_archs("${PLATFORM_NAME}" this_valid_archs)
   _ios_install_combined_get_valid_archs("${corr_sdk}" corr_valid_archs)
-  _ios_install_combined_get_valid_archs("${this_sdk}" this_valid_archs)
+  _ios_install_combined_prune_common_archs("${corr_sdk}" corr_valid_archs this_valid_archs)
 
   # Return if there are no valid architectures for the SDK.
   # (note that library already installed)

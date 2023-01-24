@@ -2,13 +2,13 @@
    file Copyright.txt or https://cmake.org/licensing for details.  */
 #include "cmGlobalWatcomWMakeGenerator.h"
 
+#include <ostream>
+
 #include "cmDocumentationEntry.h"
 #include "cmGlobalGenerator.h"
 #include "cmMakefile.h"
 #include "cmState.h"
 #include "cmake.h"
-
-#include <ostream>
 
 cmGlobalWatcomWMakeGenerator::cmGlobalWatcomWMakeGenerator(cmake* cm)
   : cmGlobalUnixMakefileGenerator3(cm)
@@ -19,12 +19,13 @@ cmGlobalWatcomWMakeGenerator::cmGlobalWatcomWMakeGenerator(cmake* cm)
 #endif
   this->ToolSupportsColor = true;
   this->NeedSymbolicMark = true;
-  this->EmptyRuleHackCommand = "@cd .";
+  this->EmptyRuleHackCommand = "@%null";
 #ifdef _WIN32
   cm->GetState()->SetWindowsShell(true);
 #endif
   cm->GetState()->SetWatcomWMake(true);
   this->IncludeDirective = "!include";
+  this->LineContinueDirective = "&\n";
   this->DefineWindowsNULL = true;
   this->UnixCD = false;
   this->MakeSilentFlag = "-h";
@@ -37,11 +38,20 @@ void cmGlobalWatcomWMakeGenerator::EnableLanguage(
   mf->AddDefinition("WATCOM", "1");
   mf->AddDefinition("CMAKE_QUOTE_INCLUDE_PATHS", "1");
   mf->AddDefinition("CMAKE_MANGLE_OBJECT_FILE_NAMES", "1");
-  mf->AddDefinition("CMAKE_MAKE_LINE_CONTINUE", "&");
   mf->AddDefinition("CMAKE_MAKE_SYMBOLIC_RULE", ".SYMBOLIC");
   mf->AddDefinition("CMAKE_GENERATOR_CC", "wcl386");
   mf->AddDefinition("CMAKE_GENERATOR_CXX", "wcl386");
   this->cmGlobalUnixMakefileGenerator3::EnableLanguage(l, mf, optional);
+}
+
+bool cmGlobalWatcomWMakeGenerator::SetSystemName(std::string const& s,
+                                                 cmMakefile* mf)
+{
+  if (mf->GetSafeDefinition("CMAKE_SYSTEM_PROCESSOR") == "I86") {
+    mf->AddDefinition("CMAKE_GENERATOR_CC", "wcl");
+    mf->AddDefinition("CMAKE_GENERATOR_CXX", "wcl");
+  }
+  return this->cmGlobalUnixMakefileGenerator3::SetSystemName(s, mf);
 }
 
 void cmGlobalWatcomWMakeGenerator::GetDocumentation(

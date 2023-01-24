@@ -8,7 +8,7 @@
 #include <memory>
 #include <type_traits>
 
-#include "cm_uv.h"
+#include <cm3p/uv.h>
 
 #if defined(__SUNPRO_CC)
 
@@ -78,7 +78,7 @@ template <typename T>
 class uv_handle_ptr_base_
 {
 protected:
-  template <typename _T>
+  template <typename U>
   friend class uv_handle_ptr_base_;
 
   /**
@@ -128,7 +128,7 @@ public:
   // dtors to work.  Some compilers do not like '= default' here.
   uv_handle_ptr_base_() {} // NOLINT(modernize-use-equals-default)
   uv_handle_ptr_base_(std::nullptr_t) {}
-  ~uv_handle_ptr_base_() { reset(); }
+  ~uv_handle_ptr_base_() { this->reset(); }
 
   /**
    * Properly close the handle if needed and sets the inner handle to nullptr
@@ -160,7 +160,7 @@ inline uv_handle_ptr_base_<T>& uv_handle_ptr_base_<T>::operator=(
 template <typename T>
 class uv_handle_ptr_ : public uv_handle_ptr_base_<T>
 {
-  template <typename _T>
+  template <typename U>
   friend class uv_handle_ptr_;
 
 public:
@@ -240,8 +240,8 @@ struct uv_tty_ptr : public uv_handle_ptr_<uv_tty_t>
   int init(uv_loop_t& loop, int fd, int readable, void* data = nullptr);
 };
 
-typedef uv_handle_ptr_<uv_stream_t> uv_stream_ptr;
-typedef uv_handle_ptr_<uv_handle_t> uv_handle_ptr;
+using uv_stream_ptr = uv_handle_ptr_<uv_stream_t>;
+using uv_handle_ptr = uv_handle_ptr_<uv_handle_t>;
 
 #ifndef cmUVHandlePtr_cxx
 

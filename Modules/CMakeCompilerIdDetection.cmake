@@ -13,7 +13,8 @@ endfunction()
 
 function(compiler_id_detection outvar lang)
 
-  if (NOT lang STREQUAL Fortran AND NOT lang STREQUAL CSharp)
+  if (NOT lang STREQUAL Fortran AND NOT lang STREQUAL CSharp
+      AND NOT lang STREQUAL ISPC)
     file(GLOB lang_files
       "${CMAKE_ROOT}/Modules/Compiler/*-DetermineCompiler.cmake")
     set(nonlang CXX)
@@ -48,6 +49,7 @@ function(compiler_id_detection outvar lang)
     endif()
     list(APPEND ordered_compilers
       Intel
+      IntelLLVM
       PathScale
       Embarcadero
       Borland
@@ -60,6 +62,7 @@ function(compiler_id_detection outvar lang)
       XLClang
       XL
       VisualAge
+      NVHPC
       PGI
       Cray
       TI
@@ -89,9 +92,8 @@ function(compiler_id_detection outvar lang)
       )
     endif()
 
-    #Currently the only CUDA compilers are NVIDIA
     if(lang STREQUAL CUDA)
-      set(ordered_compilers NVIDIA)
+      set(ordered_compilers NVIDIA Clang)
     endif()
 
     if(CID_ID_DEFINE)

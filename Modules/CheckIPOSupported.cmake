@@ -5,6 +5,8 @@
 CheckIPOSupported
 -----------------
 
+.. versionadded:: 3.9
+
 Check whether the compiler supports an interprocedural optimization (IPO/LTO).
 Use this before enabling the :prop_tgt:`INTERPROCEDURAL_OPTIMIZATION` target
 property.
@@ -30,6 +32,9 @@ property.
 
 It makes no sense to use this module when :policy:`CMP0069` is set to ``OLD`` so
 module will return error in this case. See policy :policy:`CMP0069` for details.
+
+.. versionadded:: 3.13
+  Add support for Visual Studio generators.
 
 Examples
 ^^^^^^^^
@@ -113,7 +118,7 @@ macro(_ipo_run_language_check language)
   endforeach()
 
   try_compile(
-      result
+      _IPO_LANGUAGE_CHECK_RESULT
       "${bindir}"
       "${srcdir}"
       "${TRY_COMPILE_PROJECT_NAME}"
@@ -122,8 +127,10 @@ macro(_ipo_run_language_check language)
       "-DCMAKE_INTERPROCEDURAL_OPTIMIZATION=ON"
       OUTPUT_VARIABLE output
   )
+  set(_IPO_LANGUAGE_CHECK_RESULT "${_IPO_LANGUAGE_CHECK_RESULT}")
+  unset(_IPO_LANGUAGE_CHECK_RESULT CACHE)
 
-  if(NOT result)
+  if(NOT _IPO_LANGUAGE_CHECK_RESULT)
     file(APPEND ${CMAKE_BINARY_DIR}${CMAKE_FILES_DIRECTORY}/CMakeError.log
       "${language} compiler IPO check failed with the following output:\n"
       "${output}\n")

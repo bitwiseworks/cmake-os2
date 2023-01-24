@@ -2,8 +2,9 @@
    file Copyright.txt or https://cmake.org/licensing for details.  */
 #include "cmXCodeObject.h"
 
-#include <CoreFoundation/CoreFoundation.h>
 #include <ostream>
+
+#include <CoreFoundation/CoreFoundation.h>
 
 #include "cmSystemTools.h"
 
@@ -39,7 +40,7 @@ cmXCodeObject::~cmXCodeObject()
   this->Version = 15;
 }
 
-cmXCodeObject::cmXCodeObject(PBXType ptype, Type type)
+cmXCodeObject::cmXCodeObject(PBXType ptype, Type type, std::string id)
 {
   this->Version = 15;
   this->Target = nullptr;
@@ -47,27 +48,7 @@ cmXCodeObject::cmXCodeObject(PBXType ptype, Type type)
 
   this->IsA = ptype;
 
-  if (type == OBJECT) {
-    // Set the Id of an Xcode object to a unique string for each instance.
-    // However the Xcode user file references certain Ids: for those cases,
-    // override the generated Id using SetId().
-    //
-    char cUuid[40] = { 0 };
-    CFUUIDRef uuid = CFUUIDCreate(kCFAllocatorDefault);
-    CFStringRef s = CFUUIDCreateString(kCFAllocatorDefault, uuid);
-    CFStringGetCString(s, cUuid, sizeof(cUuid), kCFStringEncodingUTF8);
-    this->Id = cUuid;
-    CFRelease(s);
-    CFRelease(uuid);
-  } else {
-    this->Id =
-      "Temporary cmake object, should not be referred to in Xcode file";
-  }
-
-  cmSystemTools::ReplaceString(this->Id, "-", "");
-  if (this->Id.size() > 24) {
-    this->Id = this->Id.substr(0, 24);
-  }
+  this->Id = std::move(id);
 
   this->TypeValue = type;
   if (this->TypeValue == OBJECT) {

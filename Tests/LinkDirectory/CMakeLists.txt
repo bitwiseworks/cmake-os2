@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 2.8)
+cmake_minimum_required(VERSION 2.8.12)
 project(LinkDirectory C)
 
 # Put the subproject source tree in our build tree so it can refer to
@@ -33,7 +33,7 @@ ExternalProject_Add(ExternalTarget
 # directly because it does not know the full paths to the libraries.
 # (The purpose of this test is to check that link_directories works.)
 ExternalProject_Add_Step(ExternalTarget cleanup
-  COMMAND ${CMAKE_COMMAND} -E remove_directory ${LinkDirectory_BINARY_DIR}/bin
+  COMMAND ${CMAKE_COMMAND} -E rm -rf ${LinkDirectory_BINARY_DIR}/bin
   DEPENDEES download
   DEPENDERS configure
   DEPENDS mylibA mylibB

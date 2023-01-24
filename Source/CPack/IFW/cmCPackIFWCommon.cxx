@@ -2,17 +2,19 @@
    file Copyright.txt or https://cmake.org/licensing for details.  */
 #include "cmCPackIFWCommon.h"
 
+#include <cstddef> // IWYU pragma: keep
+#include <sstream>
+#include <utility>
+#include <vector>
+
 #include "cmCPackGenerator.h"
 #include "cmCPackIFWGenerator.h"
 #include "cmCPackLog.h" // IWYU pragma: keep
+#include "cmStringAlgorithms.h"
 #include "cmSystemTools.h"
 #include "cmTimestamp.h"
 #include "cmVersionConfig.h"
 #include "cmXMLWriter.h"
-
-#include <sstream>
-#include <utility>
-#include <vector>
 
 cmCPackIFWCommon::cmCPackIFWCommon()
   : Generator(nullptr)
@@ -42,7 +44,7 @@ bool cmCPackIFWCommon::IsSetToEmpty(const std::string& op) const
                          : false;
 }
 
-bool cmCPackIFWCommon::IsVersionLess(const char* version)
+bool cmCPackIFWCommon::IsVersionLess(const char* version) const
 {
   if (!this->Generator) {
     return false;
@@ -52,7 +54,7 @@ bool cmCPackIFWCommon::IsVersionLess(const char* version)
     cmSystemTools::OP_LESS, this->Generator->FrameworkVersion.data(), version);
 }
 
-bool cmCPackIFWCommon::IsVersionGreater(const char* version)
+bool cmCPackIFWCommon::IsVersionGreater(const char* version) const
 {
   if (!this->Generator) {
     return false;
@@ -63,7 +65,7 @@ bool cmCPackIFWCommon::IsVersionGreater(const char* version)
     version);
 }
 
-bool cmCPackIFWCommon::IsVersionEqual(const char* version)
+bool cmCPackIFWCommon::IsVersionEqual(const char* version) const
 {
   if (!this->Generator) {
     return false;
@@ -77,8 +79,7 @@ bool cmCPackIFWCommon::IsVersionEqual(const char* version)
 void cmCPackIFWCommon::ExpandListArgument(
   const std::string& arg, std::map<std::string, std::string>& argsOut)
 {
-  std::vector<std::string> args;
-  cmSystemTools::ExpandListArgument(arg, args, false);
+  std::vector<std::string> args = cmExpandedList(arg, false);
   if (args.empty()) {
     return;
   }
@@ -99,8 +100,7 @@ void cmCPackIFWCommon::ExpandListArgument(
 void cmCPackIFWCommon::ExpandListArgument(
   const std::string& arg, std::multimap<std::string, std::string>& argsOut)
 {
-  std::vector<std::string> args;
-  cmSystemTools::ExpandListArgument(arg, args, false);
+  std::vector<std::string> args = cmExpandedList(arg, false);
   if (args.empty()) {
     return;
   }
@@ -118,7 +118,7 @@ void cmCPackIFWCommon::ExpandListArgument(
   }
 }
 
-void cmCPackIFWCommon::WriteGeneratedByToStrim(cmXMLWriter& xout)
+void cmCPackIFWCommon::WriteGeneratedByToStrim(cmXMLWriter& xout) const
 {
   if (!this->Generator) {
     return;

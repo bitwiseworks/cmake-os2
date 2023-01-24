@@ -1,7 +1,6 @@
 /* Distributed under the OSI-approved BSD 3-Clause License.  See accompanying
    file Copyright.txt or https://cmake.org/licensing for details.  */
-#ifndef cmTargetExport_h
-#define cmTargetExport_h
+#pragma once
 
 #include "cmConfigure.h" // IWYU pragma: keep
 
@@ -32,6 +31,6 @@ public:
   cmInstallFilesGenerator* HeaderGenerator;
   std::string InterfaceIncludeDirectories;
   ///@}
-};
 
-#endif
+  bool NamelinkOnly = false;
+};

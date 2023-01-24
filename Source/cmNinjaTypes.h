@@ -1,7 +1,6 @@
 /* Distributed under the OSI-approved BSD 3-Clause License.  See accompanying
    file Copyright.txt or https://cmake.org/licensing for details.  */
-#ifndef cmNinjaTypes_h
-#define cmNinjaTypes_h
+#pragma once
 
 #include "cmConfigure.h" // IWYU pragma: keep
 
@@ -17,9 +16,9 @@ enum cmNinjaTargetDepends
   DependOnTargetOrdering
 };
 
-typedef std::vector<std::string> cmNinjaDeps;
-typedef std::set<std::string> cmNinjaOuts;
-typedef std::map<std::string, std::string> cmNinjaVars;
+using cmNinjaDeps = std::vector<std::string>;
+using cmNinjaOuts = std::set<std::string>;
+using cmNinjaVars = std::map<std::string, std::string>;
 
 class cmNinjaRule
 {
@@ -60,5 +59,3 @@ public:
   cmNinjaVars Variables;
   std::string RspFile;
 };
-
-#endif // ! cmNinjaTypes_h

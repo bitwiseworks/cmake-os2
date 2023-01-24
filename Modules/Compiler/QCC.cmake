@@ -10,8 +10,11 @@ macro(__compiler_qcc lang)
   # http://www.qnx.com/developers/docs/6.4.0/neutrino/utilities/q/qcc.html#examples
   set(CMAKE_${lang}_COMPILE_OPTIONS_TARGET "-V")
 
+  set(CMAKE_PREFIX_LIBRARY_ARCHITECTURE "ON")
+
+  set(CMAKE_${lang}_COMPILE_OPTIONS_SYSROOT "-Wc,-isysroot,")
   set(CMAKE_INCLUDE_SYSTEM_FLAG_${lang} "-Wp,-isystem,")
-  set(CMAKE_DEPFILE_FLAGS_${lang} "-Wp,-MD,<DEPFILE> -Wp,-MT,<OBJECT> -Wp,-MF,<DEPFILE>")
+  set(CMAKE_DEPFILE_FLAGS_${lang} "-Wp,-MD,<DEP_FILE> -Wp,-MT,<DEP_TARGET> -Wp,-MF,<DEP_FILE>")
 
   set(CMAKE_${lang}_LINKER_WRAPPER_FLAG "-Wl,")
   set(CMAKE_${lang}_LINKER_WRAPPER_FLAG_SEP ",")

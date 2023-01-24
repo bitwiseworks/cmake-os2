@@ -1,7 +1,6 @@
 /* Distributed under the OSI-approved BSD 3-Clause License.  See accompanying
    file Copyright.txt or https://cmake.org/licensing for details.  */
-#ifndef cmXCodeObject_h
-#define cmXCodeObject_h
+#pragma once
 
 #include "cmConfigure.h" // IWYU pragma: keep
 
@@ -11,6 +10,8 @@
 #include <string>
 #include <utility>
 #include <vector>
+
+#include <cmext/algorithm>
 
 class cmGeneratorTarget;
 
@@ -56,7 +57,7 @@ public:
   };
   static const char* PBXTypeNames[];
   virtual ~cmXCodeObject();
-  cmXCodeObject(PBXType ptype, Type type);
+  cmXCodeObject(PBXType ptype, Type type, std::string id);
   Type GetType() const { return this->TypeValue; }
   PBXType GetIsA() const { return this->IsA; }
 
@@ -80,15 +81,24 @@ public:
   void SetObject(cmXCodeObject* value) { this->Object = value; }
   cmXCodeObject* GetObject() { return this->Object; }
   void AddObject(cmXCodeObject* value) { this->List.push_back(value); }
+  size_t GetObjectCount() { return this->List.size(); }
+  void InsertObject(size_t position, cmXCodeObject* value)
+  {
+    if (position < GetObjectCount()) {
+      this->List.insert(this->List.begin() + position, value);
+    }
+  }
+  void PrependObject(cmXCodeObject* value)
+  {
+    this->List.insert(this->List.begin(), value);
+  }
   bool HasObject(cmXCodeObject* o) const
   {
-    return !(std::find(this->List.begin(), this->List.end(), o) ==
-             this->List.end());
+    return cm::contains(this->List, o);
   }
   void AddUniqueObject(cmXCodeObject* value)
   {
-    if (std::find(this->List.begin(), this->List.end(), value) ==
-        this->List.end()) {
+    if (!cm::contains(this->List, value)) {
       this->List.push_back(value);
     }
   }
@@ -107,10 +117,9 @@ public:
   void SetTarget(cmGeneratorTarget* t) { this->Target = t; }
   const std::string& GetComment() const { return this->Comment; }
   bool HasComment() const { return (!this->Comment.empty()); }
-  cmXCodeObject* GetObject(const char* name) const
+  cmXCodeObject* GetAttribute(const char* name) const
   {
-    std::map<std::string, cmXCodeObject*>::const_iterator i =
-      this->ObjectAttributes.find(name);
+    auto const i = this->ObjectAttributes.find(name);
     if (i != this->ObjectAttributes.end()) {
       return i->second;
     }
@@ -168,4 +177,3 @@ protected:
   std::map<std::string, StringVec> DependTargets;
   std::map<std::string, cmXCodeObject*> ObjectAttributes;
 };
-#endif

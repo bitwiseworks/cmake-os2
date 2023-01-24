@@ -1,7 +1,6 @@
 /* Distributed under the OSI-approved BSD 3-Clause License.  See accompanying
    file Copyright.txt or https://cmake.org/licensing for details.  */
-#ifndef cmLocalXCodeGenerator_h
-#define cmLocalXCodeGenerator_h
+#pragma once
 
 #include "cmConfigure.h" // IWYU pragma: keep
 
@@ -33,12 +32,10 @@ public:
   void AppendFlagEscape(std::string& flags,
                         const std::string& rawFlag) const override;
   void Generate() override;
-  virtual void GenerateInstallRules();
+  void AddGeneratorSpecificInstallSetup(std::ostream& os) override;
   void ComputeObjectFilenames(
     std::map<cmSourceFile const*, std::string>& mapping,
     cmGeneratorTarget const* gt = nullptr) override;
 
 private:
 };
-
-#endif

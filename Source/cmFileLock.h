@@ -1,7 +1,6 @@
 /* Distributed under the OSI-approved BSD 3-Clause License.  See accompanying
    file Copyright.txt or https://cmake.org/licensing for details.  */
-#ifndef cmFileLock_h
-#define cmFileLock_h
+#pragma once
 
 #include "cmConfigure.h" // IWYU pragma: keep
 
@@ -26,7 +25,9 @@ public:
   ~cmFileLock();
 
   cmFileLock(cmFileLock const&) = delete;
+  cmFileLock(cmFileLock&&) noexcept;
   cmFileLock& operator=(cmFileLock const&) = delete;
+  cmFileLock& operator=(cmFileLock&&) noexcept;
 
   /**
    * @brief Lock the file.
@@ -56,10 +57,8 @@ private:
   BOOL LockFile(DWORD flags);
 #else
   int File = -1;
-  int LockFile(int cmd, int type);
+  int LockFile(int cmd, int type) const;
 #endif
 
   std::string Filename;
 };
-
-#endif // cmFileLock_h

@@ -1,11 +1,10 @@
 /* Distributed under the OSI-approved BSD 3-Clause License.  See accompanying
    file Copyright.txt or https://cmake.org/licensing for details.  */
-#ifndef cmFileTimes_h
-#define cmFileTimes_h
+#pragma once
 
 #include "cmConfigure.h" // IWYU pragma: keep
 
-#include <memory> // IWYU pragma: keep
+#include <memory>
 #include <string>
 
 /** \class cmFileTimes
@@ -20,7 +19,7 @@ public:
   ~cmFileTimes();
 
   //! @return true, if file times were loaded successfully
-  bool IsValid() const { return (times != nullptr); }
+  bool IsValid() const { return (this->times != nullptr); }
   //! Try to load the file times from @a fileName and @return IsValid()
   bool Load(std::string const& fileName);
   //! Stores the file times at @a fileName (if IsValid())
@@ -36,5 +35,3 @@ private:
   class Times;
   std::unique_ptr<Times> times;
 };
-
-#endif

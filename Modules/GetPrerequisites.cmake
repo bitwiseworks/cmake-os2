@@ -5,6 +5,10 @@
 GetPrerequisites
 ----------------
 
+.. deprecated:: 3.16
+
+  Use :command:`file(GET_RUNTIME_DEPENDENCIES)` instead.
+
 Functions to analyze and list executable file prerequisites.
 
 This module provides functions to list the .dll, .dylib or .so files
@@ -20,6 +24,9 @@ files:
    objdump (MinGW on Windows)
    ldd (Linux/Unix)
    otool (Mac OSX)
+
+.. versionchanged:: 3.16
+  The tool specified by ``CMAKE_OBJDUMP`` will be used, if set.
 
 The following functions are provided by this module:
 
@@ -38,9 +45,6 @@ The following functions are provided by this module:
      (projects can override with gp_resolved_file_type_override)
    gp_file_type
 
-Requires CMake 2.6 or greater because it uses function, break, return
-and PARENT_SCOPE.
-
 ::
 
   GET_PREREQUISITES(<target> <prerequisites_var> <exclude_system> <recurse>
@@ -57,14 +61,15 @@ is the name of a CMake variable to contain the results.
 exclude "system" prerequisites.  If <recurse> is set to 1 all
 prerequisites will be found recursively, if set to 0 only direct
 prerequisites are listed.  <exepath> is the path to the top level
-executable used for @executable_path replacment on the Mac.  <dirs> is
+executable used for @executable_path replacement on the Mac.  <dirs> is
 a list of paths where libraries might be found: these paths are
 searched first when a target without any path info is given.  Then
 standard system locations are also searched: PATH, Framework
 locations, /usr/lib...
 
-The variable GET_PREREQUISITES_VERBOSE can be set to true to enable verbose
-output.
+.. versionadded:: 3.14
+  The variable GET_PREREQUISITES_VERBOSE can be set to true to enable verbose
+  output.
 
 ::
 
@@ -527,7 +532,7 @@ function(gp_resolved_file_type original_file file exepath dirs type_var)
       string(TOLOWER "$ENV{windir}" windir)
       file(TO_CMAKE_PATH "${windir}" windir)
 
-      if(lower MATCHES "^(${sysroot}/sys(tem|wow)|${windir}/sys(tem|wow)|(.*/)*(msvc|api-ms-win-)[^/]+dll)")
+      if(lower MATCHES "^(${sysroot}/sys(tem|wow)|${windir}/sys(tem|wow)|(.*/)*(msvc|api-ms-win-|vcruntime)[^/]+dll)")
         set(is_system 1)
       endif()
 
@@ -555,7 +560,7 @@ function(gp_resolved_file_type original_file file exepath dirs type_var)
           string(TOLOWER "${env_windir}" windir)
           string(TOLOWER "${env_sysdir}" sysroot)
 
-          if(lower MATCHES "^(${sysroot}/sys(tem|wow)|${windir}/sys(tem|wow)|(.*/)*(msvc|api-ms-win-)[^/]+dll)")
+          if(lower MATCHES "^(${sysroot}/sys(tem|wow)|${windir}/sys(tem|wow)|(.*/)*(msvc|api-ms-win-|vcruntime)[^/]+dll)")
             set(is_system 1)
           endif()
         endif()
@@ -597,7 +602,7 @@ function(gp_resolved_file_type original_file file exepath dirs type_var)
 
   if(NOT is_embedded)
     if(NOT IS_ABSOLUTE "${resolved_file}")
-      if(lower MATCHES "^(msvc|api-ms-win-)[^/]+dll" AND is_system)
+      if(lower MATCHES "^(msvc|api-ms-win-|vcruntime)[^/]+dll" AND is_system)
         message(STATUS "info: non-absolute msvc file '${file}' returning type '${type}'")
       else()
         message(STATUS "warning: gp_resolved_file_type non-absolute file '${file}' returning type '${type}' -- possibly incorrect")
@@ -706,7 +711,9 @@ function(get_prerequisites target prerequisites_var exclude_system recurse exepa
       find_program(gp_dumpbin "dumpbin" PATHS ${gp_cmd_paths})
       if(gp_dumpbin)
         set(gp_tool "dumpbin")
-      else() # Try harder. Maybe we're on MinGW
+      elseif(CMAKE_OBJDUMP) # Try harder. Maybe we're on MinGW
+        set(gp_tool "${CMAKE_OBJDUMP}")
+      else()
         set(gp_tool "objdump")
       endif()
     endif()
@@ -723,13 +730,13 @@ function(get_prerequisites target prerequisites_var exclude_system recurse exepa
 
   if(gp_tool MATCHES "ldd$")
     set(gp_cmd_args "")
-    set(gp_regex "^[\t ]*[^\t ]+ => ([^\t\(]+) .*${eol_char}$")
+    set(gp_regex "^[\t ]*[^\t ]+ =>[\t ]+([^\t\(]+)( \(.+\))?${eol_char}$")
     set(gp_regex_error "not found${eol_char}$")
     set(gp_regex_fallback "^[\t ]*([^\t ]+) => ([^\t ]+).*${eol_char}$")
     set(gp_regex_cmp_count 1)
   elseif(gp_tool MATCHES "otool$")
     set(gp_cmd_args "-L")
-    set(gp_regex "^\t([^\t]+) \\(compatibility version ([0-9]+.[0-9]+.[0-9]+), current version ([0-9]+.[0-9]+.[0-9]+)\\)${eol_char}$")
+    set(gp_regex "^\t([^\t]+) \\(compatibility version ([0-9]+.[0-9]+.[0-9]+), current version ([0-9]+.[0-9]+.[0-9]+)(, weak)?\\)${eol_char}$")
     set(gp_regex_error "")
     set(gp_regex_fallback "")
     set(gp_regex_cmp_count 3)

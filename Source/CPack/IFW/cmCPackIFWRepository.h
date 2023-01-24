@@ -1,14 +1,13 @@
 /* Distributed under the OSI-approved BSD 3-Clause License.  See accompanying
    file Copyright.txt or https://cmake.org/licensing for details.  */
-#ifndef cmCPackIFWRepository_h
-#define cmCPackIFWRepository_h
+#pragma once
 
 #include "cmConfigure.h" // IWYU pragma: keep
 
-#include "cmCPackIFWCommon.h"
-
 #include <string>
 #include <vector>
+
+#include "cmCPackIFWCommon.h"
 
 class cmXMLWriter;
 
@@ -28,7 +27,7 @@ public:
     Replace
   };
 
-  typedef std::vector<cmCPackIFWRepository*> RepositoriesVector;
+  using RepositoriesVector = std::vector<cmCPackIFWRepository*>;
 
 public:
   // Constructor
@@ -77,12 +76,10 @@ public:
 
   bool PatchUpdatesXml();
 
-  void WriteRepositoryConfig(cmXMLWriter& xout);
-  void WriteRepositoryUpdate(cmXMLWriter& xout);
+  void WriteRepositoryConfig(cmXMLWriter& xout) const;
+  void WriteRepositoryUpdate(cmXMLWriter& xout) const;
   void WriteRepositoryUpdates(cmXMLWriter& xout);
 
   RepositoriesVector RepositoryUpdate;
   std::string Directory;
 };
-
-#endif // cmCPackIFWRepository_h

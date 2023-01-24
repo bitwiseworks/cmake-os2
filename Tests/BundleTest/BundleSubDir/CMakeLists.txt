@@ -16,7 +16,7 @@ set_source_files_properties(
   "${BundleTest_SOURCE_DIR}/SomeRandomFile.txt"
   "${BundleTest_SOURCE_DIR}/../../README.rst"
   PROPERTIES
-  MACOSX_PACKAGE_LOCATION MacOS
+  MACOSX_PACKAGE_LOCATION Other
   )
 
 add_executable(SecondBundle

@@ -2,17 +2,18 @@
    file Copyright.txt or https://cmake.org/licensing for details.  */
 #include "cmFileAPICMakeFiles.h"
 
+#include <memory>
+#include <string>
+#include <vector>
+
+#include <cm3p/json/value.h>
+
 #include "cmFileAPI.h"
 #include "cmGlobalGenerator.h"
 #include "cmLocalGenerator.h"
 #include "cmMakefile.h"
 #include "cmSystemTools.h"
 #include "cmake.h"
-
-#include "cm_jsoncpp_value.h"
-
-#include <string>
-#include <vector>
 
 namespace {
 
@@ -40,7 +41,7 @@ CMakeFiles::CMakeFiles(cmFileAPI& fileAPI, unsigned long version)
   , CMakeModules(cmSystemTools::GetCMakeRoot() + "/Modules")
   , TopSource(this->FileAPI.GetCMakeInstance()->GetHomeDirectory())
   , TopBuild(this->FileAPI.GetCMakeInstance()->GetHomeOutputDirectory())
-  , OutOfSource(TopBuild != TopSource)
+  , OutOfSource(this->TopBuild != this->TopSource)
 {
   static_cast<void>(this->Version);
 }
@@ -49,7 +50,7 @@ Json::Value CMakeFiles::Dump()
 {
   Json::Value cmakeFiles = Json::objectValue;
   cmakeFiles["paths"] = this->DumpPaths();
-  cmakeFiles["inputs"] = DumpInputs();
+  cmakeFiles["inputs"] = this->DumpInputs();
   return cmakeFiles;
 }
 
@@ -67,7 +68,7 @@ Json::Value CMakeFiles::DumpInputs()
 
   cmGlobalGenerator* gg =
     this->FileAPI.GetCMakeInstance()->GetGlobalGenerator();
-  for (cmLocalGenerator const* lg : gg->GetLocalGenerators()) {
+  for (const auto& lg : gg->GetLocalGenerators()) {
     cmMakefile const* mf = lg->GetMakefile();
     for (std::string const& file : mf->GetListFiles()) {
       inputs.append(this->DumpInput(file));

@@ -56,7 +56,9 @@ file(GLOB GLOB_PATHS /usr/lib/qt-3*)
 foreach(GLOB_PATH ${GLOB_PATHS})
   list(APPEND GLOB_PATHS_BIN "${GLOB_PATH}/bin")
 endforeach()
-find_path(QT_INCLUDE_DIR qt.h
+find_path(QT_INCLUDE_DIR
+  NAMES qt.h
+  PATHS
   "[HKEY_CURRENT_USER\\Software\\Trolltech\\Qt3Versions\\3.2.1;InstallDir]/include/Qt"
   "[HKEY_CURRENT_USER\\Software\\Trolltech\\Qt3Versions\\3.2.0;InstallDir]/include/Qt"
   "[HKEY_CURRENT_USER\\Software\\Trolltech\\Qt3Versions\\3.1.0;InstallDir]/include/Qt"
@@ -179,7 +181,8 @@ if(QT_UIC_EXECUTABLE)
 endif()
 
 if (WIN32)
-  find_library(QT_QTMAIN_LIBRARY qtmain
+  find_library(QT_QTMAIN_LIBRARY
+    NAMES qtmain
     HINTS
       ENV QTDIR
       "[HKEY_CURRENT_USER\\Software\\Trolltech\\Qt3Versions\\3.2.1;InstallDir]"
@@ -201,9 +204,16 @@ endif()
 
 # if the include a library are found then we have it
 include(${CMAKE_CURRENT_LIST_DIR}/FindPackageHandleStandardArgs.cmake)
+if (CMAKE_FIND_PACKAGE_NAME STREQUAL "Qt")
+  # FindQt include()'s this module. It's an old pattern, but rather than trying
+  # to suppress this from outside the module (which is then sensitive to the
+  # contents, detect the case in this module and suppress it explicitly.
+  set(FPHSA_NAME_MISMATCHED 1)
+endif ()
 FIND_PACKAGE_HANDLE_STANDARD_ARGS(Qt3
                                   REQUIRED_VARS QT_QT_LIBRARY QT_INCLUDE_DIR QT_MOC_EXECUTABLE
                                   VERSION_VAR QT_VERSION_STRING)
+unset(FPHSA_NAME_MISMATCHED)
 set(QT_FOUND ${QT3_FOUND} )
 
 if(QT_FOUND)

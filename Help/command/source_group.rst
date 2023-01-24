@@ -14,12 +14,16 @@ This is intended to set up file tabs in Visual Studio.
 The options are:
 
 ``TREE``
+ .. versionadded:: 3.8
+
  CMake will automatically detect, from ``<src>`` files paths, source groups
  it needs to create, to keep structure of source groups analogically to the
  actual files and directories structure in the project. Paths of ``<src>``
  files will be cut to be relative to ``<root>``.
 
 ``PREFIX``
+ .. versionadded:: 3.8
+
  Source group and files located directly in ``<root>`` path, will be placed
  in ``<prefix>`` source groups.
 
@@ -37,13 +41,18 @@ explicitly lists the file with ``FILES`` will be favored, if any.
 If no group explicitly lists the file, the *last* group whose
 regular expression matches the file will be favored.
 
-The ``<name>`` of the group and ``<prefix>`` argument may contain backslashes
-to specify subgroups:
+The ``<name>`` of the group and ``<prefix>`` argument may contain forward
+slashes or backslashes to specify subgroups.  Backslashes need to be escaped
+appropriately:
 
 .. code-block:: cmake
 
+  source_group(base/subdir ...)
   source_group(outer\\inner ...)
   source_group(TREE <root> PREFIX sources\\inc ...)
+
+.. versionadded:: 3.18
+  Allow using forward slashes (``/``) to specify subgroups.
 
 For backwards compatibility, the short-hand signature
 

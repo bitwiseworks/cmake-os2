@@ -2,10 +2,10 @@
    file Copyright.txt or https://cmake.org/licensing for details.  */
 #include "cmUuid.h"
 
-#include "cmCryptoHash.h"
-
 #include <array>
-#include <string.h>
+#include <cstring>
+
+#include "cmCryptoHash.h"
 
 static const std::array<int, 5> kUuidGroups = { { 4, 2, 2, 2, 6 } };
 
@@ -53,7 +53,7 @@ void cmUuid::CreateHashInput(std::vector<unsigned char> const& uuidNamespace,
 std::string cmUuid::FromDigest(const unsigned char* digest,
                                unsigned char version) const
 {
-  typedef unsigned char byte_t;
+  using byte_t = unsigned char;
 
   byte_t uuid[16] = { 0 };
   memcpy(uuid, digest, 16);
@@ -82,7 +82,7 @@ bool cmUuid::StringToBinary(std::string const& input,
       return false;
     }
     size_t digits = kUuidGroups[i] * 2;
-    if (!StringToBinaryImpl(input.substr(index, digits), output)) {
+    if (!this->StringToBinaryImpl(input.substr(index, digits), output)) {
       return false;
     }
 
@@ -114,14 +114,12 @@ std::string cmUuid::BinaryToString(const unsigned char* input) const
 
 std::string cmUuid::ByteToHex(unsigned char byte) const
 {
-  std::string result;
+  std::string result("  ");
   for (int i = 0; i < 2; ++i) {
     unsigned char rest = byte % 16;
     byte /= 16;
-
     char c = (rest < 0xA) ? char('0' + rest) : char('a' + (rest - 0xA));
-
-    result = c + result;
+    result.at(1 - i) = c;
   }
 
   return result;
@@ -136,12 +134,12 @@ bool cmUuid::StringToBinaryImpl(std::string const& input,
 
   for (size_t i = 0; i < input.size(); i += 2) {
     char c1 = 0;
-    if (!IntFromHexDigit(input[i], c1)) {
+    if (!this->IntFromHexDigit(input[i], c1)) {
       return false;
     }
 
     char c2 = 0;
-    if (!IntFromHexDigit(input[i + 1], c2)) {
+    if (!this->IntFromHexDigit(input[i + 1], c2)) {
       return false;
     }
 

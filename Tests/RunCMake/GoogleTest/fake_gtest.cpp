@@ -12,7 +12,10 @@ int main(int argc, char** argv)
     std::cout << "  case_foo" << std::endl;
     std::cout << "  case_bar" << std::endl;
     std::cout << "  DISABLED_disabled_case" << std::endl;
+    std::cout << "  DISABLEDnot_really_case" << std::endl;
     std::cout << "DISABLED_disabled." << std::endl;
+    std::cout << "  case" << std::endl;
+    std::cout << "DISABLEDnotreally." << std::endl;
     std::cout << "  case" << std::endl;
     std::cout << "typed/0.  # TypeParam = short" << std::endl;
     std::cout << "  case" << std::endl;
@@ -21,6 +24,10 @@ int main(int argc, char** argv)
     std::cout << "value/test." << std::endl;
     std::cout << "  case/0  # GetParam() = 1" << std::endl;
     std::cout << "  case/1  # GetParam() = \"foo\"" << std::endl;
+    std::cout << "param/special." << std::endl;
+    std::cout << "  case/0  # GetParam() = \"semicolon;\"" << std::endl;
+    std::cout << "  case/1  # GetParam() = \"backslash\\\"" << std::endl;
+    std::cout << "  case/2  # GetParam() = \"${var}\"" << std::endl;
     return 0;
   }
 

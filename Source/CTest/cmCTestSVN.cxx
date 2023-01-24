@@ -2,19 +2,22 @@
    file Copyright.txt or https://cmake.org/licensing for details.  */
 #include "cmCTestSVN.h"
 
-#include "cmAlgorithms.h"
+#include <cstdlib>
+#include <cstring>
+#include <map>
+#include <ostream>
+
+#include <cmext/algorithm>
+
+#include "cmsys/RegularExpression.hxx"
+
 #include "cmCTest.h"
 #include "cmCTestVC.h"
 #include "cmProcessTools.h"
+#include "cmStringAlgorithms.h"
 #include "cmSystemTools.h"
 #include "cmXMLParser.h"
 #include "cmXMLWriter.h"
-
-#include "cmsys/RegularExpression.hxx"
-#include <map>
-#include <ostream>
-#include <stdlib.h>
-#include <string.h>
 
 struct cmCTestSVN::Revision : public cmCTestVC::Revision
 {
@@ -143,9 +146,8 @@ bool cmCTestSVN::NoteNewRevision()
     // the repository root.
     if (!svninfo.Root.empty() &&
         cmCTestSVNPathStarts(svninfo.URL, svninfo.Root)) {
-      svninfo.Base =
-        cmCTest::DecodeURL(svninfo.URL.substr(svninfo.Root.size()));
-      svninfo.Base += "/";
+      svninfo.Base = cmStrCat(
+        cmCTest::DecodeURL(svninfo.URL.substr(svninfo.Root.size())), '/');
     }
     this->Log << "Repository '" << svninfo.LocalPath
               << "' Base = " << svninfo.Base << "\n";
@@ -169,7 +171,7 @@ void cmCTestSVN::GuessBase(SVNInfo& svninfo,
        slash = svninfo.URL.find('/', slash + 1)) {
     // If the URL suffix is a prefix of at least one path then it is the base.
     std::string base = cmCTest::DecodeURL(svninfo.URL.substr(slash));
-    for (std::vector<Change>::const_iterator ci = changes.begin();
+    for (auto ci = changes.begin();
          svninfo.Base.empty() && ci != changes.end(); ++ci) {
       if (cmCTestSVNPathStarts(ci->Path, base)) {
         svninfo.Base = base;
@@ -270,7 +272,7 @@ bool cmCTestSVN::RunSVNCommand(std::vector<char const*> const& parameters,
 
   std::vector<char const*> args;
   args.push_back(this->CommandLineTool.c_str());
-  cmAppend(args, parameters);
+  cm::append(args, parameters);
   args.push_back("--non-interactive");
 
   std::string userOptions = this->CTest->GetCTestConfiguration("SVNOptions");
@@ -284,9 +286,9 @@ bool cmCTestSVN::RunSVNCommand(std::vector<char const*> const& parameters,
   args.push_back(nullptr);
 
   if (strcmp(parameters[0], "update") == 0) {
-    return RunUpdateCommand(&args[0], out, err);
+    return this->RunUpdateCommand(&args[0], out, err);
   }
-  return RunChild(&args[0], out, err);
+  return this->RunChild(&args[0], out, err);
 }
 
 class cmCTestSVN::LogParser
@@ -307,8 +309,8 @@ private:
   cmCTestSVN* SVN;
   cmCTestSVN::SVNInfo& SVNRepo;
 
-  typedef cmCTestSVN::Revision Revision;
-  typedef cmCTestSVN::Change Change;
+  using Revision = cmCTestSVN::Revision;
+  using Change = cmCTestSVN::Change;
   Revision Rev;
   std::vector<Change> Changes;
   Change CurChange;
@@ -326,7 +328,7 @@ private:
     this->CData.clear();
     if (name == "logentry") {
       this->Rev = Revision();
-      this->Rev.SVNInfo = &SVNRepo;
+      this->Rev.SVNInfo = &this->SVNRepo;
       if (const char* rev =
             cmCTestSVN::LogParser::FindAttribute(atts, "revision")) {
         this->Rev.Rev = rev;
@@ -343,7 +345,7 @@ private:
 
   void CharacterDataHandler(const char* data, int length) override
   {
-    cmAppend(this->CData, data, data + length);
+    cm::append(this->CData, data, data + length);
   }
 
   void EndElement(const std::string& name) override
@@ -352,7 +354,7 @@ private:
       this->SVN->DoRevisionSVN(this->Rev, this->Changes);
     } else if (!this->CData.empty() && name == "path") {
       std::string orig_path(&this->CData[0], this->CData.size());
-      std::string new_path = SVNRepo.BuildLocalPath(orig_path);
+      std::string new_path = this->SVNRepo.BuildLocalPath(orig_path);
       this->CurChange.Path.assign(new_path);
       this->Changes.push_back(this->CurChange);
     } else if (!this->CData.empty() && name == "author") {

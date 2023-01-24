@@ -22,3 +22,7 @@ If neither ``FORCE`` nor ``CLEAR`` is specified,
 new values will be marked as advanced, but if a
 variable already has an advanced/non-advanced state,
 it will not be changed.
+
+.. versionchanged:: 3.17
+  Variables passed to this command which are not already in the cache
+  are ignored. See policy :policy:`CMP0102`.

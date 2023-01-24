@@ -57,25 +57,6 @@ CMakeLexer.tokens["root"] = [
   #  (r'[^<>\])\}\|$"# \t\n]+', Name.Exception),            # fallback, for debugging only
 ]
 
-# Monkey patch for sphinx generating invalid content for qcollectiongenerator
-# https://bitbucket.org/birkenfeld/sphinx/issue/1435/qthelp-builder-should-htmlescape-keywords
-from sphinx.util.pycompat import htmlescape
-from sphinx.builders.qthelp import QtHelpBuilder
-old_build_keywords = QtHelpBuilder.build_keywords
-def new_build_keywords(self, title, refs, subitems):
-  old_items = old_build_keywords(self, title, refs, subitems)
-  new_items = []
-  for item in old_items:
-    before, rest = item.split("ref=\"", 1)
-    ref, after = rest.split("\"")
-    if ("<" in ref and ">" in ref):
-      new_items.append(before + "ref=\"" + htmlescape(ref) + "\"" + after)
-    else:
-      new_items.append(item)
-  return new_items
-QtHelpBuilder.build_keywords = new_build_keywords
-
-
 from docutils.parsers.rst import Directive, directives
 from docutils.transforms import Transform
 try:
@@ -92,18 +73,37 @@ from sphinx.roles import XRefRole
 from sphinx.util.nodes import make_refnode
 from sphinx import addnodes
 
-# Needed for checking if Sphinx version is >= 1.4.
-# See https://github.com/sphinx-doc/sphinx/issues/2673
-old_sphinx = False
-
+sphinx_before_1_4 = False
+sphinx_before_1_7_2 = False
 try:
     from sphinx import version_info
     if version_info < (1, 4):
-        old_sphinx = True
+        sphinx_before_1_4 = True
+    if version_info < (1, 7, 2):
+        sphinx_before_1_7_2 = True
 except ImportError:
     # The `sphinx.version_info` tuple was added in Sphinx v1.2:
-    old_sphinx = True
+    sphinx_before_1_4 = True
+    sphinx_before_1_7_2 = True
 
+if sphinx_before_1_7_2:
+  # Monkey patch for sphinx generating invalid content for qcollectiongenerator
+  # https://github.com/sphinx-doc/sphinx/issues/1435
+  from sphinx.util.pycompat import htmlescape
+  from sphinx.builders.qthelp import QtHelpBuilder
+  old_build_keywords = QtHelpBuilder.build_keywords
+  def new_build_keywords(self, title, refs, subitems):
+    old_items = old_build_keywords(self, title, refs, subitems)
+    new_items = []
+    for item in old_items:
+      before, rest = item.split("ref=\"", 1)
+      ref, after = rest.split("\"")
+      if ("<" in ref and ">" in ref):
+        new_items.append(before + "ref=\"" + htmlescape(ref) + "\"" + after)
+      else:
+        new_items.append(item)
+    return new_items
+  QtHelpBuilder.build_keywords = new_build_keywords
 
 class CMakeModule(Directive):
     required_arguments = 1
@@ -181,7 +181,7 @@ class _cmake_index_entry:
 
     def __call__(self, title, targetid, main = 'main'):
         # See https://github.com/sphinx-doc/sphinx/issues/2673
-        if old_sphinx:
+        if sphinx_before_1_4:
             return ('pair', u'%s ; %s' % (self.desc, title), targetid, main)
         else:
             return ('pair', u'%s ; %s' % (self.desc, title), targetid, main, None)
@@ -191,6 +191,8 @@ _cmake_index_objs = {
     'cpack_gen':  _cmake_index_entry('cpack generator'),
     'envvar':     _cmake_index_entry('envvar'),
     'generator':  _cmake_index_entry('generator'),
+    'genex':      _cmake_index_entry('genex'),
+    'guide':      _cmake_index_entry('guide'),
     'manual':     _cmake_index_entry('manual'),
     'module':     _cmake_index_entry('module'),
     'policy':     _cmake_index_entry('policy'),
@@ -223,7 +225,7 @@ class CMakeTransform(Transform):
         self.titles = {}
 
     def parse_title(self, docname):
-        """Parse a document title as the first line starting in [A-Za-z0-9<]
+        """Parse a document title as the first line starting in [A-Za-z0-9<$]
            or fall back to the document basename if no such line exists.
            The cmake --help-*-list commands also depend on this convention.
            Return the title or False if the document file does not exist.
@@ -238,7 +240,7 @@ class CMakeTransform(Transform):
                 title = False
             else:
                 for line in f:
-                    if len(line) > 0 and (line[0].isalnum() or line[0] == '<'):
+                    if len(line) > 0 and (line[0].isalnum() or line[0] == '<' or line[0] == '$'):
                         title = line.rstrip()
                         break
                 f.close()
@@ -251,7 +253,7 @@ class CMakeTransform(Transform):
         env = self.document.settings.env
 
         # Treat some documents as cmake domain objects.
-        objtype, sep, tail = env.docname.rpartition('/')
+        objtype, sep, tail = env.docname.partition('/')
         make_index_entry = _cmake_index_objs.get(objtype)
         if make_index_entry:
             title = self.parse_title(env.docname)
@@ -259,6 +261,10 @@ class CMakeTransform(Transform):
             if objtype == 'command':
                 targetname = title.lower()
             else:
+                if objtype == 'genex':
+                    m = CMakeXRefRole._re_genex.match(title)
+                    if m:
+                        title = m.group(1)
                 targetname = title
             targetid = '%s:%s' % (objtype, targetname)
             targetnode = nodes.target('', '', ids=[targetid])
@@ -276,6 +282,10 @@ class CMakeObject(ObjectDescription):
     def handle_signature(self, sig, signode):
         # called from sphinx.directives.ObjectDescription.run()
         signode += addnodes.desc_name(sig, sig)
+        if self.objtype == 'genex':
+            m = CMakeXRefRole._re_genex.match(sig)
+            if m:
+                sig = m.group(1)
         return sig
 
     def add_target_and_index(self, name, sig, signode):
@@ -301,6 +311,7 @@ class CMakeXRefRole(XRefRole):
     # See sphinx.util.nodes.explicit_title_re; \x00 escapes '<'.
     _re = re.compile(r'^(.+?)(\s*)(?<!\x00)<(.*?)>$', re.DOTALL)
     _re_sub = re.compile(r'^([^()\s]+)\s*\(([^()]*)\)$', re.DOTALL)
+    _re_genex = re.compile(r'^\$<([^<>:]+)(:[^<>]+)?>$', re.DOTALL)
 
     def __call__(self, typ, rawtext, text, *args, **keys):
         # Translate CMake command cross-references of the form:
@@ -309,6 +320,10 @@ class CMakeXRefRole(XRefRole):
         #  `command_name(SUB_COMMAND) <command_name>`
         if typ == 'cmake:command':
             m = CMakeXRefRole._re_sub.match(text)
+            if m:
+                text = '%s <%s>' % (text, m.group(1))
+        elif typ == 'cmake:genex':
+            m = CMakeXRefRole._re_genex.match(text)
             if m:
                 text = '%s <%s>' % (text, m.group(1))
         # CMake cross-reference targets frequently contain '<' so escape
@@ -373,6 +388,8 @@ class CMakeDomain(Domain):
         'cpack_gen':  ObjType('cpack_gen',  'cpack_gen'),
         'envvar':     ObjType('envvar',     'envvar'),
         'generator':  ObjType('generator',  'generator'),
+        'genex':      ObjType('genex',      'genex'),
+        'guide':      ObjType('guide',      'guide'),
         'variable':   ObjType('variable',   'variable'),
         'module':     ObjType('module',     'module'),
         'policy':     ObjType('policy',     'policy'),
@@ -388,6 +405,7 @@ class CMakeDomain(Domain):
     directives = {
         'command':    CMakeObject,
         'envvar':     CMakeObject,
+        'genex':      CMakeObject,
         'variable':   CMakeObject,
         # Other object types cannot be created except by the CMakeTransform
         # 'generator':  CMakeObject,
@@ -407,6 +425,8 @@ class CMakeDomain(Domain):
         'cpack_gen':  CMakeXRefRole(),
         'envvar':     CMakeXRefRole(),
         'generator':  CMakeXRefRole(),
+        'genex':      CMakeXRefRole(),
+        'guide':      CMakeXRefRole(),
         'variable':   CMakeXRefRole(),
         'module':     CMakeXRefRole(),
         'policy':     CMakeXRefRole(),

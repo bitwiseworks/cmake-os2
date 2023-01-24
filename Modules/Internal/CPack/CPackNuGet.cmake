@@ -107,18 +107,41 @@ endfunction()
 function(_cpack_nuget_variable_fallback_and_wrap_into_element ELEMENT NUGET_VAR_NAME)
     set(_options)
     set(_one_value_args)
-    set(_multi_value_args FALLBACK_VARS)
-    cmake_parse_arguments(PARSE_ARGV 0 _args "${_options}" "${_one_value_args}" "${_multi_value_args}")
+    set(_multi_value_args FALLBACK_VARS ATTRIBUTES)
+    cmake_parse_arguments(PARSE_ARGV 2 _args "${_options}" "${_one_value_args}" "${_multi_value_args}")
+
+    if(_args_ATTRIBUTES)
+        list(JOIN _args_ATTRIBUTES " " _attributes)
+        string(PREPEND _attributes " ")
+    endif()
 
     _cpack_nuget_variable_fallback(_value ${NUGET_VAR_NAME} ${ARGN} USE_CDATA)
 
+    string(TOUPPER "${ELEMENT}" _ELEMENT_UP)
     if(_value)
-        string(TOUPPER "${ELEMENT}" _ELEMENT_UP)
         set(
             _CPACK_NUGET_${_ELEMENT_UP}_TAG
-            "<${ELEMENT}>${_value}</${ELEMENT}>"
+            "<${ELEMENT}${_attributes}>${_value}</${ELEMENT}>"
             PARENT_SCOPE
           )
+    elseif(_attributes)
+        set(
+            _CPACK_NUGET_${_ELEMENT_UP}_TAG
+            "<${ELEMENT}${_attributes} />"
+            PARENT_SCOPE
+          )
+    endif()
+endfunction()
+
+# Warn of obsolete nuspec fields, referencing CMake variables and suggested
+# replacement, if any
+function(_cpack_nuget_deprecation_warning NUGET_ELEMENT VARNAME REPLACEMENT)
+    if(${VARNAME})
+        if(REPLACEMENT)
+            message(DEPRECATION "nuspec element `${NUGET_ELEMENT}` is deprecated in NuGet; consider replacing `${VARNAME}` with `${REPLACEMENT}`")
+        else()
+            message(DEPRECATION "nuspec element `${NUGET_ELEMENT}` is deprecated in NuGet; consider removing `${VARNAME}`")
+        endif()
     endif()
 endfunction()
 
@@ -168,6 +191,21 @@ function(_cpack_nuget_render_spec)
         set(CPACK_NUGET_PACKAGE_NAME "${CPACK_PACKAGE_NAME}")
     endif()
 
+    # Warn about deprecated nuspec elements; warnings only display if
+    # variable is set
+    # Note that while nuspec's "summary" element is deprecated, there
+    # is no suggested replacement so (for now) no deprecation warning
+    # is shown for `CPACK_NUGET_*_DESCRIPTION_SUMMARY`
+    _cpack_nuget_deprecation_warning("licenseUrl" CPACK_NUGET_PACKAGE_LICENSEURL
+        "CPACK_NUGET_PACKAGE_LICENSE_FILE_NAME or CPACK_NUGET_PACKAGE_LICENSE_EXPRESSION")
+    _cpack_nuget_deprecation_warning("licenseUrl" CPACK_NUGET_${CPACK_NUGET_PACKAGE_COMPONENT}_LICENSEURL
+        "CPACK_NUGET_${CPACK_NUGET_PACKAGE_COMPONENT}_LICENSE_FILE_NAME or CPACK_NUGET_${CPACK_NUGET_PACKAGE_COMPONENT}_LICENSE_EXPRESSION")
+    _cpack_nuget_deprecation_warning("iconUrl" CPACK_NUGET_PACKAGE_ICONURL
+        "CPACK_NUGET_PACKAGE_ICON")
+    _cpack_nuget_deprecation_warning("iconUrl" CPACK_NUGET_${CPACK_NUGET_PACKAGE_COMPONENT}_ICONURL
+        "CPACK_NUGET_${CPACK_NUGET_PACKAGE_COMPONENT}_ICON")
+
+    # Set nuspec fields
     _cpack_nuget_variable_fallback(
         CPACK_NUGET_PACKAGE_VERSION VERSION
         FALLBACK_VARS
@@ -207,8 +245,35 @@ function(_cpack_nuget_render_spec)
         FALLBACK_VARS
             CPACK_PACKAGE_HOMEPAGE_URL
       )
+
+    # "licenseUrl" is deprecated in favor of "license"
     _cpack_nuget_variable_fallback_and_wrap_into_element(licenseUrl LICENSEURL)
+
+    # "iconUrl" is deprecated in favor of "icon"
     _cpack_nuget_variable_fallback_and_wrap_into_element(iconUrl ICONURL)
+
+    # "license" takes a "type" attribute of either "file" or "expression"
+    # "file" refers to a file path of a .txt or .md file relative to the installation root
+    # "expression" refers to simple or compound expression of license identifiers
+    # listed at https://spdx.org/licenses/
+    # Note that only one of CPACK_NUGET_PACKAGE_LICENSE_FILE_NAME and
+    # CPACK_NUGET_PACKAGE_LICENSE_EXPRESSION may be specified. If both are specified,
+    # CPACK_NUGET_PACKAGE_LICENSE_FILE_NAME takes precedence and CPACK_NUGET_PACKAGE_LICENSE_EXPRESSION is ignored.
+    if(CPACK_NUGET_PACKAGE_LICENSE_FILE_NAME)
+        _cpack_nuget_variable_fallback_and_wrap_into_element(
+            license LICENSE_FILE_NAME
+            ATTRIBUTES [[type="file"]]
+          )
+    elseif(CPACK_NUGET_PACKAGE_LICENSE_EXPRESSION)
+        _cpack_nuget_variable_fallback_and_wrap_into_element(
+            license LICENSE_EXPRESSION
+            ATTRIBUTES [[type="expression"]]
+          )
+    endif()
+
+    # "icon" refers to a file path relative to the installation root
+    _cpack_nuget_variable_fallback_and_wrap_into_element(icon ICON)
+    # "summary" is deprecated in favor of "description"
     _cpack_nuget_variable_fallback_and_wrap_into_element(
         summary DESCRIPTION_SUMMARY
         FALLBACK_VARS
@@ -222,7 +287,12 @@ function(_cpack_nuget_render_spec)
     endif()
     _cpack_nuget_variable_fallback_and_wrap_into_element(releaseNotes RELEASE_NOTES)
     _cpack_nuget_variable_fallback_and_wrap_into_element(copyright COPYRIGHT)
+    # "language" is a locale identifier such as "en_CA"
+    _cpack_nuget_variable_fallback_and_wrap_into_element(language LANGUAGE)
     _cpack_nuget_variable_fallback_and_wrap_into_element(tags TAGS LIST_GLUE " ")
+    # "repository" holds repository metadata consisting of four optional
+    # attributes: "type", "url", "branch", and "commit". While all fields are
+    # considered optional, they are not independent. Currently unsupported.
 
     # Handle dependencies
     _cpack_nuget_variable_fallback(_deps DEPENDENCIES)
@@ -230,31 +300,22 @@ function(_cpack_nuget_render_spec)
     foreach(_dep IN LISTS _deps)
         _cpack_nuget_debug("  checking dependency `${_dep}`")
 
-        string(MAKE_C_IDENTIFIER "${_dep}" _dep_id)
-
-        _cpack_nuget_variable_fallback(_ver DEPENDENCIES_${_dep_id}_VERSION)
+        _cpack_nuget_variable_fallback(_ver DEPENDENCIES_${_dep}_VERSION)
 
         if(NOT _ver)
-            string(TOUPPER "${_dep_id}" _dep_id)
-            _cpack_nuget_variable_fallback(_ver DEPENDENCIES_${_dep_id}_VERSION)
+            string(TOUPPER "${_dep}" _dep_upper)
+            _cpack_nuget_variable_fallback(_ver DEPENDENCIES_${_dep_upper}_VERSION)
         endif()
 
         if(_ver)
             _cpack_nuget_debug("  got `${_dep}` dependency version ${_ver}")
-            list(APPEND _collected_deps "<dependency id=\"${_dep}\" version=\"${_ver}\" />")
+            string(CONCAT _collected_deps "${_collected_deps}" "            <dependency id=\"${_dep}\" version=\"${_ver}\" />\n")
         endif()
     endforeach()
 
     # Render deps into the variable
     if(_collected_deps)
-        set(_CPACK_NUGET_DEPENDENCIES_TAG "<dependencies>\n")
-        foreach(_line IN LISTS _collected_deps)
-            string(
-                APPEND _CPACK_NUGET_DEPENDENCIES_TAG
-                "            ${_line}\n"
-              )
-        endforeach()
-        string(APPEND _CPACK_NUGET_DEPENDENCIES_TAG "        </dependencies>")
+        string(CONCAT _CPACK_NUGET_DEPENDENCIES_TAG "<dependencies>\n" "${_collected_deps}" "        </dependencies>")
     endif()
 
     # Render the spec file
@@ -262,7 +323,7 @@ function(_cpack_nuget_render_spec)
     # NuGet will name it properly.
     _cpack_nuget_debug("Rendering `${CPACK_TEMPORARY_DIRECTORY}/CPack.NuGet.nuspec` file...")
     configure_file(
-        "${CMAKE_ROOT}/Modules/CPack.NuGet.nuspec.in"
+        "${CMAKE_ROOT}/Modules/Internal/CPack/CPack.NuGet.nuspec.in"
         "${CPACK_TEMPORARY_DIRECTORY}/CPack.NuGet.nuspec"
         @ONLY
       )
@@ -271,7 +332,7 @@ endfunction()
 function(_cpack_nuget_make_files_tag)
     set(_files)
     foreach(_comp IN LISTS ARGN)
-        string(APPEND _files "        <file src=\"${_comp}\\**\" target=\".\" />\n")
+        string(APPEND _files "        <file src=\"${_comp}/**\" target=\".\" />\n")
     endforeach()
     set(_CPACK_NUGET_FILES_TAG "<files>\n${_files}    </files>" PARENT_SCOPE)
 endfunction()
@@ -296,7 +357,11 @@ if(CPACK_NUGET_ORDINAL_MONOLITIC)
     execute_process(
         COMMAND "${NUGET_EXECUTABLE}" pack ${CPACK_NUGET_PACK_ADDITIONAL_OPTIONS}
         WORKING_DIRECTORY "${CPACK_TEMPORARY_DIRECTORY}"
+        RESULT_VARIABLE _nuget_result
       )
+    if(NOT _nuget_result EQUAL 0)
+        message(FATAL_ERROR "Nuget pack failed")
+    endif()
 
 elseif(CPACK_NUGET_ALL_IN_ONE)
     # This variable `CPACK_NUGET_ALL_IN_ONE` set by C++ code:
@@ -309,7 +374,11 @@ elseif(CPACK_NUGET_ALL_IN_ONE)
     execute_process(
         COMMAND "${NUGET_EXECUTABLE}" pack ${CPACK_NUGET_PACK_ADDITIONAL_OPTIONS}
         WORKING_DIRECTORY "${CPACK_TEMPORARY_DIRECTORY}"
+        RESULT_VARIABLE _nuget_result
       )
+    if(NOT _nuget_result EQUAL 0)
+        message(FATAL_ERROR "Nuget pack failed")
+    endif()
 
 else()
     # Is there any grouped component?
@@ -331,7 +400,11 @@ else()
             execute_process(
                 COMMAND "${NUGET_EXECUTABLE}" pack ${CPACK_NUGET_PACK_ADDITIONAL_OPTIONS}
                 WORKING_DIRECTORY "${CPACK_TEMPORARY_DIRECTORY}"
+                RESULT_VARIABLE _nuget_result
               )
+            if(NOT _nuget_result EQUAL 0)
+                message(FATAL_ERROR "Nuget pack failed")
+            endif()
         endforeach()
     endif()
     # Is there any single component package needed?
@@ -350,7 +423,11 @@ else()
             execute_process(
                 COMMAND "${NUGET_EXECUTABLE}" pack ${CPACK_NUGET_PACK_ADDITIONAL_OPTIONS}
                 WORKING_DIRECTORY "${CPACK_TEMPORARY_DIRECTORY}"
+                RESULT_VARIABLE _nuget_result
               )
+            if(NOT _nuget_result EQUAL 0)
+                message(FATAL_ERROR "Nuget pack failed")
+            endif()
         endforeach()
     endif()
 endif()

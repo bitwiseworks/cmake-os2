@@ -9,6 +9,8 @@ cmake_minimum_required(VERSION ${CMAKE_VERSION})
 
 project(${contentName}-populate NONE)
 
+@__FETCHCONTENT_CACHED_INFO@
+
 include(ExternalProject)
 ExternalProject_Add(${contentName}-populate
                     ${ARG_EXTRA}
@@ -21,3 +23,5 @@ ExternalProject_Add(${contentName}-populate
                     USES_TERMINAL_DOWNLOAD  YES
                     USES_TERMINAL_UPDATE    YES
 )
+
+@__FETCHCONTENT_COPY_FILE@
