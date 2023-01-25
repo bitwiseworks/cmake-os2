@@ -2,11 +2,13 @@
    file Copyright.txt or https://cmake.org/licensing for details.  */
 #include "cmInstallCommandArguments.h"
 
+#include <algorithm>
+#include <utility>
+
+#include <cmext/string_view>
+
 #include "cmRange.h"
 #include "cmSystemTools.h"
-#include "cm_static_string_view.hxx"
-
-#include <utility>
 
 // Table of valid permissions.
 const char* cmInstallCommandArguments::PermissionsTable[] = {
@@ -175,13 +177,11 @@ bool cmInstallCommandArguments::Finalize()
 bool cmInstallCommandArguments::CheckPermissions()
 {
   this->PermissionsString.clear();
-  for (std::string const& perm : this->Permissions) {
-    if (!cmInstallCommandArguments::CheckPermissions(
-          perm, this->PermissionsString)) {
-      return false;
-    }
-  }
-  return true;
+  return std::all_of(this->Permissions.begin(), this->Permissions.end(),
+                     [this](std::string const& perm) -> bool {
+                       return cmInstallCommandArguments::CheckPermissions(
+                         perm, this->PermissionsString);
+                     });
 }
 
 bool cmInstallCommandArguments::CheckPermissions(

@@ -3,6 +3,7 @@
 #include "cmInstallScriptGenerator.h"
 
 #include <ostream>
+#include <utility>
 #include <vector>
 
 #include "cmGeneratorExpression.h"
@@ -11,18 +12,17 @@
 #include "cmPolicies.h"
 #include "cmScriptGenerator.h"
 
-cmInstallScriptGenerator::cmInstallScriptGenerator(const char* script,
-                                                   bool code,
-                                                   const char* component,
-                                                   bool exclude_from_all)
-  : cmInstallGenerator(nullptr, std::vector<std::string>(), component,
-                       MessageDefault, exclude_from_all)
-  , Script(script)
+cmInstallScriptGenerator::cmInstallScriptGenerator(
+  std::string script, bool code, std::string const& component,
+  bool exclude_from_all, cmListFileBacktrace backtrace)
+  : cmInstallGenerator("", std::vector<std::string>(), component,
+                       MessageDefault, exclude_from_all, std::move(backtrace))
+  , Script(std::move(script))
   , Code(code)
   , AllowGenex(false)
 {
   // We need per-config actions if the script has generator expressions.
-  if (cmGeneratorExpression::Find(Script) != std::string::npos) {
+  if (cmGeneratorExpression::Find(this->Script) != std::string::npos) {
     this->ActionsPerConfig = true;
   }
 }
@@ -53,9 +53,21 @@ bool cmInstallScriptGenerator::Compute(cmLocalGenerator* lg)
   return true;
 }
 
-void cmInstallScriptGenerator::AddScriptInstallRule(std::ostream& os,
-                                                    Indent indent,
-                                                    std::string const& script)
+std::string cmInstallScriptGenerator::GetScript(
+  std::string const& config) const
+{
+  std::string script;
+  if (this->AllowGenex && this->ActionsPerConfig) {
+    script = cmGeneratorExpression::Evaluate(this->Script,
+                                             this->LocalGenerator, config);
+  } else {
+    script = this->Script;
+  }
+  return script;
+}
+
+void cmInstallScriptGenerator::AddScriptInstallRule(
+  std::ostream& os, Indent indent, std::string const& script) const
 {
   if (this->Code) {
     os << indent << script << "\n";
@@ -77,13 +89,5 @@ void cmInstallScriptGenerator::GenerateScriptActions(std::ostream& os,
 void cmInstallScriptGenerator::GenerateScriptForConfig(
   std::ostream& os, const std::string& config, Indent indent)
 {
-  if (this->AllowGenex) {
-    cmGeneratorExpression ge;
-    std::unique_ptr<cmCompiledGeneratorExpression> cge =
-      ge.Parse(this->Script);
-    this->AddScriptInstallRule(os, indent,
-                               cge->Evaluate(this->LocalGenerator, config));
-  } else {
-    this->AddScriptInstallRule(os, indent, this->Script);
-  }
+  this->AddScriptInstallRule(os, indent, this->GetScript(config));
 }

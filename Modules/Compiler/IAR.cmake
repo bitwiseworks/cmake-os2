@@ -1,6 +1,6 @@
 # This file is processed when the IAR compiler is used for a C or C++ file
 # Documentation can be downloaded here: http://www.iar.com/website1/1.0.1.0/675/1/
-# The initial feature request is here: https://gitlab.kitware.com/cmake/cmake/issues/10176
+# The initial feature request is here: https://gitlab.kitware.com/cmake/cmake/-/issues/10176
 # It also contains additional links and information.
 # See USER GUIDES -> C/C++ Development Guide and ReleaseNotes for EWARM:
 # version 6.30.8: http://supp.iar.com/FilesPublic/UPDINFO/006607/arm/doc/infocenter/index.ENU.html
@@ -42,13 +42,14 @@ include_guard()
 
 macro(__compiler_iar_ilink lang)
   set(CMAKE_EXECUTABLE_SUFFIX ".elf")
+  set(CMAKE_${lang}_OUTPUT_EXTENSION ".o")
   if (${lang} STREQUAL "C" OR ${lang} STREQUAL "CXX")
     set(CMAKE_${lang}_COMPILE_OBJECT             "<CMAKE_${lang}_COMPILER> ${CMAKE_IAR_${lang}_FLAG} --silent <SOURCE> <DEFINES> <INCLUDES> <FLAGS> -o <OBJECT>")
     set(CMAKE_${lang}_CREATE_PREPROCESSED_SOURCE "<CMAKE_${lang}_COMPILER> ${CMAKE_IAR_${lang}_FLAG} --silent <SOURCE> <DEFINES> <INCLUDES> <FLAGS> --preprocess=cnl <PREPROCESSED_SOURCE>")
     set(CMAKE_${lang}_CREATE_ASSEMBLY_SOURCE     "<CMAKE_${lang}_COMPILER> ${CMAKE_IAR_${lang}_FLAG} --silent <SOURCE> <DEFINES> <INCLUDES> <FLAGS> -lAH <ASSEMBLY_SOURCE> -o <OBJECT>.dummy")
 
     set(CMAKE_${lang}_RESPONSE_FILE_LINK_FLAG "-f ")
-    set(CMAKE_DEPFILE_FLAGS_${lang} "--dependencies=ns <DEPFILE>")
+    set(CMAKE_DEPFILE_FLAGS_${lang} "--dependencies=ns <DEP_FILE>")
 
     string(APPEND CMAKE_${lang}_FLAGS_INIT " ")
     string(APPEND CMAKE_${lang}_FLAGS_DEBUG_INIT " -r")
@@ -84,7 +85,7 @@ macro(__compiler_iar_xlink lang)
     set(CMAKE_${lang}_CREATE_ASSEMBLY_SOURCE     "<CMAKE_${lang}_COMPILER> ${CMAKE_IAR_${lang}_FLAG} --silent <SOURCE> <DEFINES> <INCLUDES> <FLAGS> -lAH <ASSEMBLY_SOURCE> -o <OBJECT>.dummy")
 
     set(CMAKE_${lang}_RESPONSE_FILE_LINK_FLAG "-f ")
-    set(CMAKE_DEPFILE_FLAGS_${lang} "--dependencies=ns <DEPFILE>")
+    set(CMAKE_DEPFILE_FLAGS_${lang} "--dependencies=ns <DEP_FILE>")
 
     string(APPEND CMAKE_${lang}_FLAGS_INIT " ")
     string(APPEND CMAKE_${lang}_FLAGS_DEBUG_INIT " -r")

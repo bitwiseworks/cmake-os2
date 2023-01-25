@@ -2,12 +2,13 @@
    file Copyright.txt or https://cmake.org/licensing for details.  */
 #include "cmExprParserHelper.h"
 
-#include "cmExprLexer.h"
-
 #include <iostream>
 #include <sstream>
 #include <stdexcept>
 #include <utility>
+
+#include "cmExprLexer.h"
+#include "cmStringAlgorithms.h"
 
 int cmExpr_yyparse(yyscan_t yyscanner);
 //
@@ -41,23 +42,22 @@ int cmExprParserHelper::ParseString(const char* str, int verb)
   try {
     int res = cmExpr_yyparse(yyscanner);
     if (res != 0) {
-      std::string e = "cannot parse the expression: \"" + InputBuffer + "\": ";
-      e += ErrorString;
-      e += ".";
+      std::string e =
+        cmStrCat("cannot parse the expression: \"", this->InputBuffer,
+                 "\": ", this->ErrorString, '.');
       this->SetError(std::move(e));
     }
   } catch (std::runtime_error const& fail) {
-    std::string e =
-      "cannot evaluate the expression: \"" + InputBuffer + "\": ";
-    e += fail.what();
-    e += ".";
+    std::string e = cmStrCat("cannot evaluate the expression: \"",
+                             this->InputBuffer, "\": ", fail.what(), '.');
     this->SetError(std::move(e));
   } catch (std::out_of_range const&) {
-    std::string e = "cannot evaluate the expression: \"" + InputBuffer +
+    std::string e = "cannot evaluate the expression: \"" + this->InputBuffer +
       "\": a numeric value is out of range.";
     this->SetError(std::move(e));
   } catch (...) {
-    std::string e = "cannot parse the expression: \"" + InputBuffer + "\".";
+    std::string e =
+      "cannot parse the expression: \"" + this->InputBuffer + "\".";
     this->SetError(std::move(e));
   }
   cmExpr_yylex_destroy(yyscanner);
@@ -65,7 +65,7 @@ int cmExprParserHelper::ParseString(const char* str, int verb)
     return 0;
   }
 
-  if (Verbose) {
+  if (this->Verbose) {
     std::cerr << "Expanding [" << str << "] produced: [" << this->Result << "]"
               << std::endl;
   }

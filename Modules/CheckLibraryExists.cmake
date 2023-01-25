@@ -26,13 +26,18 @@ Check if the function exists.
 The following variables may be set before calling this macro to modify
 the way the check is run:
 
-::
-
-  CMAKE_REQUIRED_FLAGS = string of compile command line flags
-  CMAKE_REQUIRED_DEFINITIONS = list of macros to define (-DFOO=bar)
-  CMAKE_REQUIRED_LINK_OPTIONS = list of options to pass to link command
-  CMAKE_REQUIRED_LIBRARIES = list of libraries to link
-  CMAKE_REQUIRED_QUIET = execute quietly without messages
+``CMAKE_REQUIRED_FLAGS``
+  string of compile command line flags.
+``CMAKE_REQUIRED_DEFINITIONS``
+  list of macros to define (-DFOO=bar).
+``CMAKE_REQUIRED_LINK_OPTIONS``
+  .. versionadded:: 3.14
+    list of options to pass to link command.
+``CMAKE_REQUIRED_LIBRARIES``
+  list of libraries to link.
+``CMAKE_REQUIRED_QUIET``
+  .. versionadded:: 3.1
+    execute quietly without messages.
 #]=======================================================================]
 
 include_guard(GLOBAL)
@@ -42,7 +47,7 @@ macro(CHECK_LIBRARY_EXISTS LIBRARY FUNCTION LOCATION VARIABLE)
     set(MACRO_CHECK_LIBRARY_EXISTS_DEFINITION
       "-DCHECK_FUNCTION_EXISTS=${FUNCTION} ${CMAKE_REQUIRED_FLAGS}")
     if(NOT CMAKE_REQUIRED_QUIET)
-      message(STATUS "Looking for ${FUNCTION} in ${LIBRARY}")
+      message(CHECK_START "Looking for ${FUNCTION} in ${LIBRARY}")
     endif()
     set(CHECK_LIBRARY_EXISTS_LINK_OPTIONS)
     if(CMAKE_REQUIRED_LINK_OPTIONS)
@@ -78,7 +83,7 @@ macro(CHECK_LIBRARY_EXISTS LIBRARY FUNCTION LOCATION VARIABLE)
 
     if(${VARIABLE})
       if(NOT CMAKE_REQUIRED_QUIET)
-        message(STATUS "Looking for ${FUNCTION} in ${LIBRARY} - found")
+        message(CHECK_PASS "found")
       endif()
       set(${VARIABLE} 1 CACHE INTERNAL "Have library ${LIBRARY}")
       file(APPEND ${CMAKE_BINARY_DIR}${CMAKE_FILES_DIRECTORY}/CMakeOutput.log
@@ -87,7 +92,7 @@ macro(CHECK_LIBRARY_EXISTS LIBRARY FUNCTION LOCATION VARIABLE)
         "${OUTPUT}\n\n")
     else()
       if(NOT CMAKE_REQUIRED_QUIET)
-        message(STATUS "Looking for ${FUNCTION} in ${LIBRARY} - not found")
+        message(CHECK_FAIL "not found")
       endif()
       set(${VARIABLE} "" CACHE INTERNAL "Have library ${LIBRARY}")
       file(APPEND ${CMAKE_BINARY_DIR}${CMAKE_FILES_DIRECTORY}/CMakeError.log

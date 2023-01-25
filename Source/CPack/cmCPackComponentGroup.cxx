@@ -2,9 +2,10 @@
    file Copyright.txt or https://cmake.org/licensing for details.  */
 #include "cmCPackComponentGroup.h"
 
-#include "cmSystemTools.h"
-
 #include <string>
+
+#include "cmStringAlgorithms.h"
+#include "cmSystemTools.h"
 
 unsigned long cmCPackComponent::GetInstalledSize(
   const std::string& installDir) const
@@ -14,9 +15,7 @@ unsigned long cmCPackComponent::GetInstalledSize(
   }
 
   for (std::string const& file : this->Files) {
-    std::string path = installDir;
-    path += '/';
-    path += file;
+    std::string path = cmStrCat(installDir, '/', file);
     this->TotalSize += cmSystemTools::FileLength(path);
   }
 
@@ -26,6 +25,6 @@ unsigned long cmCPackComponent::GetInstalledSize(
 unsigned long cmCPackComponent::GetInstalledSizeInKbytes(
   const std::string& installDir) const
 {
-  unsigned long result = (GetInstalledSize(installDir) + 512) / 1024;
+  unsigned long result = (this->GetInstalledSize(installDir) + 512) / 1024;
   return result ? result : 1;
 }

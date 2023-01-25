@@ -2,7 +2,7 @@ project(librhash C)
 
 # Disable warnings to avoid changing 3rd party code.
 if(CMAKE_C_COMPILER_ID MATCHES
-    "^(GNU|Clang|AppleClang|XLClang|XL|VisualAge|SunPro|HP|Intel)$")
+    "^(GNU|Clang|AppleClang|XLClang|XL|VisualAge|SunPro|HP|Intel|IntelLLVM)$")
   set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -w")
 elseif(CMAKE_C_COMPILER_ID STREQUAL "PathScale")
   set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -woffall")
@@ -37,4 +37,4 @@ include_directories(
 
 add_library(cmlibrhash ${librhash_sources})
 
-install(FILES COPYING README DESTINATION ${CMAKE_DOC_DIR}/cmlibrhash)
+install(FILES COPYING DESTINATION ${CMAKE_DOC_DIR}/cmlibrhash)

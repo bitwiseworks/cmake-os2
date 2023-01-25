@@ -2,10 +2,11 @@
    file Copyright.txt or https://cmake.org/licensing for details.  */
 #include "cmGeneratorExpressionEvaluationFile.h"
 
-#include "cmsys/FStream.hxx"
-#include <memory> // IWYU pragma: keep
+#include <memory>
 #include <sstream>
 #include <utility>
+
+#include "cmsys/FStream.hxx"
 
 #include "cmGeneratedFileStream.h"
 #include "cmGlobalGenerator.h"
@@ -14,19 +15,22 @@
 #include "cmMakefile.h"
 #include "cmMessageType.h"
 #include "cmSourceFile.h"
-#include "cmSourceFileLocationKind.h"
 #include "cmSystemTools.h"
 
 cmGeneratorExpressionEvaluationFile::cmGeneratorExpressionEvaluationFile(
-  std::string input,
+  std::string input, std::string target,
   std::unique_ptr<cmCompiledGeneratorExpression> outputFileExpr,
   std::unique_ptr<cmCompiledGeneratorExpression> condition,
-  bool inputIsContent, cmPolicies::PolicyStatus policyStatusCMP0070)
+  bool inputIsContent, std::string newLineCharacter, mode_t permissions,
+  cmPolicies::PolicyStatus policyStatusCMP0070)
   : Input(std::move(input))
+  , Target(std::move(target))
   , OutputFileExpr(std::move(outputFileExpr))
   , Condition(std::move(condition))
   , InputIsContent(inputIsContent)
+  , NewLineCharacter(std::move(newLineCharacter))
   , PolicyStatusCMP0070(policyStatusCMP0070)
+  , Permissions(permissions)
 {
 }
 
@@ -36,9 +40,10 @@ void cmGeneratorExpressionEvaluationFile::Generate(
   std::map<std::string, std::string>& outputFiles, mode_t perm)
 {
   std::string rawCondition = this->Condition->GetInput();
+  cmGeneratorTarget* target = lg->FindGeneratorTargetToUse(this->Target);
   if (!rawCondition.empty()) {
-    std::string condResult = this->Condition->Evaluate(
-      lg, config, false, nullptr, nullptr, nullptr, lang);
+    std::string condResult =
+      this->Condition->Evaluate(lg, config, target, nullptr, nullptr, lang);
     if (condResult == "0") {
       return;
     }
@@ -53,19 +58,12 @@ void cmGeneratorExpressionEvaluationFile::Generate(
     }
   }
 
-  std::string outputFileName = this->OutputFileExpr->Evaluate(
-    lg, config, false, nullptr, nullptr, nullptr, lang);
-  const std::string& outputContent = inputExpression->Evaluate(
-    lg, config, false, nullptr, nullptr, nullptr, lang);
+  const std::string outputFileName =
+    this->GetOutputFileName(lg, target, config, lang);
+  const std::string& outputContent =
+    inputExpression->Evaluate(lg, config, target, nullptr, nullptr, lang);
 
-  if (cmSystemTools::FileIsFullPath(outputFileName)) {
-    outputFileName = cmSystemTools::CollapseFullPath(outputFileName);
-  } else {
-    outputFileName = this->FixRelativePath(outputFileName, PathForOutput, lg);
-  }
-
-  std::map<std::string, std::string>::iterator it =
-    outputFiles.find(outputFileName);
+  auto it = outputFiles.find(outputFileName);
 
   if (it != outputFiles.end()) {
     if (it->second == outputContent) {
@@ -85,9 +83,33 @@ void cmGeneratorExpressionEvaluationFile::Generate(
   this->Files.push_back(outputFileName);
   outputFiles[outputFileName] = outputContent;
 
-  cmGeneratedFileStream fout(outputFileName);
+  bool openWithBinaryFlag = false;
+  if (!this->NewLineCharacter.empty()) {
+    openWithBinaryFlag = true;
+  }
+  cmGeneratedFileStream fout;
+  fout.Open(outputFileName, false, openWithBinaryFlag);
+  if (!fout) {
+    lg->IssueMessage(MessageType::FATAL_ERROR,
+                     "Could not open file for write in copy operation " +
+                       outputFileName);
+    return;
+  }
   fout.SetCopyIfDifferent(true);
-  fout << outputContent;
+  std::istringstream iss(outputContent);
+  std::string line;
+  bool hasNewLine = false;
+  while (cmSystemTools::GetLineFromStream(iss, line, &hasNewLine)) {
+    fout << line;
+    if (!this->NewLineCharacter.empty()) {
+      fout << this->NewLineCharacter;
+    } else if (hasNewLine) {
+      // if new line character is not specified, the file will be opened in
+      // text mode. So, "\n" will be translated to the correct newline
+      // ending based on the platform.
+      fout << "\n";
+    }
+  }
   if (fout.Close() && perm) {
     cmSystemTools::SetPermissions(outputFileName.c_str(), perm);
   }
@@ -98,16 +120,12 @@ void cmGeneratorExpressionEvaluationFile::CreateOutputFile(
 {
   std::vector<std::string> enabledLanguages;
   cmGlobalGenerator* gg = lg->GetGlobalGenerator();
+  cmGeneratorTarget* target = lg->FindGeneratorTargetToUse(this->Target);
   gg->GetEnabledLanguages(enabledLanguages);
 
   for (std::string const& le : enabledLanguages) {
-    std::string name = this->OutputFileExpr->Evaluate(
-      lg, config, false, nullptr, nullptr, nullptr, le);
-    cmSourceFile* sf = lg->GetMakefile()->GetOrCreateSource(
-      name, false, cmSourceFileLocationKind::Known);
-    // Tell TraceDependencies that the file is not expected to exist
-    // on disk yet.  We generate it after that runs.
-    sf->SetProperty("GENERATED", "1");
+    std::string const name = this->GetOutputFileName(lg, target, config, le);
+    cmSourceFile* sf = lg->GetMakefile()->GetOrCreateGeneratedSource(name);
 
     // Tell the build system generators that there is no build rule
     // to generate the file.
@@ -120,19 +138,15 @@ void cmGeneratorExpressionEvaluationFile::CreateOutputFile(
 
 void cmGeneratorExpressionEvaluationFile::Generate(cmLocalGenerator* lg)
 {
-  mode_t perm = 0;
   std::string inputContent;
   if (this->InputIsContent) {
     inputContent = this->Input;
   } else {
-    std::string inputFileName = this->Input;
-    if (cmSystemTools::FileIsFullPath(inputFileName)) {
-      inputFileName = cmSystemTools::CollapseFullPath(inputFileName);
-    } else {
-      inputFileName = this->FixRelativePath(inputFileName, PathForInput, lg);
-    }
+    const std::string inputFileName = this->GetInputFileName(lg);
     lg->GetMakefile()->AddCMakeDependFile(inputFileName);
-    cmSystemTools::GetPermissions(inputFileName.c_str(), perm);
+    if (!this->Permissions) {
+      cmSystemTools::GetPermissions(inputFileName.c_str(), this->Permissions);
+    }
     cmsys::ifstream fin(inputFileName.c_str());
     if (!fin) {
       std::ostringstream e;
@@ -157,12 +171,8 @@ void cmGeneratorExpressionEvaluationFile::Generate(cmLocalGenerator* lg)
 
   std::map<std::string, std::string> outputFiles;
 
-  std::vector<std::string> allConfigs;
-  lg->GetMakefile()->GetConfigurations(allConfigs);
-
-  if (allConfigs.empty()) {
-    allConfigs.emplace_back();
-  }
+  std::vector<std::string> allConfigs =
+    lg->GetMakefile()->GetGeneratorConfigs(cmMakefile::IncludeEmptyConfig);
 
   std::vector<std::string> enabledLanguages;
   cmGlobalGenerator* gg = lg->GetGlobalGenerator();
@@ -170,12 +180,43 @@ void cmGeneratorExpressionEvaluationFile::Generate(cmLocalGenerator* lg)
 
   for (std::string const& le : enabledLanguages) {
     for (std::string const& li : allConfigs) {
-      this->Generate(lg, li, le, inputExpression.get(), outputFiles, perm);
+      this->Generate(lg, li, le, inputExpression.get(), outputFiles,
+                     this->Permissions);
       if (cmSystemTools::GetFatalErrorOccured()) {
         return;
       }
     }
   }
+}
+
+std::string cmGeneratorExpressionEvaluationFile::GetInputFileName(
+  cmLocalGenerator* lg)
+{
+  std::string inputFileName = this->Input;
+
+  if (cmSystemTools::FileIsFullPath(inputFileName)) {
+    inputFileName = cmSystemTools::CollapseFullPath(inputFileName);
+  } else {
+    inputFileName = this->FixRelativePath(inputFileName, PathForInput, lg);
+  }
+
+  return inputFileName;
+}
+
+std::string cmGeneratorExpressionEvaluationFile::GetOutputFileName(
+  cmLocalGenerator* lg, cmGeneratorTarget* target, const std::string& config,
+  const std::string& lang)
+{
+  std::string outputFileName =
+    this->OutputFileExpr->Evaluate(lg, config, target, nullptr, nullptr, lang);
+
+  if (cmSystemTools::FileIsFullPath(outputFileName)) {
+    outputFileName = cmSystemTools::CollapseFullPath(outputFileName);
+  } else {
+    outputFileName = this->FixRelativePath(outputFileName, PathForOutput, lg);
+  }
+
+  return outputFileName;
 }
 
 std::string cmGeneratorExpressionEvaluationFile::FixRelativePath(

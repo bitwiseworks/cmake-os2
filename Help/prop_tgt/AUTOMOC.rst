@@ -137,7 +137,8 @@ parent directory path of the ``moc`` input file.  This scheme allows to have
 All not included ``moc`` output files will be included automatically by the
 CMake generated file
 
-- ``<AUTOGEN_BUILD_DIR>/mocs_compilation.cpp``,
+- ``<AUTOGEN_BUILD_DIR>/mocs_compilation.cpp``, or
+- ``<AUTOGEN_BUILD_DIR>/mocs_compilation_$<CONFIG>.cpp``,
 
 which is added to the target's sources.
 
@@ -172,7 +173,7 @@ variables.  If the call is in a different context than the
 then the version variables might not be available to the :prop_tgt:`AUTOMOC`
 enabled target.
 In that case the version variables can be forwarded from the
-`find_package(Qt[45]...)` calling context to the :command:`add_executable`
+``find_package(Qt[45]...)`` calling context to the :command:`add_executable`
 or :command:`add_library` calling context as directory properties.
 The following Qt5 example demonstrates the procedure.
 

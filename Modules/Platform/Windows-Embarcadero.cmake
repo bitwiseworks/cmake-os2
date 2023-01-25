@@ -10,6 +10,11 @@ set(__WINDOWS_EMBARCADERO 1)
 
 set(BORLAND 1)
 
+set(__pch_header_C "c-header")
+set(__pch_header_CXX "c++-header")
+set(__pch_header_OBJC "objective-c-header")
+set(__pch_header_OBJCXX "objective-c++-header")
+
 if("${CMAKE_${_lang}_COMPILER_VERSION}" VERSION_LESS 6.30)
   # Borland target type flags (bcc32 -h -t):
   set(_tW "-tW")       # -tW  GUI App         (implies -U__CONSOLE__)
@@ -30,8 +35,8 @@ else()
   set(_tR "-tR") # Target uses the dynamic RTL
   set(_tW "-tW") # Target is a Windows application
 endif()
-set(_COMPILE_C "-c")
-set(_COMPILE_CXX "-P -c")
+set(_COMPILE_C "")
+set(_COMPILE_CXX " -P")
 
 set(CMAKE_LIBRARY_PATH_FLAG "-L")
 set(CMAKE_LINK_LIBRARY_FLAG "")
@@ -82,7 +87,7 @@ macro(__embarcadero_language lang)
   # place <DEFINES> outside the response file because Borland refuses
   # to parse quotes from the response file.
   set(CMAKE_${lang}_COMPILE_OBJECT
-    "<CMAKE_${lang}_COMPILER> ${_tR} -DWIN32 <DEFINES> <INCLUDES> <FLAGS> -o<OBJECT> ${_COMPILE_${lang}} <SOURCE>"
+    "<CMAKE_${lang}_COMPILER> ${_tR} -DWIN32 <DEFINES> <INCLUDES> <FLAGS> -o<OBJECT>${_COMPILE_${lang}} -c <SOURCE>"
     )
 
   set(CMAKE_${lang}_LINK_EXECUTABLE
@@ -93,7 +98,7 @@ macro(__embarcadero_language lang)
   # place <DEFINES> outside the response file because Borland refuses
   # to parse quotes from the response file.
   set(CMAKE_${lang}_CREATE_PREPROCESSED_SOURCE
-    "cpp32 -DWIN32 <DEFINES> <INCLUDES> <FLAGS> -o<PREPROCESSED_SOURCE> ${_COMPILE_${lang}} <SOURCE>"
+    "cpp32 -DWIN32 <DEFINES> <INCLUDES> <FLAGS> -o<PREPROCESSED_SOURCE>${_COMPILE_${lang}} -c <SOURCE>"
     )
   # Borland >= 5.6 allows -P option for cpp32, <= 5.5 does not
 
@@ -118,6 +123,13 @@ macro(__embarcadero_language lang)
   set(CMAKE_${lang}_CREATE_STATIC_LIBRARY
     "tlib ${CMAKE_START_TEMP_FILE}/p512 <LINK_FLAGS> /a <TARGET_QUOTED> <OBJECTS>${CMAKE_END_TEMP_FILE}"
     )
+
+  # Precompile Headers
+  if (EMBARCADERO)
+    set(CMAKE_PCH_EXTENSION .pch)
+    set(CMAKE_${lang}_COMPILE_OPTIONS_USE_PCH -Xclang -include-pch -Xclang <PCH_FILE> -Xclang -include -Xclang <PCH_HEADER>)
+    set(CMAKE_${lang}_COMPILE_OPTIONS_CREATE_PCH -Xclang -emit-pch -Xclang -include -Xclang <PCH_HEADER> -x ${__pch_header_${lang}})
+  endif()
 
   # Initial configuration flags.
   string(APPEND CMAKE_${lang}_FLAGS_INIT " ${_tM}")

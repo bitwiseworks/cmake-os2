@@ -17,6 +17,7 @@ version = '@conf_version@' # feature version
 release = '@conf_release@' # full version string
 pygments_style = 'colors.CMakeTemplateStyle'
 
+language = 'en'
 primary_domain = 'cmake'
 highlight_language = 'none'
 
@@ -28,6 +29,7 @@ extensions = ['cmake']
 templates_path = ['@conf_path@/templates']
 
 nitpicky = True
+smartquotes = False
 
 cmake_manuals = sorted(glob.glob(r'@conf_docs@/manual/*.rst'))
 cmake_manual_description = re.compile('^\.\. cmake-manual-description:(.*)$')
@@ -51,6 +53,7 @@ for fpath in cmake_manuals:
     except Exception as e:
         sys.stderr.write("ERROR: %s\n" % str(e))
 man_show_urls = False
+man_make_section_directory = False
 
 html_show_sourcelink = True
 html_static_path = ['@conf_path@/static']
@@ -82,4 +85,4 @@ html_favicon = '@conf_path@/static/cmake-favicon.ico'
 # Not supported yet by sphinx:
 # https://bitbucket.org/birkenfeld/sphinx/issue/1448/make-qthelp-more-configurable
 # qthelp_namespace = "org.cmake"
-# qthelp_qch_name = "CMake-300.qch"
+# qthelp_qch_name = "CMake.qch"

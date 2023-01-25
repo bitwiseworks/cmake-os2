@@ -32,6 +32,8 @@ The options are:
   called ``ALL``).
 
 ``BYPRODUCTS``
+  .. versionadded:: 3.2
+
   Specify the files the command is expected to produce but whose
   modification time may or may not be updated on subsequent builds.
   If a byproduct name is a relative path it will be interpreted
@@ -49,8 +51,14 @@ The options are:
   order-only dependencies to ensure the byproducts will be
   available before their dependents build.
 
-  The ``BYPRODUCTS`` option is ignored on non-Ninja generators
-  except to mark byproducts ``GENERATED``.
+  The :ref:`Makefile Generators` will remove ``BYPRODUCTS`` and other
+  :prop_sf:`GENERATED` files during ``make clean``.
+
+  .. versionadded:: 3.20
+    Arguments to ``BYPRODUCTS`` may use a restricted set of
+    :manual:`generator expressions <cmake-generator-expressions(7)>`.
+    :ref:`Target-dependent expressions <Target-Dependent Queries>` are not
+    permitted.
 
 ``COMMAND``
   Specify the command-line(s) to execute at build time.
@@ -61,18 +69,36 @@ The options are:
   a ``COMMAND`` to launch it.)
 
   If ``COMMAND`` specifies an executable target name (created by the
-  :command:`add_executable` command) it will automatically be replaced
-  by the location of the executable created at build time. If set, the
-  :prop_tgt:`CROSSCOMPILING_EMULATOR` executable target property will
-  also be prepended to the command to allow the executable to run on
-  the host.
-  Additionally a target-level dependency will be added so that the
-  executable target will be built before this custom target.
+  :command:`add_executable` command), it will automatically be replaced
+  by the location of the executable created at build time if either of
+  the following is true:
+
+  * The target is not being cross-compiled (i.e. the
+    :variable:`CMAKE_CROSSCOMPILING` variable is not set to true).
+  * .. versionadded:: 3.6
+      The target is being cross-compiled and an emulator is provided (i.e.
+      its :prop_tgt:`CROSSCOMPILING_EMULATOR` target property is set).
+      In this case, the contents of :prop_tgt:`CROSSCOMPILING_EMULATOR` will be
+      prepended to the command before the location of the target executable.
+
+  If neither of the above conditions are met, it is assumed that the
+  command name is a program to be found on the ``PATH`` at build time.
 
   Arguments to ``COMMAND`` may use
   :manual:`generator expressions <cmake-generator-expressions(7)>`.
-  References to target names in generator expressions imply target-level
-  dependencies.
+  Use the :genex:`TARGET_FILE` generator expression to refer to the location
+  of a target later in the command line (i.e. as a command argument rather
+  than as the command to execute).
+
+  Whenever one of the following target based generator expressions are used as
+  a command to execute or is mentioned in a command argument, a target-level
+  dependency will be added automatically so that the mentioned target will be
+  built before this custom target (see policy :policy:`CMP0112`).
+
+    * ``TARGET_FILE``
+    * ``TARGET_LINKER_FILE``
+    * ``TARGET_SONAME_FILE``
+    * ``TARGET_PDB_FILE``
 
   The command and arguments are optional and if not specified an empty
   target will be created.
@@ -87,10 +113,17 @@ The options are:
   (``CMakeLists.txt`` file).  They will be brought up to date when
   the target is built.
 
+  .. versionchanged:: 3.16
+    A target-level dependency is added if any dependency is a byproduct
+    of a target or any of its build events in the same directory to ensure
+    the byproducts will be available before this target is built.
+
   Use the :command:`add_dependencies` command to add dependencies
   on other targets.
 
 ``COMMAND_EXPAND_LISTS``
+  .. versionadded:: 3.8
+
   Lists in ``COMMAND`` arguments will be expanded, including those
   created with
   :manual:`generator expressions <cmake-generator-expressions(7)>`,
@@ -99,6 +132,8 @@ The options are:
   to be properly expanded.
 
 ``JOB_POOL``
+  .. versionadded:: 3.15
+
   Specify a :prop_gbl:`pool <JOB_POOLS>` for the :generator:`Ninja`
   generator. Incompatible with ``USES_TERMINAL``, which implies
   the ``console`` pool.
@@ -121,6 +156,8 @@ The options are:
   tool-specific special characters.
 
 ``USES_TERMINAL``
+  .. versionadded:: 3.2
+
   The command will be given direct access to the terminal if possible.
   With the :generator:`Ninja` generator, this places the command in
   the ``console`` :prop_gbl:`pool <JOB_POOLS>`.
@@ -130,5 +167,15 @@ The options are:
   If it is a relative path it will be interpreted relative to the
   build tree directory corresponding to the current source directory.
 
-  Arguments to ``WORKING_DIRECTORY`` may use
-  :manual:`generator expressions <cmake-generator-expressions(7)>`.
+  .. versionadded:: 3.13
+    Arguments to ``WORKING_DIRECTORY`` may use
+    :manual:`generator expressions <cmake-generator-expressions(7)>`.
+
+Ninja Multi-Config
+^^^^^^^^^^^^^^^^^^
+
+.. versionadded:: 3.20
+
+  ``add_custom_target`` supports the :generator:`Ninja Multi-Config`
+  generator's cross-config capabilities. See the generator documentation
+  for more information.

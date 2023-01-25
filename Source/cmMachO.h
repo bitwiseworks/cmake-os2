@@ -1,15 +1,14 @@
 /* Distributed under the OSI-approved BSD 3-Clause License.  See accompanying
    file Copyright.txt or https://cmake.org/licensing for details.  */
-#ifndef cmMachO_h
-#define cmMachO_h
+#pragma once
 
 #include "cmConfigure.h" // IWYU pragma: keep
 
 #include <iosfwd>
 #include <string>
 
-#if !defined(CMAKE_USE_MACH_PARSER)
-#  error "This file may be included only if CMAKE_USE_MACH_PARSER is enabled."
+#if !defined(CMake_USE_MACH_PARSER)
+#  error "This file may be included only if CMake_USE_MACH_PARSER is enabled."
 #endif
 
 class cmMachOInternal;
@@ -41,7 +40,5 @@ public:
 private:
   friend class cmMachOInternal;
   bool Valid() const;
-  cmMachOInternal* Internal;
+  std::unique_ptr<cmMachOInternal> Internal;
 };
-
-#endif

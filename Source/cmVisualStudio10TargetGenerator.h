@@ -1,7 +1,6 @@
 /* Distributed under the OSI-approved BSD 3-Clause License.  See accompanying
    file Copyright.txt or https://cmake.org/licensing for details.  */
-#ifndef cmVisualStudioTargetGenerator_h
-#define cmVisualStudioTargetGenerator_h
+#pragma once
 
 #include "cmConfigure.h" // IWYU pragma: keep
 
@@ -10,12 +9,14 @@
 #include <memory>
 #include <set>
 #include <string>
+#include <unordered_map>
 #include <vector>
+
+#include "cmGeneratorTarget.h"
 
 class cmComputeLinkInformation;
 class cmCustomCommand;
 class cmGeneratedFileStream;
-class cmGeneratorTarget;
 class cmGlobalVisualStudio10Generator;
 class cmLocalVisualStudio10Generator;
 class cmMakefile;
@@ -68,17 +69,17 @@ private:
   void WriteExtraSource(Elem& e1, cmSourceFile const* sf);
   void WriteNsightTegraConfigurationValues(Elem& e1,
                                            std::string const& config);
+  void WriteAndroidConfigurationValues(Elem& e1, std::string const& config);
   void WriteSource(Elem& e2, cmSourceFile const* sf);
   void WriteExcludeFromBuild(Elem& e2,
                              std::vector<size_t> const& exclude_configs);
   void WriteAllSources(Elem& e0);
   void WritePackageReferences(Elem& e0);
-  void WritePackageReference(Elem& e1, std::string const& ref,
-                             std::string const& version);
   void WriteDotNetReferences(Elem& e0);
   void WriteDotNetReference(Elem& e1, std::string const& ref,
                             std::string const& hint,
                             std::string const& config);
+  void WriteDotNetDocumentationFile(Elem& e0);
   void WriteImports(Elem& e0);
   void WriteDotNetReferenceCustomTags(Elem& e2, std::string const& ref);
   void WriteEmbeddedResourceGroup(Elem& e0);
@@ -142,7 +143,7 @@ private:
                           std::string const& script,
                           std::string const& additional_inputs,
                           std::string const& outputs,
-                          std::string const& comment);
+                          std::string const& comment, bool symbolic);
   void WriteCustomRuleCSharp(Elem& e0, std::string const& config,
                              std::string const& commandName,
                              std::string const& script,
@@ -164,7 +165,7 @@ private:
   void WriteLibOptions(Elem& e1, std::string const& config);
   void WriteManifestOptions(Elem& e1, std::string const& config);
   void WriteEvents(Elem& e1, std::string const& configName);
-  void WriteEvent(Elem& e1, const char* name,
+  void WriteEvent(Elem& e1, std::string const& name,
                   std::vector<cmCustomCommand> const& commands,
                   std::string const& configName);
   void WriteGroupSources(Elem& e0, std::string const& name,
@@ -182,12 +183,14 @@ private:
                                  std::map<std::string, std::string>& tags);
   void WriteCSharpSourceProperties(
     Elem& e2, const std::map<std::string, std::string>& tags);
-  void GetCSharpSourceLink(cmSourceFile const* sf, std::string& link);
+  std::string GetCSharpSourceLink(cmSourceFile const* source);
+
+  void WriteStdOutEncodingUtf8(Elem& e1);
 
 private:
   friend class cmVS10GeneratorOptions;
-  typedef cmVS10GeneratorOptions Options;
-  typedef std::map<std::string, std::unique_ptr<Options>> OptionsMap;
+  using Options = cmVS10GeneratorOptions;
+  using OptionsMap = std::map<std::string, std::unique_ptr<Options>>;
   OptionsMap ClOptions;
   OptionsMap RcOptions;
   OptionsMap CudaOptions;
@@ -212,6 +215,7 @@ private:
   bool MSTools;
   bool Managed;
   bool NsightTegra;
+  bool Android;
   unsigned int NsightTegraVersion[4];
   bool TargetCompileAsWinRT;
   std::set<std::string> IPOEnabledConfigurations;
@@ -224,18 +228,33 @@ private:
   std::string DefaultArtifactDir;
   bool AddedDefaultCertificate = false;
   // managed C++/C# relevant members
-  typedef std::pair<std::string, std::string> DotNetHintReference;
-  typedef std::vector<DotNetHintReference> DotNetHintReferenceList;
-  typedef std::map<std::string, DotNetHintReferenceList>
-    DotNetHintReferenceMap;
+  using DotNetHintReference = std::pair<std::string, std::string>;
+  using DotNetHintReferenceList = std::vector<DotNetHintReference>;
+  using DotNetHintReferenceMap =
+    std::map<std::string, DotNetHintReferenceList>;
   DotNetHintReferenceMap DotNetHintReferences;
-  typedef std::set<std::string> UsingDirectories;
-  typedef std::map<std::string, UsingDirectories> UsingDirectoriesMap;
+  using UsingDirectories = std::set<std::string>;
+  using UsingDirectoriesMap = std::map<std::string, UsingDirectories>;
   UsingDirectoriesMap AdditionalUsingDirectories;
 
-  typedef std::map<std::string, ToolSources> ToolSourceMap;
+  using ToolSourceMap = std::map<std::string, ToolSources>;
   ToolSourceMap Tools;
+
+  std::set<std::string> ExpectedResxHeaders;
+  std::set<std::string> ExpectedXamlHeaders;
+  std::set<std::string> ExpectedXamlSources;
+  std::vector<cmSourceFile const*> ResxObjs;
+  std::vector<cmSourceFile const*> XamlObjs;
+  void ClassifyAllConfigSources();
+  void ClassifyAllConfigSource(cmGeneratorTarget::AllConfigSource const& acs);
+
+  using ConfigToSettings =
+    std::unordered_map<std::string,
+                       std::unordered_map<std::string, std::string>>;
+  std::unordered_map<std::string, ConfigToSettings> ParsedToolTargetSettings;
+  bool PropertyIsSameInAllConfigs(const ConfigToSettings& toolSettings,
+                                  const std::string& propName);
+  void ParseSettingsProperty(const std::string& settingsPropertyValue,
+                             ConfigToSettings& toolSettings);
   std::string GetCMakeFilePath(const char* name) const;
 };
-
-#endif

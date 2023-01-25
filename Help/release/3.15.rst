@@ -332,6 +332,15 @@ Deprecated and Removed Features
 Other Changes
 =============
 
+* If a feature specified by :command:`target_compile_features` is available
+  in the compiler's default standard level, CMake 3.14 and below incorrectly
+  added unnecessary ``-std=`` flags that could lower the standard level.
+  This bug has been fixed in CMake 3.15.  This behavior change may expose
+  bugs in existing projects that were relying on undocumented implementation
+  details.  Specifying compile features only ensures that the compiler runs
+  in a mode that has those features, not that any specific standard level is
+  used or explicit ``-std=`` flag passed.
+
 * CMake learned how to compile C++14 with the IBM AIX XL compiler
   and the SunPro compiler and to compile C++20 with the AppleClang compiler.
 
@@ -376,3 +385,12 @@ Changes made since CMake 3.15.0 include the following.
 * ``CrayPrgEnv`` compiler wrapper support has been updated for the 19.06
   release of the Cray Programming Environment for which the default linking
   mode on XC Cray systems is now dynamic instead of static.
+
+3.15.4
+------
+
+* In CMake 3.15.0 through 3.15.3, the :prop_dir:`EXCLUDE_FROM_ALL`
+  directory property was regressed from pre-3.14 behavior and caused
+  targets within the directory to be excluded even from its own "all".
+  This has been fixed.
+  The bug also existed in 3.14.0 through 3.14.6 and is fixed in 3.14.7.

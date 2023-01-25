@@ -2,19 +2,20 @@
    file Copyright.txt or https://cmake.org/licensing for details.  */
 #include "cmParseBlanketJSCoverage.h"
 
+#include <cstdio>
+#include <cstdlib>
+
+#include "cmsys/FStream.hxx"
+
 #include "cmCTest.h"
 #include "cmCTestCoverageHandler.h"
 #include "cmSystemTools.h"
 
-#include "cmsys/FStream.hxx"
-#include <stdio.h>
-#include <stdlib.h>
-
 class cmParseBlanketJSCoverage::JSONParser
 {
 public:
-  typedef cmCTestCoverageHandlerContainer::SingleFileCoverageVector
-    FileLinesType;
+  using FileLinesType =
+    cmCTestCoverageHandlerContainer::SingleFileCoverageVector;
   JSONParser(cmCTestCoverageHandlerContainer& cont)
     : Coverage(cont)
   {
@@ -65,7 +66,7 @@ public:
         }
         foundFile = true;
         inSource = false;
-        filename = getValue(line, 0);
+        filename = this->getValue(line, 0);
       } else if ((line.find("coverage") != std::string::npos) && foundFile &&
                  inSource) {
         /*
@@ -77,7 +78,7 @@ public:
          *  FoundFile and foundSource ensure that
          *  only the value of the line coverage is captured
          */
-        std::string result = getValue(line, 1);
+        std::string result = this->getValue(line, 1);
         result = result.substr(2);
         if (result == "\"\"") {
           // Empty quotation marks indicate that the
@@ -110,7 +111,8 @@ cmParseBlanketJSCoverage::cmParseBlanketJSCoverage(
 {
 }
 
-bool cmParseBlanketJSCoverage::LoadCoverageData(std::vector<std::string> files)
+bool cmParseBlanketJSCoverage::LoadCoverageData(
+  std::vector<std::string> const& files)
 {
   cmCTestOptionalLog(this->CTest, HANDLER_VERBOSE_OUTPUT,
                      "Found " << files.size() << " Files" << std::endl,

@@ -1,7 +1,28 @@
 /* Distributed under the OSI-approved BSD 3-Clause License.  See accompanying
    file Copyright.txt or https://cmake.org/licensing for details.  */
-#ifndef cmStandardLexer_h
-#define cmStandardLexer_h
+#pragma once
+
+#if defined(__linux)
+/* Needed for glibc < 2.12 */
+// NOLINTNEXTLINE(bugprone-reserved-identifier)
+#  define _XOPEN_SOURCE 600
+#endif
+#if !defined(_POSIX_C_SOURCE) && !defined(_WIN32) && !defined(__sun) &&       \
+  !defined(__OpenBSD__)
+/* POSIX APIs are needed */
+// NOLINTNEXTLINE(bugprone-reserved-identifier)
+#  define _POSIX_C_SOURCE 200809L
+#endif
+#if defined(__sun) && defined(__GNUC__) && !defined(__cplusplus)
+/* C sources: for fileno and strdup */
+// NOLINTNEXTLINE(bugprone-reserved-identifier)
+#  define _XOPEN_SOURCE 600
+#endif
+#if defined(__FreeBSD__) || defined(__NetBSD__)
+/* For isascii */
+// NOLINTNEXTLINE(bugprone-reserved-identifier)
+#  define _XOPEN_SOURCE 700
+#endif
 
 #include "cmsys/Configure.h" // IWYU pragma: keep
 
@@ -50,12 +71,10 @@
 #define YY_NO_UNPUT 1
 #define ECHO
 
-#include "cm_kwiml.h"
+#include <cm3p/kwiml/int.h>
 typedef KWIML_INT_int8_t flex_int8_t;
 typedef KWIML_INT_uint8_t flex_uint8_t;
 typedef KWIML_INT_int16_t flex_int16_t;
 typedef KWIML_INT_uint16_t flex_uint16_t;
 typedef KWIML_INT_int32_t flex_int32_t;
 typedef KWIML_INT_uint32_t flex_uint32_t;
-
-#endif

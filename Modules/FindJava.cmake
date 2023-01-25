@@ -13,6 +13,9 @@ to specify a Java installation prefix explicitly.
 
 See also the :module:`FindJNI` module to find Java Native Interface (JNI).
 
+.. versionadded:: 3.10
+  Added support for Java 9+ version parsing.
+
 Specify one or more of the following components as you call this find module. See example below.
 
 ::
@@ -41,7 +44,9 @@ This module sets the following result variables:
   Java_VERSION_TWEAK        = The tweak version of the package found (after '_')
   Java_VERSION              = This is set to: $major[.$minor[.$patch[.$tweak]]]
 
-
+.. versionadded:: 3.4
+  Added the ``Java_IDLJ_EXECUTABLE`` and ``Java_JARSIGNER_EXECUTABLE``
+  variables.
 
 The minimum required version of Java can be specified using the
 :command:`find_package` syntax, e.g.
@@ -85,7 +90,7 @@ if(_JAVA_HOME)
 endif()
 if (WIN32)
   macro (_JAVA_GET_INSTALLED_VERSIONS _KIND)
-    execute_process(COMMAND REG QUERY HKLM\\SOFTWARE\\JavaSoft\\${_KIND} /f "." /k
+    execute_process(COMMAND REG QUERY HKLM\\SOFTWARE\\JavaSoft\\${_KIND}
       RESULT_VARIABLE _JAVA_RESULT
       OUTPUT_VARIABLE _JAVA_VERSIONS
       ERROR_QUIET)
@@ -153,16 +158,15 @@ find_program(Java_JAVA_EXECUTABLE
 )
 
 if(Java_JAVA_EXECUTABLE)
-    execute_process(COMMAND ${Java_JAVA_EXECUTABLE} -version
+    execute_process(COMMAND "${Java_JAVA_EXECUTABLE}" -version
       RESULT_VARIABLE res
       OUTPUT_VARIABLE var
       ERROR_VARIABLE var # sun-java output to stderr
       OUTPUT_STRIP_TRAILING_WHITESPACE
       ERROR_STRIP_TRAILING_WHITESPACE)
     if( res )
-      if(var MATCHES "No Java runtime present, requesting install")
-        set_property(CACHE Java_JAVA_EXECUTABLE
-          PROPERTY VALUE "Java_JAVA_EXECUTABLE-NOTFOUND")
+      if(var MATCHES "Unable to locate a Java Runtime to invoke|No Java runtime present, requesting install")
+        set(Java_JAVA_EXECUTABLE Java_JAVA_EXECUTABLE-NOTFOUND)
       elseif(${Java_FIND_REQUIRED})
         message( FATAL_ERROR "Error executing java -version" )
       else()

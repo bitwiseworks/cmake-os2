@@ -2,11 +2,11 @@
    file Copyright.txt or https://cmake.org/licensing for details.  */
 #include "cmXMLSafe.h"
 
-#include "cm_utf8.h"
-
+#include <cstdio>
+#include <cstring>
 #include <sstream>
-#include <stdio.h>
-#include <string.h>
+
+#include "cm_utf8.h"
 
 cmXMLSafe::cmXMLSafe(const char* s)
   : Data(s)
@@ -28,7 +28,7 @@ cmXMLSafe& cmXMLSafe::Quotes(bool b)
   return *this;
 }
 
-std::string cmXMLSafe::str()
+std::string cmXMLSafe::str() const
 {
   std::ostringstream ss;
   ss << *this;

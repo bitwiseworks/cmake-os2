@@ -10,7 +10,7 @@ Find the OpenGL Extension Wrangler Library (GLEW)
 Input Variables
 ^^^^^^^^^^^^^^^
 
-The following variables may be set to influence this module’s behavior:
+The following variables may be set to influence this module's behavior:
 
 ``GLEW_USE_STATIC_LIBS``
   to find and create :prop_tgt:`IMPORTED` target for static linkage.
@@ -20,6 +20,8 @@ The following variables may be set to influence this module’s behavior:
 
 Imported Targets
 ^^^^^^^^^^^^^^^^
+
+.. versionadded:: 3.1
 
 This module defines the following :ref:`Imported Targets <Imported Targets>`:
 
@@ -54,6 +56,9 @@ This module defines the following variables:
   GLEW minor version
 ``GLEW_VERSION_MICRO``
   GLEW micro version
+
+.. versionadded:: 3.7
+  Debug and Release variants are found separately.
 
 #]=======================================================================]
 
@@ -126,12 +131,11 @@ if(GLEW_VERBOSE)
   message(STATUS "FindGLEW: GLEW_INCLUDE_DIRS: ${GLEW_INCLUDE_DIRS}")
 endif()
 
-if("${CMAKE_GENERATOR_PLATFORM}" MATCHES "x64" OR "${CMAKE_GENERATOR}" MATCHES "Win64")
+if(CMAKE_SIZEOF_VOID_P EQUAL 8)
   set(_arch "x64")
 else()
   set(_arch "Win32")
 endif()
-
 
 set(__GLEW_CURRENT_FIND_LIBRARY_SUFFIXES ${CMAKE_FIND_LIBRARY_SUFFIXES})
 
@@ -139,11 +143,13 @@ __glew_set_find_library_suffix(SHARED)
 
 find_library(GLEW_SHARED_LIBRARY_RELEASE
              NAMES GLEW glew glew32
+             NAMES_PER_DIR
              PATH_SUFFIXES lib lib64 libx32 lib/Release/${_arch}
              PATHS ENV GLEW_ROOT)
 
 find_library(GLEW_SHARED_LIBRARY_DEBUG
              NAMES GLEWd glewd glew32d
+             NAMES_PER_DIR
              PATH_SUFFIXES lib lib64
              PATHS ENV GLEW_ROOT)
 
@@ -152,11 +158,13 @@ __glew_set_find_library_suffix(STATIC)
 
 find_library(GLEW_STATIC_LIBRARY_RELEASE
              NAMES GLEW glew glew32s
+             NAMES_PER_DIR
              PATH_SUFFIXES lib lib64 libx32 lib/Release/${_arch}
              PATHS ENV GLEW_ROOT)
 
 find_library(GLEW_STATIC_LIBRARY_DEBUG
              NAMES GLEWds glewds glew32ds
+             NAMES_PER_DIR
              PATH_SUFFIXES lib lib64
              PATHS ENV GLEW_ROOT)
 

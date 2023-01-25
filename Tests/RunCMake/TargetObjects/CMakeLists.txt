@@ -1,3 +1,3 @@
-cmake_minimum_required(VERSION 2.8.4)
-project(${RunCMake_TEST})
+cmake_minimum_required(VERSION 3.3)
+project(${RunCMake_TEST} LANGUAGES NONE)
 include(${RunCMake_TEST}.cmake)

@@ -18,6 +18,8 @@ macro(__compiler_xl lang)
   set(CMAKE_${lang}_RESPONSE_FILE_FLAG "-qoptfile=")
   set(CMAKE_${lang}_RESPONSE_FILE_LINK_FLAG "-qoptfile=")
 
+  set(CMAKE_SHARED_LIBRARY_CREATE_${lang}_FLAGS "-qmkshrobj")
+
   set(CMAKE_${lang}_LINKER_WRAPPER_FLAG "-Wl,")
   set(CMAKE_${lang}_LINKER_WRAPPER_FLAG_SEP ",")
 
@@ -28,5 +30,5 @@ macro(__compiler_xl lang)
   set(CMAKE_${lang}_CREATE_PREPROCESSED_SOURCE "<CMAKE_${lang}_COMPILER> <DEFINES> <INCLUDES> <FLAGS> -E <SOURCE> > <PREPROCESSED_SOURCE>")
   set(CMAKE_${lang}_CREATE_ASSEMBLY_SOURCE     "<CMAKE_${lang}_COMPILER> <DEFINES> <INCLUDES> <FLAGS> -S <SOURCE> -o <ASSEMBLY_SOURCE>")
 
-  set(CMAKE_DEPFILE_FLAGS_${lang} "-MF <DEPFILE> -qmakedep=gcc")
+  set(CMAKE_DEPFILE_FLAGS_${lang} "-MF <DEP_FILE> -qmakedep=gcc")
 endmacro()

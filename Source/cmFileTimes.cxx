@@ -2,14 +2,16 @@
    file Copyright.txt or https://cmake.org/licensing for details.  */
 #include "cmFileTimes.h"
 
-#include "cmAlgorithms.h"
-#include "cm_sys_stat.h"
-
 #include <utility>
 
+#include <cm/memory>
+
+#include "cm_sys_stat.h"
+
 #if defined(_WIN32)
-#  include "cmSystemTools.h"
 #  include <windows.h>
+
+#  include "cmSystemTools.h"
 #else
 #  include <utime.h>
 #endif
@@ -60,14 +62,14 @@ public:
 cmFileTimes::cmFileTimes() = default;
 cmFileTimes::cmFileTimes(std::string const& fileName)
 {
-  Load(fileName);
+  this->Load(fileName);
 }
 cmFileTimes::~cmFileTimes() = default;
 
 bool cmFileTimes::Load(std::string const& fileName)
 {
   std::unique_ptr<Times> ptr;
-  if (IsValid()) {
+  if (this->IsValid()) {
     // Invalidate this and re-use times
     ptr.swap(this->times);
   } else {
@@ -101,7 +103,7 @@ bool cmFileTimes::Load(std::string const& fileName)
 
 bool cmFileTimes::Store(std::string const& fileName) const
 {
-  if (!IsValid()) {
+  if (!this->IsValid()) {
     return false;
   }
 

@@ -1,11 +1,10 @@
 /* Distributed under the OSI-approved BSD 3-Clause License.  See accompanying
    file Copyright.txt or https://cmake.org/licensing for details.  */
-#ifndef cmProcessOutput_h
-#define cmProcessOutput_h
+#pragma once
 
 #include "cmConfigure.h" // IWYU pragma: keep
 
-#include <stddef.h>
+#include <cstddef>
 #include <string>
 #include <vector>
 
@@ -48,7 +47,7 @@ public:
    * 0 as \a maxSize.
    */
   cmProcessOutput(Encoding encoding = Auto, unsigned int maxSize = 1024);
-  ~cmProcessOutput();
+  ~cmProcessOutput() = default;
   /**
    * Decode \a raw string using external encoding to internal
    * encoding in \a decoded.
@@ -84,5 +83,3 @@ private:
   bool DoDecodeText(std::string raw, std::string& decoded, wchar_t* lastChar);
 #endif
 };
-
-#endif

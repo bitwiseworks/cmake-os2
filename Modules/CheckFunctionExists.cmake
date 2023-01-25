@@ -28,12 +28,14 @@ way the check is run:
   a :ref:`;-list <CMake Language Lists>` of header search paths to pass to
   the compiler.
 ``CMAKE_REQUIRED_LINK_OPTIONS``
-  a :ref:`;-list <CMake Language Lists>` of options to add to the link command.
+  .. versionadded:: 3.14
+    a :ref:`;-list <CMake Language Lists>` of options to add to the link command.
 ``CMAKE_REQUIRED_LIBRARIES``
   a :ref:`;-list <CMake Language Lists>` of libraries to add to the link
   command. See policy :policy:`CMP0075`.
 ``CMAKE_REQUIRED_QUIET``
-  execute quietly without messages.
+  .. versionadded:: 3.1
+    execute quietly without messages.
 
 .. note::
 
@@ -57,7 +59,7 @@ macro(CHECK_FUNCTION_EXISTS FUNCTION VARIABLE)
     set(MACRO_CHECK_FUNCTION_DEFINITIONS
       "-DCHECK_FUNCTION_EXISTS=${FUNCTION} ${CMAKE_REQUIRED_FLAGS}")
     if(NOT CMAKE_REQUIRED_QUIET)
-      message(STATUS "Looking for ${FUNCTION}")
+      message(CHECK_START "Looking for ${FUNCTION}")
     endif()
     if(CMAKE_REQUIRED_LINK_OPTIONS)
       set(CHECK_FUNCTION_EXISTS_ADD_LINK_OPTIONS
@@ -101,14 +103,14 @@ macro(CHECK_FUNCTION_EXISTS FUNCTION VARIABLE)
     if(${VARIABLE})
       set(${VARIABLE} 1 CACHE INTERNAL "Have function ${FUNCTION}")
       if(NOT CMAKE_REQUIRED_QUIET)
-        message(STATUS "Looking for ${FUNCTION} - found")
+        message(CHECK_PASS "found")
       endif()
       file(APPEND ${CMAKE_BINARY_DIR}${CMAKE_FILES_DIRECTORY}/CMakeOutput.log
         "Determining if the function ${FUNCTION} exists passed with the following output:\n"
         "${OUTPUT}\n\n")
     else()
       if(NOT CMAKE_REQUIRED_QUIET)
-        message(STATUS "Looking for ${FUNCTION} - not found")
+        message(CHECK_FAIL "not found")
       endif()
       set(${VARIABLE} "" CACHE INTERNAL "Have function ${FUNCTION}")
       file(APPEND ${CMAKE_BINARY_DIR}${CMAKE_FILES_DIRECTORY}/CMakeError.log

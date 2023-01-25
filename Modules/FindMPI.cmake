@@ -12,6 +12,10 @@ high-performance distributed-memory parallel applications, and is
 typically deployed on a cluster.  MPI is a standard interface (defined
 by the MPI forum) for which many implementations are available.
 
+.. versionadded:: 3.10
+  Major overhaul of the module: many new variables, per-language components,
+  support for a wider variety of runtimes.
+
 Variables for using MPI
 ^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -50,7 +54,8 @@ project, where ``<lang>`` is one of C, CXX, or Fortran:
 ``MPI_<lang>_LIBRARIES``
   All libraries to link MPI programs against.
 
-Additionally, the following :prop_tgt:`IMPORTED` targets are defined:
+.. versionadded:: 3.9
+  Additionally, the following :prop_tgt:`IMPORTED` targets are defined:
 
 ``MPI::MPI_<lang>``
   Target for using MPI from ``<lang>``.
@@ -96,15 +101,27 @@ For running MPI programs, the module sets the following variables
 Variables for locating MPI
 ^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-This module performs a three step search for an MPI implementation:
+This module performs a four step search for an MPI implementation:
 
-1. Check if the compiler has MPI support built-in. This is the case if the user passed a
+1. Search for ``MPIEXEC_EXECUTABLE`` and, if found, use its base directory.
+2. Check if the compiler has MPI support built-in. This is the case if the user passed a
    compiler wrapper as ``CMAKE_<LANG>_COMPILER`` or if they're on a Cray system.
-2. Attempt to find an MPI compiler wrapper and determine the compiler information from it.
-3. Try to find an MPI implementation that does not ship such a wrapper by guessing settings.
+3. Attempt to find an MPI compiler wrapper and determine the compiler information from it.
+4. Try to find an MPI implementation that does not ship such a wrapper by guessing settings.
    Currently, only Microsoft MPI and MPICH2 on Windows are supported.
 
-For controlling the second step, the following variables may be set:
+For controlling the ``MPIEXEC_EXECUTABLE`` step, the following variables may be set:
+
+``MPIEXEC_EXECUTABLE``
+  Manually specify the location of ``mpiexec``.
+``MPI_HOME``
+  Specify the base directory of the MPI installation.
+``ENV{MPI_HOME}``
+  Environment variable to specify the base directory of the MPI installation.
+``ENV{I_MPI_ROOT}``
+  Environment variable to specify the base directory of the MPI installation.
+
+For controlling the compiler wrapper step, the following variables may be set:
 
 ``MPI_<lang>_COMPILER``
   Search for the specified compiler wrapper and use it.
@@ -224,8 +241,10 @@ If the following variables are set to true, the respective search will be perfor
 Backward Compatibility
 ^^^^^^^^^^^^^^^^^^^^^^
 
+.. deprecated:: 3.10
+
 For backward compatibility with older versions of FindMPI, these
-variables are set, but deprecated:
+variables are set:
 
 ::
 
@@ -275,6 +294,11 @@ if(WIN32)
   set(_MPI_Intel_CXX_COMPILER_NAMES          mpiicpc.bat)
   set(_MPI_Intel_Fortran_COMPILER_NAMES      mpiifort.bat mpif77.bat mpif90.bat)
 
+  # Intel MPI compiler names
+  set(_MPI_IntelLLVM_C_COMPILER_NAMES            mpiicc.bat)
+  set(_MPI_IntelLLVM_CXX_COMPILER_NAMES          mpiicpc.bat)
+  set(_MPI_IntelLLVM_Fortran_COMPILER_NAMES      mpiifort.bat mpif77.bat mpif90.bat)
+
   # Intel MPI compiler names for MSMPI
   set(_MPI_MSVC_C_COMPILER_NAMES             mpicl.bat)
   set(_MPI_MSVC_CXX_COMPILER_NAMES           mpicl.bat)
@@ -283,12 +307,17 @@ else()
   set(_MPI_Intel_C_COMPILER_NAMES            mpiicc)
   set(_MPI_Intel_CXX_COMPILER_NAMES          mpiicpc  mpiicxx mpiic++)
   set(_MPI_Intel_Fortran_COMPILER_NAMES      mpiifort mpiif95 mpiif90 mpiif77)
+
+  # Intel compiler names
+  set(_MPI_IntelLLVM_C_COMPILER_NAMES            mpiicc)
+  set(_MPI_IntelLLVM_CXX_COMPILER_NAMES          mpiicpc  mpiicxx mpiic++)
+  set(_MPI_IntelLLVM_Fortran_COMPILER_NAMES      mpiifort mpiif95 mpiif90 mpiif77)
 endif()
 
 # PGI compiler names
-set(_MPI_PGI_C_COMPILER_NAMES              mpipgcc mppgcc)
-set(_MPI_PGI_CXX_COMPILER_NAMES            mpipgCC mppgCC)
-set(_MPI_PGI_Fortran_COMPILER_NAMES        mpipgf95 mpipgf90 mppgf95 mppgf90 mpipgf77 mppgf77)
+set(_MPI_PGI_C_COMPILER_NAMES              mpipgicc mpipgcc mppgcc)
+set(_MPI_PGI_CXX_COMPILER_NAMES            mpipgic++ mpipgCC mppgCC)
+set(_MPI_PGI_Fortran_COMPILER_NAMES        mpipgifort mpipgf95 mpipgf90 mppgf95 mppgf90 mpipgf77 mppgf77)
 
 # XLC MPI Compiler names
 set(_MPI_XL_C_COMPILER_NAMES               mpxlc      mpxlc_r    mpixlc     mpixlc_r)
@@ -308,13 +337,17 @@ set(_MPI_XL_Fortran_COMPILER_NAMES         mpixlf95   mpixlf95_r mpxlf95 mpxlf95
 # pick up the right settings for it.
 foreach (LANG IN ITEMS C CXX Fortran)
   set(_MPI_${LANG}_COMPILER_NAMES "")
-  foreach (id IN ITEMS GNU Intel MSVC PGI XL)
+  foreach (id IN ITEMS GNU Intel IntelLLVM MSVC PGI XL)
     if (NOT CMAKE_${LANG}_COMPILER_ID OR CMAKE_${LANG}_COMPILER_ID STREQUAL id)
-      list(APPEND _MPI_${LANG}_COMPILER_NAMES ${_MPI_${id}_${LANG}_COMPILER_NAMES}${MPI_EXECUTABLE_SUFFIX})
+      foreach(_COMPILER_NAME IN LISTS _MPI_${id}_${LANG}_COMPILER_NAMES)
+        list(APPEND _MPI_${LANG}_COMPILER_NAMES ${_COMPILER_NAME}${MPI_EXECUTABLE_SUFFIX})
+      endforeach()
     endif()
     unset(_MPI_${id}_${LANG}_COMPILER_NAMES)
   endforeach()
-  list(APPEND _MPI_${LANG}_COMPILER_NAMES ${_MPI_${LANG}_GENERIC_COMPILER_NAMES}${MPI_EXECUTABLE_SUFFIX})
+  foreach(_COMPILER_NAME IN LISTS _MPI_${LANG}_GENERIC_COMPILER_NAMES)
+    list(APPEND _MPI_${LANG}_COMPILER_NAMES ${_COMPILER_NAME}${MPI_EXECUTABLE_SUFFIX})
+  endforeach()
   unset(_MPI_${LANG}_GENERIC_COMPILER_NAMES)
 endforeach()
 
@@ -630,6 +663,7 @@ function (_MPI_interrogate_compiler LANG)
   foreach(_MPI_INCLUDE_PATH IN LISTS MPI_ALL_INCLUDE_PATHS)
     string(REGEX REPLACE "^ ?${_MPI_PREPROCESSOR_FLAG_REGEX}${CMAKE_INCLUDE_FLAG_${LANG}} *" "" _MPI_INCLUDE_PATH "${_MPI_INCLUDE_PATH}")
     string(REPLACE "\"" "" _MPI_INCLUDE_PATH "${_MPI_INCLUDE_PATH}")
+    string(REPLACE "'" "" _MPI_INCLUDE_PATH "${_MPI_INCLUDE_PATH}")
     get_filename_component(_MPI_INCLUDE_PATH "${_MPI_INCLUDE_PATH}" REALPATH)
     list(APPEND MPI_INCLUDE_DIRS_WORK "${_MPI_INCLUDE_PATH}")
   endforeach()
@@ -744,7 +778,7 @@ function (_MPI_interrogate_compiler LANG)
   # Save the explicitly given link directories
   set(MPI_LINK_DIRECTORIES_LEFTOVER "${MPI_LINK_DIRECTORIES_WORK}")
 
-  # An MPI compiler wrapper could have its MPI libraries in the implictly
+  # An MPI compiler wrapper could have its MPI libraries in the implicitly
   # linked directories of the compiler itself.
   if(DEFINED CMAKE_${LANG}_IMPLICIT_LINK_DIRECTORIES)
     list(APPEND MPI_LINK_DIRECTORIES_WORK "${CMAKE_${LANG}_IMPLICIT_LINK_DIRECTORIES}")
@@ -826,8 +860,8 @@ function (_MPI_interrogate_compiler LANG)
   if(NOT MPI_${LANG}_COMPILE_DEFINITIONS)
     set(MPI_${LANG}_COMPILE_DEFINITIONS      ${MPI_COMPILE_DEFINITIONS_WORK} CACHE STRING "MPI ${LANG} compilation definitions"        FORCE)
   endif()
-  if(NOT MPI_${LANG}_ADDITIONAL_INCLUDE_DIRS)
-    set(MPI_${LANG}_ADDITIONAL_INCLUDE_DIRS  ${MPI_INCLUDE_DIRS_WORK}        CACHE STRING "MPI ${LANG} additional include directories" FORCE)
+  if(NOT MPI_${LANG}_COMPILER_INCLUDE_DIRS)
+    set(MPI_${LANG}_COMPILER_INCLUDE_DIRS    ${MPI_INCLUDE_DIRS_WORK}        CACHE STRING "MPI ${LANG} compiler wrapper include directories" FORCE)
   endif()
   if(NOT MPI_${LANG}_LINK_FLAGS)
     set(MPI_${LANG}_LINK_FLAGS               ${MPI_LINK_FLAGS_WORK}          CACHE STRING "MPI ${LANG} linker flags"                   FORCE)
@@ -851,11 +885,11 @@ function(_MPI_guess_settings LANG)
       # We first attempt to locate the msmpi.lib. Should be find it, we'll assume that the MPI present is indeed
       # Microsoft MPI.
       if("${CMAKE_SIZEOF_VOID_P}" EQUAL 8)
-        set(MPI_MSMPI_LIB_PATH "$ENV{MSMPI_LIB64}")
-        set(MPI_MSMPI_INC_PATH_EXTRA "$ENV{MSMPI_INC}/x64")
+        file(TO_CMAKE_PATH "$ENV{MSMPI_LIB64}" MPI_MSMPI_LIB_PATH)
+        file(TO_CMAKE_PATH "$ENV{MSMPI_INC}/x64" MPI_MSMPI_INC_PATH_EXTRA)
       else()
-        set(MPI_MSMPI_LIB_PATH "$ENV{MSMPI_LIB32}")
-        set(MPI_MSMPI_INC_PATH_EXTRA "$ENV{MSMPI_INC}/x86")
+        file(TO_CMAKE_PATH "$ENV{MSMPI_LIB32}" MPI_MSMPI_LIB_PATH)
+        file(TO_CMAKE_PATH "$ENV{MSMPI_INC}/x86" MPI_MSMPI_INC_PATH_EXTRA)
       endif()
 
       find_library(MPI_msmpi_LIBRARY
@@ -1056,34 +1090,28 @@ macro(_MPI_assemble_libraries LANG)
 endmacro()
 
 macro(_MPI_assemble_include_dirs LANG)
-  if("${MPI_${LANG}_COMPILER}" STREQUAL "${CMAKE_${LANG}_COMPILER}")
-    set(MPI_${LANG}_INCLUDE_DIRS "")
-  else()
-    set(MPI_${LANG}_INCLUDE_DIRS "${MPI_${LANG}_ADDITIONAL_INCLUDE_DIRS}")
-    if("${LANG}" MATCHES "(C|CXX)")
-      if(MPI_${LANG}_HEADER_DIR)
-        list(APPEND MPI_${LANG}_INCLUDE_DIRS "${MPI_${LANG}_HEADER_DIR}")
-      endif()
-    else() # Fortran
-      if(MPI_${LANG}_F77_HEADER_DIR)
-        list(APPEND MPI_${LANG}_INCLUDE_DIRS "${MPI_${LANG}_F77_HEADER_DIR}")
-      endif()
-      if(MPI_${LANG}_MODULE_DIR AND NOT "${MPI_${LANG}_MODULE_DIR}" IN_LIST MPI_${LANG}_INCLUDE_DIRS)
-        list(APPEND MPI_${LANG}_INCLUDE_DIRS "${MPI_${LANG}_MODULE_DIR}")
-      endif()
+  set(MPI_${LANG}_INCLUDE_DIRS
+    ${MPI_${LANG}_COMPILER_INCLUDE_DIRS}
+    ${MPI_${LANG}_ADDITIONAL_INCLUDE_DIRS}
+    )
+  if("${LANG}" MATCHES "(C|CXX)")
+    if(MPI_${LANG}_HEADER_DIR)
+      list(APPEND MPI_${LANG}_INCLUDE_DIRS "${MPI_${LANG}_HEADER_DIR}")
     endif()
-    if(MPI_${LANG}_ADDITIONAL_INCLUDE_VARS)
-      foreach(MPI_ADDITIONAL_INC_DIR IN LISTS MPI_${LANG}_ADDITIONAL_INCLUDE_VARS)
-        list(APPEND MPI_${LANG}_INCLUDE_DIRS "${MPI_${MPI_ADDITIONAL_INC_DIR}_INCLUDE_DIR}")
-      endforeach()
+  else() # Fortran
+    if(MPI_${LANG}_F77_HEADER_DIR)
+      list(APPEND MPI_${LANG}_INCLUDE_DIRS "${MPI_${LANG}_F77_HEADER_DIR}")
     endif()
+    if(MPI_${LANG}_MODULE_DIR)
+      list(APPEND MPI_${LANG}_INCLUDE_DIRS "${MPI_${LANG}_MODULE_DIR}")
+    endif()
+  endif()
+  if(MPI_${LANG}_INCLUDE_DIRS)
+    list(REMOVE_DUPLICATES MPI_${LANG}_INCLUDE_DIRS)
   endif()
 endmacro()
 
-function(_MPI_split_include_dirs LANG)
-  if("${MPI_${LANG}_COMPILER}" STREQUAL "${CMAKE_${LANG}_COMPILER}")
-    return()
-  endif()
+macro(_MPI_split_include_dirs LANG)
   # Backwards compatibility: Search INCLUDE_PATH if given.
   if(MPI_${LANG}_INCLUDE_PATH)
     list(APPEND MPI_${LANG}_ADDITIONAL_INCLUDE_DIRS "${MPI_${LANG}_INCLUDE_PATH}")
@@ -1093,23 +1121,30 @@ function(_MPI_split_include_dirs LANG)
   # For C/C++, we just need to have a look for mpi.h.
   if("${LANG}" MATCHES "(C|CXX)")
     find_path(MPI_${LANG}_HEADER_DIR "mpi.h"
-      HINTS ${MPI_${LANG}_ADDITIONAL_INCLUDE_DIRS}
+      HINTS
+        ${MPI_${LANG}_COMPILER_INCLUDE_DIRS}
+        ${MPI_${LANG}_ADDITIONAL_INCLUDE_DIRS}
     )
     mark_as_advanced(MPI_${LANG}_HEADER_DIR)
     if(MPI_${LANG}_ADDITIONAL_INCLUDE_DIRS)
       list(REMOVE_ITEM MPI_${LANG}_ADDITIONAL_INCLUDE_DIRS "${MPI_${LANG}_HEADER_DIR}")
     endif()
+
   # Fortran is more complicated here: An implementation could provide
   # any of the Fortran 77/90/2008 APIs for MPI. For example, MSMPI
   # only provides Fortran 77 and - if mpi.f90 is built - potentially
   # a Fortran 90 module.
   elseif("${LANG}" STREQUAL "Fortran")
     find_path(MPI_${LANG}_F77_HEADER_DIR "mpif.h"
-      HINTS ${MPI_${LANG}_ADDITIONAL_INCLUDE_DIRS}
+      HINTS
+        ${MPI_${LANG}_COMPILER_INCLUDE_DIRS}
+        ${MPI_${LANG}_ADDITIONAL_INCLUDE_DIRS}
     )
     find_path(MPI_${LANG}_MODULE_DIR
       NAMES "mpi.mod" "mpi_f08.mod"
-      HINTS ${MPI_${LANG}_ADDITIONAL_INCLUDE_DIRS}
+      HINTS
+        ${MPI_${LANG}_COMPILER_INCLUDE_DIRS}
+        ${MPI_${LANG}_ADDITIONAL_INCLUDE_DIRS}
     )
     if(MPI_${LANG}_ADDITIONAL_INCLUDE_DIRS)
       list(REMOVE_ITEM MPI_${LANG}_ADDITIONAL_INCLUDE_DIRS
@@ -1119,6 +1154,7 @@ function(_MPI_split_include_dirs LANG)
     endif()
     mark_as_advanced(MPI_${LANG}_F77_HEADER_DIR MPI_${LANG}_MODULE_DIR)
   endif()
+
   # Remove duplicates and default system directories from the list.
   if(MPI_${LANG}_ADDITIONAL_INCLUDE_DIRS)
     list(REMOVE_DUPLICATES MPI_${LANG}_ADDITIONAL_INCLUDE_DIRS)
@@ -1126,24 +1162,30 @@ function(_MPI_split_include_dirs LANG)
       list(REMOVE_ITEM MPI_${LANG}_ADDITIONAL_INCLUDE_DIRS ${MPI_IMPLICIT_INC_DIR})
     endforeach()
   endif()
+
   set(MPI_${LANG}_ADDITIONAL_INCLUDE_DIRS ${MPI_${LANG}_ADDITIONAL_INCLUDE_DIRS} CACHE STRING "MPI ${LANG} additional include directories" FORCE)
-endfunction()
+endmacro()
 
 macro(_MPI_create_imported_target LANG)
   if(NOT TARGET MPI::MPI_${LANG})
     add_library(MPI::MPI_${LANG} INTERFACE IMPORTED)
   endif()
 
-  # When this is consumed for compiling CUDA, use '-Xcompiler' to wrap '-pthread'.
-  string(REPLACE "-pthread" "$<$<COMPILE_LANGUAGE:CUDA>:SHELL:-Xcompiler >-pthread"
+  # When this is consumed for compiling CUDA, use '-Xcompiler' to wrap '-pthread' and '-fexceptions'.
+  string(REPLACE "-pthread" "$<$<COMPILE_LANG_AND_ID:CUDA,NVIDIA>:SHELL:-Xcompiler >-pthread"
     _MPI_${LANG}_COMPILE_OPTIONS "${MPI_${LANG}_COMPILE_OPTIONS}")
+  string(REPLACE "-fexceptions" "$<$<COMPILE_LANG_AND_ID:CUDA,NVIDIA>:SHELL:-Xcompiler >-fexceptions"
+    _MPI_${LANG}_COMPILE_OPTIONS "${_MPI_${LANG}_COMPILE_OPTIONS}")
   set_property(TARGET MPI::MPI_${LANG} PROPERTY INTERFACE_COMPILE_OPTIONS "${_MPI_${LANG}_COMPILE_OPTIONS}")
   unset(_MPI_${LANG}_COMPILE_OPTIONS)
 
   set_property(TARGET MPI::MPI_${LANG} PROPERTY INTERFACE_COMPILE_DEFINITIONS "${MPI_${LANG}_COMPILE_DEFINITIONS}")
 
   if(MPI_${LANG}_LINK_FLAGS)
-    set_property(TARGET MPI::MPI_${LANG} PROPERTY INTERFACE_LINK_OPTIONS "SHELL:${MPI_${LANG}_LINK_FLAGS}")
+    string(REPLACE "," "$<COMMA>" _MPI_${LANG}_LINK_FLAGS "${MPI_${LANG}_LINK_FLAGS}")
+    string(PREPEND _MPI_${LANG}_LINK_FLAGS "$<HOST_LINK:SHELL:")
+    string(APPEND _MPI_${LANG}_LINK_FLAGS ">")
+    set_property(TARGET MPI::MPI_${LANG} PROPERTY INTERFACE_LINK_OPTIONS "${_MPI_${LANG}_LINK_FLAGS}")
   endif()
   # If the compiler links MPI implicitly, no libraries will be found as they're contained within
   # CMAKE_<LANG>_IMPLICIT_LINK_LIBRARIES already.
@@ -1387,13 +1429,16 @@ foreach(LANG IN ITEMS C CXX Fortran)
     endif()
   else()
     set(_MPI_FIND_${LANG} FALSE)
+    if(${LANG} IN_LIST MPI_FIND_COMPONENTS)
+      string(APPEND _MPI_FAIL_REASON "MPI component '${LANG}' was requested, but language ${LANG} is not enabled.  ")
+    endif()
   endif()
   if(_MPI_FIND_${LANG})
     if( ${LANG} STREQUAL CXX AND NOT MPICXX IN_LIST MPI_FIND_COMPONENTS )
       set(MPI_CXX_SKIP_MPICXX FALSE CACHE BOOL "If true, the MPI-2 C++ bindings are disabled using definitions.")
       mark_as_advanced(MPI_CXX_SKIP_MPICXX)
     endif()
-    if(NOT (MPI_${LANG}_LIB_NAMES AND (MPI_${LANG}_INCLUDE_PATH OR MPI_${LANG}_INCLUDE_DIRS OR MPI_${LANG}_ADDITIONAL_INCLUDE_DIRS)))
+    if(NOT (MPI_${LANG}_LIB_NAMES AND (MPI_${LANG}_INCLUDE_PATH OR MPI_${LANG}_INCLUDE_DIRS OR MPI_${LANG}_COMPILER_INCLUDE_DIRS)))
       set(MPI_${LANG}_TRIED_IMPLICIT FALSE)
       set(MPI_${LANG}_WORKS_IMPLICIT FALSE)
       if(NOT MPI_${LANG}_COMPILER AND NOT MPI_ASSUME_NO_BUILTIN_MPI)
@@ -1478,7 +1523,7 @@ foreach(LANG IN ITEMS C CXX Fortran)
             if("${LANG}" STREQUAL "CXX" AND MPI_C_WRAPPER_FOUND)
               set(MPI_${LANG}_COMPILE_OPTIONS          ${MPI_C_COMPILE_OPTIONS}     CACHE STRING "MPI ${LANG} compilation options"           )
               set(MPI_${LANG}_COMPILE_DEFINITIONS      ${MPI_C_COMPILE_DEFINITIONS} CACHE STRING "MPI ${LANG} compilation definitions"       )
-              set(MPI_${LANG}_ADDITIONAL_INCLUDE_DIRS  ${MPI_C_INCLUDE_DIRS}        CACHE STRING "MPI ${LANG} additional include directories")
+              set(MPI_${LANG}_COMPILER_INCLUDE_DIRS    ${MPI_C_INCLUDE_DIRS}        CACHE STRING "MPI ${LANG} compiler wrapper include directories")
               set(MPI_${LANG}_LINK_FLAGS               ${MPI_C_LINK_FLAGS}          CACHE STRING "MPI ${LANG} linker flags"                  )
               set(MPI_${LANG}_LIB_NAMES                ${MPI_C_LIB_NAMES}           CACHE STRING "MPI ${LANG} libraries to link against"     )
             else()
@@ -1489,8 +1534,12 @@ foreach(LANG IN ITEMS C CXX Fortran)
       endif()
     endif()
 
-    _MPI_split_include_dirs(${LANG})
-    _MPI_assemble_include_dirs(${LANG})
+    if(NOT "${MPI_${LANG}_COMPILER}" STREQUAL "${CMAKE_${LANG}_COMPILER}")
+      _MPI_split_include_dirs(${LANG})
+      _MPI_assemble_include_dirs(${LANG})
+    else()
+      set(MPI_${LANG}_INCLUDE_DIRS "")
+    endif()
     _MPI_assemble_libraries(${LANG})
 
     _MPI_adjust_compile_definitions(${LANG})
@@ -1504,13 +1553,21 @@ foreach(LANG IN ITEMS C CXX Fortran)
     # Next, we'll initialize the MPI variables that have not been previously set.
     set(MPI_${LANG}_COMPILE_OPTIONS          "" CACHE STRING "MPI ${LANG} compilation flags"             )
     set(MPI_${LANG}_COMPILE_DEFINITIONS      "" CACHE STRING "MPI ${LANG} compilation definitions"       )
+    set(MPI_${LANG}_COMPILER_INCLUDE_DIRS    "" CACHE STRING "MPI ${LANG} compiler wrapper include directories")
     set(MPI_${LANG}_ADDITIONAL_INCLUDE_DIRS  "" CACHE STRING "MPI ${LANG} additional include directories")
     set(MPI_${LANG}_LINK_FLAGS               "" CACHE STRING "MPI ${LANG} linker flags"                  )
     if(NOT MPI_${LANG}_COMPILER STREQUAL CMAKE_${LANG}_COMPILER)
       set(MPI_${LANG}_LIB_NAMES                "" CACHE STRING "MPI ${LANG} libraries to link against"   )
     endif()
-    mark_as_advanced(MPI_${LANG}_COMPILE_OPTIONS MPI_${LANG}_COMPILE_DEFINITIONS MPI_${LANG}_LINK_FLAGS
-      MPI_${LANG}_LIB_NAMES MPI_${LANG}_ADDITIONAL_INCLUDE_DIRS MPI_${LANG}_COMPILER)
+    mark_as_advanced(
+      MPI_${LANG}_COMPILE_OPTIONS
+      MPI_${LANG}_COMPILE_DEFINITIONS
+      MPI_${LANG}_LINK_FLAGS
+      MPI_${LANG}_LIB_NAMES
+      MPI_${LANG}_COMPILER_INCLUDE_DIRS
+      MPI_${LANG}_ADDITIONAL_INCLUDE_DIRS
+      MPI_${LANG}_COMPILER
+      )
 
     # If we've found MPI, then we'll perform additional analysis: Determine the MPI version, MPI library version, supported
     # MPI APIs (i.e. MPI-2 C++ bindings). For Fortran we also need to find specific parameters if we're under MPI-3.
@@ -1659,7 +1716,8 @@ foreach(LANG IN ITEMS C CXX Fortran)
         list(APPEND MPI_${LANG}_REQUIRED_VARS "MPI_${LANG}_WORKS")
       endif()
     endif()
-    find_package_handle_standard_args(MPI_${LANG} REQUIRED_VARS ${MPI_${LANG}_REQUIRED_VARS}
+    find_package_handle_standard_args(MPI_${LANG} NAME_MISMATCHED
+      REQUIRED_VARS ${MPI_${LANG}_REQUIRED_VARS}
       VERSION_VAR MPI_${LANG}_VERSION)
 
     if(DEFINED MPI_${LANG}_VERSION)
@@ -1684,6 +1742,7 @@ endif()
 find_package_handle_standard_args(MPI
     REQUIRED_VARS ${_MPI_REQ_VARS}
     VERSION_VAR ${_MPI_MIN_VERSION}
+    REASON_FAILURE_MESSAGE "${_MPI_FAIL_REASON}"
     HANDLE_COMPONENTS)
 
 #=============================================================================

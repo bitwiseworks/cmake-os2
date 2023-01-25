@@ -21,6 +21,12 @@ function(run_cpack_test_common_ TEST_NAME types build SUBTEST_SUFFIX source PACK
      # TODO this should be executed only once per ctest run (not per generator)
     file(REMOVE_RECURSE "${RunCMake_TEST_BINARY_DIR}")
     file(MAKE_DIRECTORY "${RunCMake_TEST_BINARY_DIR}")
+    # Set permissions to those expected by the test
+    file(CHMOD "${RunCMake_TEST_BINARY_DIR}"
+      PERMISSIONS
+        OWNER_READ OWNER_WRITE OWNER_EXECUTE
+        GROUP_READ GROUP_EXECUTE
+        WORLD_READ WORLD_EXECUTE)
 
     if(EXISTS "${RunCMake_SOURCE_DIR}/tests/${TEST_NAME}/${GENERATOR_TYPE}-Prerequirements.cmake")
       include("${RunCMake_SOURCE_DIR}/tests/${TEST_NAME}/${GENERATOR_TYPE}-Prerequirements.cmake")
@@ -75,7 +81,7 @@ function(run_cpack_test_common_ TEST_NAME types build SUBTEST_SUFFIX source PACK
     if(package_target)
       set(cpack_command_ ${CMAKE_COMMAND} --build "${RunCMake_TEST_BINARY_DIR}" --target package)
     else()
-      set(cpack_command_ ${CMAKE_CPACK_COMMAND} ${pack_params_})
+      set(cpack_command_ ${CMAKE_CPACK_COMMAND} ${pack_params_} -C Debug)
     endif()
 
     # execute cpack

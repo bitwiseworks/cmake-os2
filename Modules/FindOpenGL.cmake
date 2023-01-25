@@ -7,8 +7,16 @@ FindOpenGL
 
 FindModule for OpenGL and OpenGL Utility Library (GLU).
 
+.. versionchanged:: 3.2
+  X11 is no longer added as a dependency on Unix/Linux systems.
+
+.. versionadded:: 3.10
+  GLVND support on Linux.  See the :ref:`Linux Specific` section below.
+
 Optional COMPONENTS
 ^^^^^^^^^^^^^^^^^^^
+
+.. versionadded:: 3.10
 
 This module respects several optional COMPONENTS: ``EGL``, ``GLX``, and
 ``OpenGL``.  There are corresponding import targets for each of these flags.
@@ -16,18 +24,24 @@ This module respects several optional COMPONENTS: ``EGL``, ``GLX``, and
 IMPORTED Targets
 ^^^^^^^^^^^^^^^^
 
+.. versionadded:: 3.8
+
 This module defines the :prop_tgt:`IMPORTED` targets:
 
 ``OpenGL::GL``
- Defined to the platform-specific OpenGL libraries if the system has OpenGL.
-``OpenGL::OpenGL``
- Defined to libOpenGL if the system is GLVND-based.
+  Defined to the platform-specific OpenGL libraries if the system has OpenGL.
 ``OpenGL::GLU``
- Defined if the system has OpenGL Utility Library (GLU).
+  Defined if the system has OpenGL Utility Library (GLU).
+
+.. versionadded:: 3.10
+  Additionally, the following GLVND-specific library targets are defined:
+
+``OpenGL::OpenGL``
+  Defined to libOpenGL if the system is GLVND-based.
 ``OpenGL::GLX``
- Defined if the system has OpenGL Extension to the X Window System (GLX).
+  Defined if the system has OpenGL Extension to the X Window System (GLX).
 ``OpenGL::EGL``
- Defined if the system has EGL.
+  Defined if the system has EGL.
 
 Result Variables
 ^^^^^^^^^^^^^^^^
@@ -55,6 +69,9 @@ This module sets the following variables:
  On Linux, this assumes GLX and is never correct for EGL-based targets.
  Clients are encouraged to use the ``OpenGL::*`` import targets instead.
 
+.. versionadded:: 3.10
+  Variables for GLVND-specific libraries ``OpenGL``, ``EGL`` and ``GLX``.
+
 Cache variables
 ^^^^^^^^^^^^^^^
 
@@ -71,6 +88,11 @@ The following cache variables may also be set:
 ``OPENGL_gl_LIBRARY``
  Path to the OpenGL library.  New code should prefer the ``OpenGL::*`` import
  targets.
+
+.. versionadded:: 3.10
+  Variables for GLVND-specific libraries ``OpenGL``, ``EGL`` and ``GLX``.
+
+.. _`Linux Specific`:
 
 Linux-specific
 ^^^^^^^^^^^^^^
@@ -97,14 +119,14 @@ The value may be one of:
 ``GLVND``
  If the GLVND OpenGL and GLX libraries are available, prefer them.
  This forces ``OPENGL_gl_LIBRARY`` to be empty.
- This is the default if components were requested (since components
- correspond to GLVND libraries) or if policy :policy:`CMP0072` is
- set to ``NEW``.
+
+ .. versionchanged:: 3.11
+  This is the default, unless policy :policy:`CMP0072` is set to ``OLD``
+  and no components are requeted (since components
+  correspond to GLVND libraries).
 
 ``LEGACY``
  Prefer to use the legacy libGL library, if available.
- This is the default if no components were requested and
- policy :policy:`CMP0072` is not set to ``NEW``.
 
 For EGL targets the client must rely on GLVND support on the user's system.
 Linking should use the ``OpenGL::OpenGL OpenGL::EGL`` targets.  Using GLES*
@@ -130,14 +152,9 @@ foreach(component ${OpenGL_FIND_COMPONENTS})
   set(OPENGL_USE_${_COMPONENT} 1)
 endforeach()
 
-if (CYGWIN)
-  find_path(OPENGL_INCLUDE_DIR GL/gl.h )
-  list(APPEND _OpenGL_REQUIRED_VARS OPENGL_INCLUDE_DIR)
+set(_OpenGL_CACHE_VARS)
 
-  find_library(OPENGL_gl_LIBRARY opengl32 )
-  find_library(OPENGL_glu_LIBRARY glu32 )
-
-elseif (WIN32)
+if (WIN32)
 
   if(BORLAND)
     set (OPENGL_gl_LIBRARY import32 CACHE STRING "OpenGL library for win32")
@@ -147,6 +164,10 @@ elseif (WIN32)
     set (OPENGL_glu_LIBRARY glu32 CACHE STRING "GLU library for win32")
   endif()
 
+  list(APPEND _OpenGL_CACHE_VARS
+    OPENGL_gl_LIBRARY
+    OPENGL_glu_LIBRARY
+    )
 elseif (APPLE)
   # The OpenGL.framework provides both gl and glu
   find_library(OPENGL_gl_LIBRARY OpenGL DOC "OpenGL library for OS X")
@@ -155,6 +176,11 @@ elseif (APPLE)
   find_path(OPENGL_INCLUDE_DIR OpenGL/gl.h DOC "Include for OpenGL on OS X")
   list(APPEND _OpenGL_REQUIRED_VARS OPENGL_INCLUDE_DIR)
 
+  list(APPEND _OpenGL_CACHE_VARS
+    OPENGL_INCLUDE_DIR
+    OPENGL_gl_LIBRARY
+    OPENGL_glu_LIBRARY
+    )
 else()
   if (CMAKE_SYSTEM_NAME MATCHES "HP-UX")
     # Handle HP-UX cases where we only want to find OpenGL in either hpux64
@@ -194,6 +220,12 @@ else()
     /usr/openwin/share/include
     /opt/graphics/OpenGL/include
   )
+  list(APPEND _OpenGL_CACHE_VARS
+    OPENGL_INCLUDE_DIR
+    OPENGL_GLX_INCLUDE_DIR
+    OPENGL_EGL_INCLUDE_DIR
+    OPENGL_xmesa_INCLUDE_DIR
+    )
 
   # Search for the GLVND libraries.  We do this regardless of COMPONENTS; we'll
   # take into account the COMPONENTS logic later.
@@ -221,6 +253,13 @@ else()
           /usr/openwin/lib
           /usr/shlib
   )
+
+  list(APPEND _OpenGL_CACHE_VARS
+    OPENGL_opengl_LIBRARY
+    OPENGL_glx_LIBRARY
+    OPENGL_egl_LIBRARY
+    OPENGL_glu_LIBRARY
+    )
 
   set(_OpenGL_GL_POLICY_WARN 0)
   if(NOT DEFINED OpenGL_GL_PREFERENCE)
@@ -268,6 +307,7 @@ else()
             ${_OPENGL_LIB_PATH}
       PATH_SUFFIXES libglvnd
       )
+    list(APPEND _OpenGL_CACHE_VARS OPENGL_gl_LIBRARY)
   endif()
 
   if(_OpenGL_GL_POLICY_WARN AND OPENGL_gl_LIBRARY AND OPENGL_opengl_LIBRARY AND OPENGL_glx_LIBRARY)
@@ -394,8 +434,15 @@ if(OPENGL_EGL_INCLUDE_DIR)
 endif()
 
 include(${CMAKE_CURRENT_LIST_DIR}/FindPackageHandleStandardArgs.cmake)
+if (CMAKE_FIND_PACKAGE_NAME STREQUAL "GLU")
+  # FindGLU include()'s this module. It's an old pattern, but rather than
+  # trying to suppress this from outside the module (which is then sensitive to
+  # the contents, detect the case in this module and suppress it explicitly.
+  set(FPHSA_NAME_MISMATCHED 1)
+endif ()
 FIND_PACKAGE_HANDLE_STANDARD_ARGS(OpenGL REQUIRED_VARS ${_OpenGL_REQUIRED_VARS}
                                   HANDLE_COMPONENTS)
+unset(FPHSA_NAME_MISMATCHED)
 unset(_OpenGL_REQUIRED_VARS)
 
 # OpenGL:: targets
@@ -418,7 +465,7 @@ if(OPENGL_FOUND)
 
   # ::GLX is a GLVND library, and thus Linux-only: we don't bother checking
   # for a framework version of this library.
-  if(OpenGL_GLX_FOUND AND NOT TARGET OpenGL::GLX)
+  if(OpenGL_GLX_FOUND AND NOT TARGET OpenGL::GLX AND TARGET OpenGL::OpenGL)
     if(IS_ABSOLUTE "${OPENGL_glx_LIBRARY}")
       add_library(OpenGL::GLX UNKNOWN IMPORTED)
       set_target_properties(OpenGL::GLX PROPERTIES IMPORTED_LOCATION
@@ -532,14 +579,5 @@ set(OPENGL_LIBRARY ${OPENGL_LIBRARIES})
 # This deprecated setting is for backward compatibility with CMake1.4
 set(OPENGL_INCLUDE_PATH ${OPENGL_INCLUDE_DIR})
 
-mark_as_advanced(
-  OPENGL_INCLUDE_DIR
-  OPENGL_xmesa_INCLUDE_DIR
-  OPENGL_egl_LIBRARY
-  OPENGL_glu_LIBRARY
-  OPENGL_glx_LIBRARY
-  OPENGL_gl_LIBRARY
-  OPENGL_opengl_LIBRARY
-  OPENGL_EGL_INCLUDE_DIR
-  OPENGL_GLX_INCLUDE_DIR
-)
+mark_as_advanced(${_OpenGL_CACHE_VARS})
+unset(_OpenGL_CACHE_VARS)

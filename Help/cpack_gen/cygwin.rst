@@ -3,6 +3,13 @@ CPack Cygwin Generator
 
 Cygwin CPack generator (Cygwin).
 
+Variables affecting the CPack Cygwin generator
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+- .. versionadded:: 3.18
+    :variable:`CPACK_ARCHIVE_THREADS`
+
+
 Variables specific to CPack Cygwin generator
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 

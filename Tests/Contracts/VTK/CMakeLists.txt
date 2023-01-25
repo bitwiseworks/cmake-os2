@@ -1,6 +1,6 @@
 # The VTK external project for CMake
 # ---------------------------------------------------------------------------
-cmake_minimum_required(VERSION 2.8)
+cmake_minimum_required(VERSION 2.8.12)
 project(VTK)
 include(ExternalProject)
 
@@ -21,7 +21,7 @@ configure_file(
 
 # build & test VTK's release branch
 ExternalProject_Add(${PROJECT_NAME}
-  GIT_REPOSITORY "git://vtk.org/VTK.git"
+  GIT_REPOSITORY "https://gitlab.kitware.com/vtk/vtk.git"
   GIT_TAG "release"
   PREFIX ${base_dir}
   CONFIGURE_COMMAND ""

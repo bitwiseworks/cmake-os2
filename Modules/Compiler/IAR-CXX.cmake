@@ -68,6 +68,20 @@ elseif("${CMAKE_CXX_COMPILER_ARCHITECTURE_ID}" STREQUAL "MSP430")
   __compiler_check_default_language_standard(CXX 5.10 98)
   set(CMAKE_CXX_OUTPUT_EXTENSION ".r43")
 
+elseif("${CMAKE_CXX_COMPILER_ARCHITECTURE_ID}" STREQUAL "V850")
+  __compiler_iar_xlink(CXX)
+  __compiler_check_default_language_standard(CXX 1.10 98)
+  set(CMAKE_C_OUTPUT_EXTENSION ".r85")
+
+elseif("${CMAKE_CXX_COMPILER_ARCHITECTURE_ID}" STREQUAL "8051")
+  __compiler_iar_xlink(CXX)
+  __compiler_check_default_language_standard(CXX 6.10 98)
+  set(CMAKE_C_OUTPUT_EXTENSION ".r51")
+
+elseif("${CMAKE_CXX_COMPILER_ARCHITECTURE_ID}" STREQUAL "STM8")
+  __compiler_iar_ilink(CXX)
+  __compiler_check_default_language_standard(CXX 3.11 98)
+
 else()
   message(FATAL_ERROR "CMAKE_CXX_COMPILER_ARCHITECTURE_ID not detected. This should be automatic." )
 endif()

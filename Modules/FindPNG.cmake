@@ -10,6 +10,8 @@ Find libpng, the official reference library for the PNG image format.
 Imported targets
 ^^^^^^^^^^^^^^^^
 
+.. versionadded:: 3.5
+
 This module defines the following :prop_tgt:`IMPORTED` target:
 
 ``PNG::PNG``
@@ -53,6 +55,7 @@ find_package(ZLIB ${_FIND_ZLIB_ARG})
 
 if(ZLIB_FOUND)
   find_path(PNG_PNG_INCLUDE_DIR png.h PATH_SUFFIXES include/libpng)
+  mark_as_advanced(PNG_PNG_INCLUDE_DIR)
 
   list(APPEND PNG_NAMES png libpng)
   unset(PNG_NAMES_DEBUG)
@@ -69,15 +72,15 @@ if(ZLIB_FOUND)
     unset(_PNG_VERSION_SUFFIX_MIN)
   endif ()
   foreach(v IN LISTS _PNG_VERSION_SUFFIXES)
-    list(APPEND PNG_NAMES png${v} libpng${v})
-    list(APPEND PNG_NAMES_DEBUG png${v}d libpng${v}d)
+    list(APPEND PNG_NAMES png${v} libpng${v} libpng${v}_static)
+    list(APPEND PNG_NAMES_DEBUG png${v}d libpng${v}d libpng${v}_staticd)
   endforeach()
   unset(_PNG_VERSION_SUFFIXES)
   # For compatibility with versions prior to this multi-config search, honor
   # any PNG_LIBRARY that is already specified and skip the search.
   if(NOT PNG_LIBRARY)
-    find_library(PNG_LIBRARY_RELEASE NAMES ${PNG_NAMES})
-    find_library(PNG_LIBRARY_DEBUG NAMES ${PNG_NAMES_DEBUG})
+    find_library(PNG_LIBRARY_RELEASE NAMES ${PNG_NAMES} NAMES_PER_DIR)
+    find_library(PNG_LIBRARY_DEBUG NAMES ${PNG_NAMES_DEBUG} NAMES_PER_DIR)
     include(${CMAKE_CURRENT_LIST_DIR}/SelectLibraryConfigurations.cmake)
     select_library_configurations(PNG)
     mark_as_advanced(PNG_LIBRARY_RELEASE PNG_LIBRARY_DEBUG)
@@ -94,6 +97,10 @@ if(ZLIB_FOUND)
       set(PNG_INCLUDE_DIRS ${PNG_PNG_INCLUDE_DIR} ${ZLIB_INCLUDE_DIR} )
       set(PNG_INCLUDE_DIR ${PNG_INCLUDE_DIRS} ) # for backward compatibility
       set(PNG_LIBRARIES ${PNG_LIBRARY} ${ZLIB_LIBRARY})
+      if((CMAKE_SYSTEM_NAME STREQUAL "Linux") AND
+         ("${PNG_LIBRARY}" MATCHES "\\${CMAKE_STATIC_LIBRARY_SUFFIX}$"))
+        list(APPEND PNG_LIBRARIES m)
+      endif()
 
       if (CYGWIN)
         if(BUILD_SHARED_LIBS)
@@ -110,6 +117,12 @@ if(ZLIB_FOUND)
           INTERFACE_COMPILE_DEFINITIONS "${_PNG_COMPILE_DEFINITIONS}"
           INTERFACE_INCLUDE_DIRECTORIES "${PNG_INCLUDE_DIRS}"
           INTERFACE_LINK_LIBRARIES ZLIB::ZLIB)
+        if((CMAKE_SYSTEM_NAME STREQUAL "Linux") AND
+           ("${PNG_LIBRARY}" MATCHES "\\${CMAKE_STATIC_LIBRARY_SUFFIX}$"))
+          set_property(TARGET PNG::PNG APPEND PROPERTY
+            INTERFACE_LINK_LIBRARIES m)
+        endif()
+
         if(EXISTS "${PNG_LIBRARY}")
           set_target_properties(PNG::PNG PROPERTIES
             IMPORTED_LINK_INTERFACE_LANGUAGES "C"
@@ -146,5 +159,3 @@ include(${CMAKE_CURRENT_LIST_DIR}/FindPackageHandleStandardArgs.cmake)
 find_package_handle_standard_args(PNG
                                   REQUIRED_VARS PNG_LIBRARY PNG_PNG_INCLUDE_DIR
                                   VERSION_VAR PNG_VERSION_STRING)
-
-mark_as_advanced(PNG_PNG_INCLUDE_DIR PNG_LIBRARY )

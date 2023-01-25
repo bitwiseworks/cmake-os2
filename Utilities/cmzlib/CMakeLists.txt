@@ -2,7 +2,7 @@ PROJECT(CMZLIB)
 
 # Disable warnings to avoid changing 3rd party code.
 if(CMAKE_C_COMPILER_ID MATCHES
-    "^(GNU|Clang|AppleClang|XLClang|XL|VisualAge|SunPro|HP|Intel)$")
+    "^(GNU|Clang|AppleClang|XLClang|XL|VisualAge|SunPro|HP|Intel|IntelLLVM)$")
   set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -w")
 elseif(CMAKE_C_COMPILER_ID STREQUAL "PathScale")
   set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -woffall")
@@ -37,11 +37,6 @@ CONFIGURE_FILE(${CMZLIB_SOURCE_DIR}/.NoDartCoverage
   ${CMZLIB_BINARY_DIR}/.NoDartCoverage)
 CONFIGURE_FILE(${CMZLIB_SOURCE_DIR}/zlibDllConfig.h.in
   ${CMZLIB_BINARY_DIR}/zlibDllConfig.h)
-
-FOREACH(name zlib zconf cm_zlib_mangle)
-  CONFIGURE_FILE(${CMZLIB_SOURCE_DIR}/${name}.h
-    ${CMZLIB_BINARY_DIR}/${name}.h COPYONLY)
-ENDFOREACH(name)
 
 
 ADD_LIBRARY(cmzlib ${ZLIB_SRCS})

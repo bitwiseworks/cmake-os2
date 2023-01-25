@@ -23,6 +23,9 @@
  * THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+#ifndef ARCHIVE_OPTIONS_PRIVATE_H_INCLUDED
+#define ARCHIVE_OPTIONS_PRIVATE_H_INCLUDED
+
 #include "archive_platform.h"
 #ifndef __OS2__
 __FBSDID("$FreeBSD$");
@@ -47,3 +50,4 @@ _archive_set_either_option(struct archive *a,
     const char *m, const char *o, const char *v,
     option_handler use_format_option, option_handler use_filter_option);
 
+#endif

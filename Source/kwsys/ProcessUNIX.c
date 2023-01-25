@@ -157,10 +157,11 @@ static int kwsysProcessCreate(kwsysProcess* cp, int prIndex,
 static void kwsysProcessDestroy(kwsysProcess* cp);
 static int kwsysProcessSetupOutputPipeFile(int* p, const char* name);
 static int kwsysProcessSetupOutputPipeNative(int* p, int des[2]);
-static int kwsysProcessGetTimeoutTime(kwsysProcess* cp, double* userTimeout,
+static int kwsysProcessGetTimeoutTime(kwsysProcess* cp,
+                                      const double* userTimeout,
                                       kwsysProcessTime* timeoutTime);
 static int kwsysProcessGetTimeoutLeft(kwsysProcessTime* timeoutTime,
-                                      double* userTimeout,
+                                      const double* userTimeout,
                                       kwsysProcessTimeNative* timeoutLength,
                                       int zeroIsExpired);
 static kwsysProcessTime kwsysProcessTimeGetCurrent(void);
@@ -436,8 +437,8 @@ int kwsysProcess_AddCommand(kwsysProcess* cp, char const* const* command)
     char const* const* c = command;
     kwsysProcess_ptrdiff_t n = 0;
     kwsysProcess_ptrdiff_t i = 0;
-    while (*c++)
-      ;
+    while (*c++) {
+    }
     n = c - command - 1;
     newCommands[cp->NumberOfCommands] =
       (char**)malloc((size_t)(n + 1) * sizeof(char*));
@@ -576,7 +577,7 @@ void kwsysProcess_SetPipeShared(kwsysProcess* cp, int prPipe, int shared)
   }
 }
 
-void kwsysProcess_SetPipeNative(kwsysProcess* cp, int prPipe, int p[2])
+void kwsysProcess_SetPipeNative(kwsysProcess* cp, int prPipe, const int p[2])
 {
   int* pPipeNative = 0;
 
@@ -689,7 +690,8 @@ const char* kwsysProcess_GetErrorString(kwsysProcess* cp)
 {
   if (!cp) {
     return "Process management structure could not be allocated";
-  } else if (cp->State == kwsysProcess_State_Error) {
+  }
+  if (cp->State == kwsysProcess_State_Error) {
     return cp->ErrorMessage;
   }
   return "Success";
@@ -699,7 +701,8 @@ const char* kwsysProcess_GetExceptionString(kwsysProcess* cp)
 {
   if (!(cp && cp->ProcessResults && (cp->NumberOfCommands > 0))) {
     return "GetExceptionString called with NULL process management structure";
-  } else if (cp->State == kwsysProcess_State_Exception) {
+  }
+  if (cp->State == kwsysProcess_State_Exception) {
     return cp->ProcessResults[cp->NumberOfCommands - 1].ExitExceptionString;
   }
   return "No exception";
@@ -791,8 +794,8 @@ void kwsysProcess_Execute(kwsysProcess* cp)
 
     /* Some platforms specify that the chdir call may be
        interrupted.  Repeat the call until it finishes.  */
-    while (((r = chdir(cp->WorkingDirectory)) < 0) && (errno == EINTR))
-      ;
+    while (((r = chdir(cp->WorkingDirectory)) < 0) && (errno == EINTR)) {
+    }
     if (r < 0) {
       kwsysProcessCleanup(cp, 1);
       return;
@@ -1018,8 +1021,8 @@ void kwsysProcess_Execute(kwsysProcess* cp)
   if (cp->RealWorkingDirectory) {
     /* Some platforms specify that the chdir call may be
        interrupted.  Repeat the call until it finishes.  */
-    while ((chdir(cp->RealWorkingDirectory) < 0) && (errno == EINTR))
-      ;
+    while ((chdir(cp->RealWorkingDirectory) < 0) && (errno == EINTR)) {
+    }
     free(cp->RealWorkingDirectory);
     cp->RealWorkingDirectory = 0;
   }
@@ -1104,22 +1107,22 @@ int kwsysProcess_WaitForData(kwsysProcess* cp, char** data, int* length,
   if (wd.PipeId) {
     /* Data are ready on a pipe.  */
     return wd.PipeId;
-  } else if (wd.Expired) {
+  }
+  if (wd.Expired) {
     /* A timeout has expired.  */
     if (wd.User) {
       /* The user timeout has expired.  It has no time left.  */
       return kwsysProcess_Pipe_Timeout;
-    } else {
-      /* The process timeout has expired.  Kill the children now.  */
-      kwsysProcess_Kill(cp);
-      cp->Killed = 0;
-      cp->TimeoutExpired = 1;
-      return kwsysProcess_Pipe_None;
     }
-  } else {
-    /* No pipes are left open.  */
+
+    /* The process timeout has expired.  Kill the children now.  */
+    kwsysProcess_Kill(cp);
+    cp->Killed = 0;
+    cp->TimeoutExpired = 1;
     return kwsysProcess_Pipe_None;
   }
+  /* No pipes are left open.  */
+  return kwsysProcess_Pipe_None;
 }
 
 static int kwsysProcessWaitForPipe(kwsysProcess* cp, char** data, int* length,
@@ -1149,8 +1152,8 @@ static int kwsysProcessWaitForPipe(kwsysProcess* cp, char** data, int* length,
          read until the operation is not interrupted.  */
       while (((n = read(cp->PipeReadEnds[i], cp->PipeBuffer,
                         KWSYSPE_PIPE_BUFFER_SIZE)) < 0) &&
-             (errno == EINTR))
-        ;
+             (errno == EINTR)) {
+      }
       if (n > 0) {
         /* We have data on this pipe.  */
         if (i == KWSYSPE_PIPE_SIGNAL) {
@@ -1188,7 +1191,7 @@ static int kwsysProcessWaitForPipe(kwsysProcess* cp, char** data, int* length,
 
   /* Make sure the set is empty (it should always be empty here
      anyway).  */
-  FD_ZERO(&cp->PipeSet);
+  FD_ZERO(&cp->PipeSet); // NOLINT(readability-isolate-declaration)
 
   /* Setup a timeout if required.  */
   if (wd->TimeoutTime.tv_sec < 0) {
@@ -1223,15 +1226,16 @@ static int kwsysProcessWaitForPipe(kwsysProcess* cp, char** data, int* length,
   /* Run select to block until data are available.  Repeat call
      until it is not interrupted.  */
   while (((numReady = select(max + 1, &cp->PipeSet, 0, 0, timeout)) < 0) &&
-         (errno == EINTR))
-    ;
+         (errno == EINTR)) {
+  }
 
   /* Check result of select.  */
   if (numReady == 0) {
     /* Select's timeout expired.  */
     wd->Expired = 1;
     return 1;
-  } else if (numReady < 0) {
+  }
+  if (numReady < 0) {
     /* Select returned an error.  Leave the error description in the
        pipe buffer.  */
     strncpy(cp->ErrorMessage, strerror(errno), KWSYSPE_PIPE_BUFFER_SIZE);
@@ -1371,11 +1375,13 @@ int kwsysProcess_WaitForExit(kwsysProcess* cp, double* userTimeout)
         cp->ProcessResults[prPipe].State = kwsysProcess_StateByIndex_Exited;
         cp->ProcessResults[prPipe].ExitException = kwsysProcess_Exception_None;
         cp->ProcessResults[prPipe].ExitValue =
+          // NOLINTNEXTLINE(google-readability-casting)
           (int)WEXITSTATUS(cp->ProcessResults[prPipe].ExitCode);
       } else if (WIFSIGNALED(cp->ProcessResults[prPipe].ExitCode)) {
         /* The child received an unhandled signal.  */
         cp->ProcessResults[prPipe].State = kwsysProcess_State_Exception;
         kwsysProcessSetExitExceptionByIndex(
+          // NOLINTNEXTLINE(google-readability-casting)
           cp, (int)WTERMSIG(cp->ProcessResults[prPipe].ExitCode), prPipe);
       } else {
         /* Error getting the child return code.  */
@@ -1454,8 +1460,8 @@ void kwsysProcess_Kill(kwsysProcess* cp)
 
       /* Reap the child.  Keep trying until the call is not
          interrupted.  */
-      while ((waitpid(cp->ForkPIDs[i], &status, 0) < 0) && (errno == EINTR))
-        ;
+      while ((waitpid(cp->ForkPIDs[i], &status, 0) < 0) && (errno == EINTR)) {
+      }
     }
   }
 
@@ -1506,7 +1512,7 @@ static int kwsysProcessInitialize(kwsysProcess* cp)
   cp->PipesLeft = 0;
   cp->CommandsLeft = 0;
 #if KWSYSPE_USE_SELECT
-  FD_ZERO(&cp->PipeSet);
+  FD_ZERO(&cp->PipeSet); // NOLINT(readability-isolate-declaration)
 #endif
   cp->State = kwsysProcess_State_Starting;
   cp->Killed = 0;
@@ -1595,16 +1601,16 @@ static void kwsysProcessCleanup(kwsysProcess* cp, int error)
           /* Reap the child.  Keep trying until the call is not
              interrupted.  */
           while ((waitpid(cp->ForkPIDs[i], &status, 0) < 0) &&
-                 (errno == EINTR))
-            ;
+                 (errno == EINTR)) {
+          }
         }
       }
     }
 
     /* Restore the working directory.  */
     if (cp->RealWorkingDirectory) {
-      while ((chdir(cp->RealWorkingDirectory) < 0) && (errno == EINTR))
-        ;
+      while ((chdir(cp->RealWorkingDirectory) < 0) && (errno == EINTR)) {
+      }
     }
   }
 
@@ -1640,8 +1646,8 @@ static void kwsysProcessCleanupDescriptor(int* pfd)
   if (pfd && *pfd > 2) {
     /* Keep trying to close until it is not interrupted by a
      * signal.  */
-    while ((close(*pfd) < 0) && (errno == EINTR))
-      ;
+    while ((close(*pfd) < 0) && (errno == EINTR)) {
+    }
     *pfd = -1;
   }
 }
@@ -1666,8 +1672,8 @@ static void kwsysProcessClosePipes(kwsysProcess* cp)
            read until the operation is not interrupted.  */
         while ((read(cp->PipeReadEnds[i], cp->PipeBuffer,
                      KWSYSPE_PIPE_BUFFER_SIZE) < 0) &&
-               (errno == EINTR))
-          ;
+               (errno == EINTR)) {
+        }
       }
 #endif
 
@@ -1694,7 +1700,8 @@ int decc$set_child_standard_streams(int fd1, int fd2, int fd3);
 static int kwsysProcessCreate(kwsysProcess* cp, int prIndex,
                               kwsysProcessCreateInformation* si)
 {
-  sigset_t mask, old_mask;
+  sigset_t mask;
+  sigset_t old_mask;
   int pgidPipe[2];
   char tmp;
   ssize_t readRes;
@@ -1822,8 +1829,8 @@ static int kwsysProcessCreate(kwsysProcess* cp, int prIndex,
   /* Make sure the child is in the process group before we proceed.  This
      avoids race conditions with calls to the kill function that we make for
      signalling process groups.  */
-  while ((readRes = read(pgidPipe[0], &tmp, 1)) > 0)
-    ;
+  while ((readRes = read(pgidPipe[0], &tmp, 1)) > 0) {
+  }
   if (readRes < 0) {
     sigprocmask(SIG_SETMASK, &old_mask, 0);
     kwsysProcessCleanupDescriptor(&si->ErrorPipe[0]);
@@ -1851,8 +1858,8 @@ static int kwsysProcessCreate(kwsysProcess* cp, int prIndex,
       /* Keep trying to read until the operation is not interrupted.  */
       while (((n = read(si->ErrorPipe[0], cp->ErrorMessage + total,
                         (size_t)(KWSYSPE_PIPE_BUFFER_SIZE - total))) < 0) &&
-             (errno == EINTR))
-        ;
+             (errno == EINTR)) {
+      }
       if (n > 0) {
         total += n;
       }
@@ -1877,7 +1884,8 @@ static void kwsysProcessDestroy(kwsysProcess* cp)
   int i;
   /* Temporarily disable signals that access ForkPIDs.  We don't want them to
      read a reaped PID, and writes to ForkPIDs are not atomic.  */
-  sigset_t mask, old_mask;
+  sigset_t mask;
+  sigset_t old_mask;
   sigemptyset(&mask);
   sigaddset(&mask, SIGINT);
   sigaddset(&mask, SIGTERM);
@@ -1890,8 +1898,8 @@ static void kwsysProcessDestroy(kwsysProcess* cp)
       int result;
       while (((result = waitpid(cp->ForkPIDs[i], &cp->CommandExitCodes[i],
                                 WNOHANG)) < 0) &&
-             (errno == EINTR))
-        ;
+             (errno == EINTR)) {
+      }
       if (result > 0) {
         /* This child has termianted.  */
         cp->ForkPIDs[i] = 0;
@@ -1964,7 +1972,8 @@ static int kwsysProcessSetupOutputPipeNative(int* p, int des[2])
 
 /* Get the time at which either the process or user timeout will
    expire.  Returns 1 if the user timeout is first, and 0 otherwise.  */
-static int kwsysProcessGetTimeoutTime(kwsysProcess* cp, double* userTimeout,
+static int kwsysProcessGetTimeoutTime(kwsysProcess* cp,
+                                      const double* userTimeout,
                                       kwsysProcessTime* timeoutTime)
 {
   /* The first time this is called, we need to calculate the time at
@@ -1996,35 +2005,33 @@ static int kwsysProcessGetTimeoutTime(kwsysProcess* cp, double* userTimeout,
 /* Get the length of time before the given timeout time arrives.
    Returns 1 if the time has already arrived, and 0 otherwise.  */
 static int kwsysProcessGetTimeoutLeft(kwsysProcessTime* timeoutTime,
-                                      double* userTimeout,
+                                      const double* userTimeout,
                                       kwsysProcessTimeNative* timeoutLength,
                                       int zeroIsExpired)
 {
   if (timeoutTime->tv_sec < 0) {
     /* No timeout time has been requested.  */
     return 0;
-  } else {
-    /* Calculate the remaining time.  */
-    kwsysProcessTime currentTime = kwsysProcessTimeGetCurrent();
-    kwsysProcessTime timeLeft =
-      kwsysProcessTimeSubtract(*timeoutTime, currentTime);
-    if (timeLeft.tv_sec < 0 && userTimeout && *userTimeout <= 0) {
-      /* Caller has explicitly requested a zero timeout.  */
-      timeLeft.tv_sec = 0;
-      timeLeft.tv_usec = 0;
-    }
-
-    if (timeLeft.tv_sec < 0 ||
-        (timeLeft.tv_sec == 0 && timeLeft.tv_usec == 0 && zeroIsExpired)) {
-      /* Timeout has already expired.  */
-      return 1;
-    } else {
-      /* There is some time left.  */
-      timeoutLength->tv_sec = timeLeft.tv_sec;
-      timeoutLength->tv_usec = timeLeft.tv_usec;
-      return 0;
-    }
   }
+  /* Calculate the remaining time.  */
+  kwsysProcessTime currentTime = kwsysProcessTimeGetCurrent();
+  kwsysProcessTime timeLeft =
+    kwsysProcessTimeSubtract(*timeoutTime, currentTime);
+  if (timeLeft.tv_sec < 0 && userTimeout && *userTimeout <= 0) {
+    /* Caller has explicitly requested a zero timeout.  */
+    timeLeft.tv_sec = 0;
+    timeLeft.tv_usec = 0;
+  }
+
+  if (timeLeft.tv_sec < 0 ||
+      (timeLeft.tv_sec == 0 && timeLeft.tv_usec == 0 && zeroIsExpired)) {
+    /* Timeout has already expired.  */
+    return 1;
+  }
+  /* There is some time left.  */
+  timeoutLength->tv_sec = timeLeft.tv_sec;
+  timeoutLength->tv_usec = timeLeft.tv_usec;
+  return 0;
 }
 
 static kwsysProcessTime kwsysProcessTimeGetCurrent(void)
@@ -2126,17 +2133,17 @@ static void kwsysProcessSetExitExceptionByIndex(kwsysProcess* cp, int sig,
 #endif
 #ifdef SIGABRT
     case SIGABRT:
-      KWSYSPE_CASE(Other, "Child aborted");
+      KWSYSPE_CASE(Other, "Subprocess aborted");
       break;
 #endif
 #ifdef SIGKILL
     case SIGKILL:
-      KWSYSPE_CASE(Other, "Child killed");
+      KWSYSPE_CASE(Other, "Subprocess killed");
       break;
 #endif
 #ifdef SIGTERM
     case SIGTERM:
-      KWSYSPE_CASE(Other, "Child terminated");
+      KWSYSPE_CASE(Other, "Subprocess terminated");
       break;
 #endif
 #ifdef SIGHUP
@@ -2429,41 +2436,39 @@ static pid_t kwsysProcessFork(kwsysProcess* cp,
     if (middle_pid < 0) {
       /* Fork failed.  Return as if we were not detaching.  */
       return middle_pid;
-    } else if (middle_pid == 0) {
+    }
+    if (middle_pid == 0) {
       /* This is the intermediate process.  Create the real child.  */
       pid_t child_pid = fork();
       if (child_pid == 0) {
         /* This is the real child process.  There is nothing to do here.  */
         return 0;
-      } else {
-        /* Use the error pipe to report the pid to the real parent.  */
-        while ((write(si->ErrorPipe[1], &child_pid, sizeof(child_pid)) < 0) &&
-               (errno == EINTR))
-          ;
-
-        /* Exit without cleanup.  The parent holds all resources.  */
-        kwsysProcessExit();
-        return 0; /* Never reached, but avoids SunCC warning.  */
       }
-    } else {
-      /* This is the original parent process.  The intermediate
-         process will use the error pipe to report the pid of the
-         detached child.  */
-      pid_t child_pid;
-      int status;
-      while ((read(si->ErrorPipe[0], &child_pid, sizeof(child_pid)) < 0) &&
-             (errno == EINTR))
-        ;
+      /* Use the error pipe to report the pid to the real parent.  */
+      while ((write(si->ErrorPipe[1], &child_pid, sizeof(child_pid)) < 0) &&
+             (errno == EINTR)) {
+      }
 
-      /* Wait for the intermediate process to exit and clean it up.  */
-      while ((waitpid(middle_pid, &status, 0) < 0) && (errno == EINTR))
-        ;
-      return child_pid;
+      /* Exit without cleanup.  The parent holds all resources.  */
+      kwsysProcessExit();
+      return 0; /* Never reached, but avoids SunCC warning.  */
     }
-  } else {
-    /* Not creating a detached process.  Use normal fork.  */
-    return fork();
+    /* This is the original parent process.  The intermediate
+        process will use the error pipe to report the pid of the
+        detached child.  */
+    pid_t child_pid;
+    int status;
+    while ((read(si->ErrorPipe[0], &child_pid, sizeof(child_pid)) < 0) &&
+           (errno == EINTR)) {
+    }
+
+    /* Wait for the intermediate process to exit and clean it up.  */
+    while ((waitpid(middle_pid, &status, 0) < 0) && (errno == EINTR)) {
+    }
+    return child_pid;
   }
+  /* Not creating a detached process.  Use normal fork.  */
+  return fork();
 }
 #endif
 
@@ -2568,7 +2573,8 @@ static void kwsysProcessKill(pid_t process_id)
     /* Make sure the process started and provided a valid header.  */
     if (ps && fscanf(ps, "%*[^\n]\n") != EOF) {
       /* Look for processes whose parent is the process being killed.  */
-      int pid, ppid;
+      int pid;
+      int ppid;
       while (fscanf(ps, KWSYSPE_PS_FORMAT, &pid, &ppid) == 2) {
         if (ppid == process_id) {
           /* Recursively kill this child and its children.  */
@@ -2730,8 +2736,8 @@ static int kwsysProcessesAdd(kwsysProcess* cp)
       sigemptyset(&newSigAction.sa_mask);
       while ((sigaction(SIGCHLD, &newSigAction,
                         &kwsysProcessesOldSigChldAction) < 0) &&
-             (errno == EINTR))
-        ;
+             (errno == EINTR)) {
+      }
 
       /* Install our handler for SIGINT / SIGTERM.  Repeat call until
          it is not interrupted.  */
@@ -2739,15 +2745,15 @@ static int kwsysProcessesAdd(kwsysProcess* cp)
       sigaddset(&newSigAction.sa_mask, SIGTERM);
       while ((sigaction(SIGINT, &newSigAction,
                         &kwsysProcessesOldSigIntAction) < 0) &&
-             (errno == EINTR))
-        ;
+             (errno == EINTR)) {
+      }
 
       sigemptyset(&newSigAction.sa_mask);
       sigaddset(&newSigAction.sa_mask, SIGINT);
       while ((sigaction(SIGTERM, &newSigAction,
                         &kwsysProcessesOldSigIntAction) < 0) &&
-             (errno == EINTR))
-        ;
+             (errno == EINTR)) {
+      }
     }
   }
 
@@ -2778,14 +2784,14 @@ static void kwsysProcessesRemove(kwsysProcess* cp)
         /* Restore the signal handlers.  Repeat call until it is not
            interrupted.  */
         while ((sigaction(SIGCHLD, &kwsysProcessesOldSigChldAction, 0) < 0) &&
-               (errno == EINTR))
-          ;
+               (errno == EINTR)) {
+        }
         while ((sigaction(SIGINT, &kwsysProcessesOldSigIntAction, 0) < 0) &&
-               (errno == EINTR))
-          ;
+               (errno == EINTR)) {
+        }
         while ((sigaction(SIGTERM, &kwsysProcessesOldSigTermAction, 0) < 0) &&
-               (errno == EINTR))
-          ;
+               (errno == EINTR)) {
+        }
 
         /* Free the table of process pointers since it is now empty.
            This is safe because the signal handler has been removed.  */
@@ -2811,7 +2817,10 @@ static void kwsysProcessesSignalHandler(int signum
 #endif
 )
 {
-  int i, j, procStatus, old_errno = errno;
+  int i;
+  int j;
+  int procStatus;
+  int old_errno = errno;
 #if KWSYSPE_USE_SIGINFO
   (void)info;
   (void)ucontext;
@@ -2868,8 +2877,8 @@ static void kwsysProcessesSignalHandler(int signum
         memset(&defSigAction, 0, sizeof(defSigAction));
         defSigAction.sa_handler = SIG_DFL;
         sigemptyset(&defSigAction.sa_mask);
-        while ((sigaction(signum, &defSigAction, 0) < 0) && (errno == EINTR))
-          ;
+        while ((sigaction(signum, &defSigAction, 0) < 0) && (errno == EINTR)) {
+        }
         /* Unmask the signal.  */
         sigemptyset(&unblockSet);
         sigaddset(&unblockSet, signum);

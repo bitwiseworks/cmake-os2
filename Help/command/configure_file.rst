@@ -6,6 +6,8 @@ Copy a file to another location and modify its contents.
 .. code-block:: cmake
 
   configure_file(<input> <output>
+                 [NO_SOURCE_PERMISSIONS | USE_SOURCE_PERMISSIONS |
+                  FILE_PERMISSIONS <permissions>...]
                  [COPYONLY] [ESCAPE_QUOTES] [@ONLY]
                  [NEWLINE_STYLE [UNIX|DOS|WIN32|LF|CRLF] ])
 
@@ -36,22 +38,24 @@ a false constant by the :command:`if` command.  The "..." content on the
 line after the variable name, if any, is processed as above.
 Input file lines of the form ``#cmakedefine01 VAR`` will be replaced with
 either ``#define VAR 1`` or ``#define VAR 0`` similarly.
-The result lines (with the exception of the ``#undef`` comments) can be
-indented using spaces and/or tabs between the ``#`` character
-and the ``cmakedefine`` or ``cmakedefine01`` words. This whitespace
-indentation will be preserved in the output lines:
 
-.. code-block:: c
+.. versionadded:: 3.10
+  The result lines (with the exception of the ``#undef`` comments) can be
+  indented using spaces and/or tabs between the ``#`` character
+  and the ``cmakedefine`` or ``cmakedefine01`` words. This whitespace
+  indentation will be preserved in the output lines:
 
-  #  cmakedefine VAR
-  #  cmakedefine01 VAR
+  .. code-block:: c
 
-will be replaced, if ``VAR`` is defined, with
+    #  cmakedefine VAR
+    #  cmakedefine01 VAR
 
-.. code-block:: c
+  will be replaced, if ``VAR`` is defined, with
 
-  #  define VAR
-  #  define VAR 1
+  .. code-block:: c
+
+    #  define VAR
+    #  define VAR 1
 
 If the input file is modified the build system will re-run CMake to
 re-configure the file and generate the build system again.
@@ -70,6 +74,28 @@ The arguments are:
   with respect to the value of :variable:`CMAKE_CURRENT_BINARY_DIR`.
   If the path names an existing directory the output file is placed
   in that directory with the same file name as the input file.
+
+``NO_SOURCE_PERMISSIONS``
+  .. versionadded:: 3.19
+
+  Do not transfer the permissions of the input file to the output file.
+  The copied file permissions default to the standard 644 value
+  (-rw-r--r--).
+
+``USE_SOURCE_PERMISSIONS``
+  .. versionadded:: 3.20
+
+  Transfer the permissions of the input file to the output file.
+  This is already the default behavior if none of the three permissions-related
+  keywords are given (``NO_SOURCE_PERMISSIONS``, ``USE_SOURCE_PERMISSIONS``
+  or ``FILE_PERMISSIONS``).  The ``USE_SOURCE_PERMISSIONS`` keyword mostly
+  serves as a way of making the intended behavior clearer at the call site.
+
+``FILE_PERMISSIONS <permissions>...``
+  .. versionadded:: 3.20
+
+  Ignore the input file's permissions and use the specified ``<permissions>``
+  for the output file instead.
 
 ``COPYONLY``
   Copy the file without replacing any variable references or other

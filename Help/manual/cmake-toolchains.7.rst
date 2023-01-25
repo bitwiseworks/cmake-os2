@@ -233,6 +233,9 @@ value to those supported compilers when compiling:
   set(CMAKE_CXX_COMPILER QCC)
   set(CMAKE_CXX_COMPILER_TARGET ${arch})
 
+  set(CMAKE_SYSROOT $ENV{QNX_TARGET})
+
+
 Cross Compiling for Windows CE
 ------------------------------
 
@@ -309,8 +312,9 @@ is specific to the Android development environment to be used.
 
 For :ref:`Visual Studio Generators`, CMake expects :ref:`NVIDIA Nsight Tegra
 Visual Studio Edition <Cross Compiling for Android with NVIDIA Nsight Tegra
-Visual Studio Edition>` to be installed.  See that section for further
-configuration details.
+Visual Studio Edition>` or the :ref:`Visual Studio tools for Android
+<Cross Compiling for Android with the NDK>` to be installed. See those sections
+for further configuration details.
 
 For :ref:`Makefile Generators` and the :generator:`Ninja` generator,
 CMake expects one of these environments:
@@ -355,13 +359,18 @@ CMake uses the following steps to select one of the environments:
 * Else, an error diagnostic will be issued that neither the NDK or
   Standalone Toolchain can be found.
 
+.. versionadded:: 3.20
+  If an Android NDK is selected, its version number is reported
+  in the :variable:`CMAKE_ANDROID_NDK_VERSION` variable.
+
 .. _`Cross Compiling for Android with the NDK`:
 
 Cross Compiling for Android with the NDK
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-A toolchain file may configure :ref:`Makefile Generators` or the
-:generator:`Ninja` generator to target Android for cross-compiling.
+A toolchain file may configure :ref:`Makefile Generators`,
+:ref:`Ninja Generators`, or :ref:`Visual Studio Generators` to target
+Android for cross-compiling.
 
 Configure use of an Android NDK with the following variables:
 
@@ -381,7 +390,8 @@ Configure use of an Android NDK with the following variables:
 
 :variable:`CMAKE_ANDROID_ARCH_ABI`
   Set to the Android ABI (architecture).  If not specified, this
-  variable will default to ``armeabi``.
+  variable will default to the first supported ABI in the list of
+  ``armeabi``, ``armeabi-v7a`` and ``arm64-v8a``.
   The :variable:`CMAKE_ANDROID_ARCH` variable will be computed
   from ``CMAKE_ANDROID_ARCH_ABI`` automatically.
   Also see the :variable:`CMAKE_ANDROID_ARM_MODE` and
@@ -389,7 +399,6 @@ Configure use of an Android NDK with the following variables:
 
 :variable:`CMAKE_ANDROID_NDK`
   Set to the absolute path to the Android NDK root directory.
-  A ``${CMAKE_ANDROID_NDK}/platforms`` directory must exist.
   If not specified, a default for this variable will be chosen
   as specified :ref:`above <Cross Compiling for Android>`.
 
@@ -399,8 +408,10 @@ Configure use of an Android NDK with the following variables:
   be false unless using a NDK that does not provide unified headers.
 
 :variable:`CMAKE_ANDROID_NDK_TOOLCHAIN_VERSION`
-  Set to the version of the NDK toolchain to be selected as the compiler.
-  If not specified, the default will be the latest available GCC toolchain.
+  On NDK r19 or above, this variable must be unset or set to ``clang``.
+  On NDK r18 or below, set this to the version of the NDK toolchain to
+  be selected as the compiler.  If not specified, the default will be
+  the latest available GCC toolchain.
 
 :variable:`CMAKE_ANDROID_STL_TYPE`
   Set to specify which C++ standard library to use.  If not specified,

@@ -1,19 +1,18 @@
 /* Distributed under the OSI-approved BSD 3-Clause License.  See accompanying
    file Copyright.txt or https://cmake.org/licensing for details.  */
-#ifndef cmFileAPI_h
-#define cmFileAPI_h
+#pragma once
 
 #include "cmConfigure.h" // IWYU pragma: keep
 
-#include "cm_jsoncpp_reader.h"
-#include "cm_jsoncpp_value.h"
-#include "cm_jsoncpp_writer.h"
-
 #include <map>
-#include <memory> // IWYU pragma: keep
+#include <memory>
 #include <string>
 #include <unordered_set>
 #include <vector>
+
+#include <cm3p/json/reader.h>
+#include <cm3p/json/value.h>
+#include <cm3p/json/writer.h>
 
 class cmake;
 
@@ -57,6 +56,7 @@ private:
     CodeModel,
     Cache,
     CMakeFiles,
+    Toolchains,
     InternalTest
   };
 
@@ -201,9 +201,11 @@ private:
     ClientRequest& r, std::vector<RequestVersion> const& versions);
   Json::Value BuildCMakeFiles(Object const& object);
 
+  void BuildClientRequestToolchains(
+    ClientRequest& r, std::vector<RequestVersion> const& versions);
+  Json::Value BuildToolchains(Object const& object);
+
   void BuildClientRequestInternalTest(
     ClientRequest& r, std::vector<RequestVersion> const& versions);
   Json::Value BuildInternalTest(Object const& object);
 };
-
-#endif

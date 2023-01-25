@@ -3,9 +3,10 @@
 #include "cm_codecvt.hxx"
 
 #if defined(_WIN32)
+#  include <windows.h>
+
 #  include <assert.h>
 #  include <string.h>
-#  include <windows.h>
 #  undef max
 #  include "cmsys/Encoding.hxx"
 #endif
@@ -34,7 +35,7 @@ codecvt::codecvt(Encoding e)
     case codecvt::None:
     // No encoding
     default:
-      m_noconv = true;
+      this->m_noconv = true;
   }
 }
 
@@ -42,7 +43,7 @@ codecvt::~codecvt() = default;
 
 bool codecvt::do_always_noconv() const throw()
 {
-  return m_noconv;
+  return this->m_noconv;
 }
 
 std::codecvt_base::result codecvt::do_out(mbstate_t& state, const char* from,
@@ -52,7 +53,7 @@ std::codecvt_base::result codecvt::do_out(mbstate_t& state, const char* from,
 {
   from_next = from;
   to_next = to;
-  if (m_noconv) {
+  if (this->m_noconv) {
     return std::codecvt_base::noconv;
   }
 #if defined(_WIN32)
@@ -129,7 +130,7 @@ std::codecvt_base::result codecvt::do_unshift(mbstate_t& state, char* to,
                                               char*& to_next) const
 {
   to_next = to;
-  if (m_noconv) {
+  if (this->m_noconv) {
     return std::codecvt_base::noconv;
   }
 #if defined(_WIN32)

@@ -6,11 +6,11 @@
  *                             \___|\___/|_| \_\_____|
  *
  * Copyright (C) 2014 - 2019, Steve Holme, <steve_holme@hotmail.com>.
- * Copyright (C) 2015, Daniel Stenberg, <daniel@haxx.se>, et al.
+ * Copyright (C) 2015 - 2020, Daniel Stenberg, <daniel@haxx.se>, et al.
  *
  * This software is licensed as described in the file COPYING, which
  * you should have received as part of this distribution. The terms
- * are also available at https://curl.haxx.se/docs/copyright.html.
+ * are also available at https://curl.se/docs/copyright.html.
  *
  * You may opt to use, copy, modify, merge, publish, distribute and/or sell
  * copies of the Software, and permit persons to whom the Software is
@@ -121,7 +121,7 @@ CURLcode Curl_auth_create_gssapi_user_message(struct Curl_easy *data,
 
       free(spn);
 
-      return CURLE_OUT_OF_MEMORY;
+      return CURLE_AUTH_ERROR;
     }
 
     free(spn);
@@ -168,7 +168,7 @@ CURLcode Curl_auth_create_gssapi_user_message(struct Curl_easy *data,
     Curl_gss_log_error(data, "gss_init_sec_context() failed: ",
                        major_status, minor_status);
 
-    return CURLE_RECV_ERROR;
+    return CURLE_AUTH_ERROR;
   }
 
   if(output_token.value && output_token.length) {
@@ -252,7 +252,7 @@ CURLcode Curl_auth_create_gssapi_security_message(struct Curl_easy *data,
 
     free(chlg);
 
-    return CURLE_OUT_OF_MEMORY;
+    return CURLE_AUTH_ERROR;
   }
 
   /* Convert the username from internal format to a displayable token */
@@ -264,7 +264,7 @@ CURLcode Curl_auth_create_gssapi_security_message(struct Curl_easy *data,
 
     free(chlg);
 
-    return CURLE_OUT_OF_MEMORY;
+    return CURLE_AUTH_ERROR;
   }
 
   /* Setup the challenge "input" security buffer */
@@ -355,7 +355,7 @@ CURLcode Curl_auth_create_gssapi_security_message(struct Curl_easy *data,
 
     free(message);
 
-    return CURLE_OUT_OF_MEMORY;
+    return CURLE_AUTH_ERROR;
   }
 
   /* Base64 encode the response */

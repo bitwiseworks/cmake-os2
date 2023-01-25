@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 2.8)
+cmake_minimum_required(VERSION 2.8.12)
 project(ObjectLibrary C)
 
 add_subdirectory(A)
@@ -73,3 +73,5 @@ add_executable(UseABstaticObjs $<TARGET_OBJECTS:UseABstatic>)
 target_link_libraries(UseABstaticObjs ABstatic)
 
 add_subdirectory(ExportLanguages)
+
+add_subdirectory(Transitive)

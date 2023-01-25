@@ -5,15 +5,14 @@
 CPackIFW
 --------
 
-The documentation for the CPack IFW generator has moved here: :cpack_gen:`CPack IFW Generator`
+.. versionadded:: 3.1
 
-.. _QtIFW: http://doc.qt.io/qtinstallerframework/index.html
-
-This module looks for the location of the command line utilities supplied
-with the Qt Installer Framework (QtIFW_).
+This module looks for the location of the command-line utilities supplied with the
+`Qt Installer Framework <http://doc.qt.io/qtinstallerframework/index.html>`_
+(QtIFW).
 
 The module also defines several commands to control the behavior of the
-CPack ``IFW`` generator.
+:cpack_gen:`CPack IFW Generator`.
 
 Commands
 ^^^^^^^^
@@ -52,20 +51,28 @@ The module defines the following commands:
     of a group to which it belongs.
 
   ``ESSENTIAL``
+    .. versionadded:: 3.6
+
     if set, then the package manager stays disabled until that
     component is updated.
 
   ``VIRTUAL``
+    .. versionadded:: 3.8
+
     if set, then the component will be hidden from the installer.
     It is a equivalent of the ``HIDDEN`` option from the
     :command:`cpack_add_component` command.
 
   ``FORCED_INSTALLATION``
+    .. versionadded:: 3.8
+
     if set, then the component must always be installed.
-    It is a equivalent of the ``REQUARED`` option from the
+    It is a equivalent of the ``REQUIRED`` option from the
     :command:`cpack_add_component` command.
 
   ``REQUIRES_ADMIN_RIGHTS``
+    .. versionadded:: 3.8
+
     set it if the component needs to be installed with elevated permissions.
 
   ``NAME``
@@ -73,14 +80,20 @@ The module defines the following commands:
     By default used origin component name.
 
   ``DISPLAY_NAME``
+    .. versionadded:: 3.8
+
     set to rewrite original name configured by
     :command:`cpack_add_component` command.
 
   ``DESCRIPTION``
+    .. versionadded:: 3.8
+
     set to rewrite original description configured by
     :command:`cpack_add_component` command.
 
   ``UPDATE_TEXT``
+    .. versionadded:: 3.8
+
     will be added to the component description if this is an update to
     the component.
 
@@ -89,23 +102,33 @@ The module defines the following commands:
     By default used :variable:`CPACK_PACKAGE_VERSION`.
 
   ``RELEASE_DATE``
+    .. versionadded:: 3.8
+
     keep empty to auto generate.
 
   ``SCRIPT``
     is a relative or absolute path to operations script
     for this component.
 
-  ``PRIORITY`` | ``SORTING_PRIORITY``
-    is priority of the component in the tree.
-    The ``PRIORITY`` option is deprecated and will be removed in a future
-    version of CMake. Please use ``SORTING_PRIORITY`` option instead.
+  ``SORTING_PRIORITY``
+    .. versionadded:: 3.8
 
-  ``DEPENDS`` | ``DEPENDENCIES``
+    is priority of the component in the tree.
+
+  ``PRIORITY``
+    .. deprecated:: 3.8
+      Old name for ``SORTING_PRIORITY``.
+
+  ``DEPENDS``, ``DEPENDENCIES``
+    .. versionadded:: 3.8
+
     list of dependency component or component group identifiers in
-    QtIFW_ style.
+    QtIFW style.
 
   ``AUTO_DEPEND_ON``
-    list of identifiers of component or component group in QtIFW_ style
+    .. versionadded:: 3.8
+
+    list of identifiers of component or component group in QtIFW style
     that this component has an automatic dependency on.
 
   ``LICENSES``
@@ -113,21 +136,31 @@ The module defines the following commands:
     component. You can specify more then one license.
 
   ``DEFAULT``
+    .. versionadded:: 3.8
+
     Possible values are: TRUE, FALSE, and SCRIPT.
     Set to FALSE to disable the component in the installer or to SCRIPT
     to resolved during runtime (don't forget add the file of the script
     as a value of the ``SCRIPT`` option).
 
   ``USER_INTERFACES``
+    .. versionadded:: 3.7
+
     is a list of <file_path> ('.ui' files) representing pages to load.
 
   ``TRANSLATIONS``
+    .. versionadded:: 3.8
+
     is a list of <file_path> ('.qm' files) representing translations to load.
 
   ``REPLACES``
+    .. versionadded:: 3.10
+
     list of identifiers of component or component group to replace.
 
   ``CHECKABLE``
+    .. versionadded:: 3.10
+
     Possible values are: TRUE, FALSE.
     Set to FALSE if you want to hide the checkbox for an item.
     This is useful when only a few subcomponents should be selected
@@ -163,13 +196,19 @@ The module defines the following commands:
   command.
 
   ``VIRTUAL``
+    .. versionadded:: 3.8
+
     if set, then the group will be hidden from the installer.
     Note that setting this on a root component does not work.
 
   ``FORCED_INSTALLATION``
+    .. versionadded:: 3.8
+
     if set, then the group must always be installed.
 
   ``REQUIRES_ADMIN_RIGHTS``
+    .. versionadded:: 3.8
+
     set it if the component group needs to be installed with elevated
     permissions.
 
@@ -178,14 +217,20 @@ The module defines the following commands:
     By default used origin component group name.
 
   ``DISPLAY_NAME``
+    .. versionadded:: 3.8
+
     set to rewrite original name configured by
     :command:`cpack_add_component_group` command.
 
   ``DESCRIPTION``
+    .. versionadded:: 3.8
+
     set to rewrite original description configured by
     :command:`cpack_add_component_group` command.
 
   ``UPDATE_TEXT``
+    .. versionadded:: 3.8
+
     will be added to the component group description if this is an update to
     the component group.
 
@@ -194,23 +239,31 @@ The module defines the following commands:
     By default used :variable:`CPACK_PACKAGE_VERSION`.
 
   ``RELEASE_DATE``
+    .. versionadded:: 3.8
+
     keep empty to auto generate.
 
   ``SCRIPT``
     is a relative or absolute path to operations script
     for this component group.
 
-  ``PRIORITY`` | ``SORTING_PRIORITY``
+  ``SORTING_PRIORITY``
     is priority of the component group in the tree.
-    The ``PRIORITY`` option is deprecated and will be removed in a future
-    version of CMake. Please use ``SORTING_PRIORITY`` option instead.
 
-  ``DEPENDS`` | ``DEPENDENCIES``
+  ``PRIORITY``
+    .. deprecated:: 3.8
+      Old name for ``SORTING_PRIORITY``.
+
+  ``DEPENDS``, ``DEPENDENCIES``
+    .. versionadded:: 3.8
+
     list of dependency component or component group identifiers in
-    QtIFW_ style.
+    QtIFW style.
 
   ``AUTO_DEPEND_ON``
-    list of identifiers of component or component group in QtIFW_ style
+    .. versionadded:: 3.8
+
+    list of identifiers of component or component group in QtIFW style
     that this component group has an automatic dependency on.
 
   ``LICENSES``
@@ -218,6 +271,8 @@ The module defines the following commands:
     component group. You can specify more then one license.
 
   ``DEFAULT``
+    .. versionadded:: 3.8
+
     Possible values are: TRUE, FALSE, and SCRIPT.
     Set to TRUE to preselect the group in the installer
     (this takes effect only on groups that have no visible child components)
@@ -225,15 +280,23 @@ The module defines the following commands:
     the script as a value of the ``SCRIPT`` option).
 
   ``USER_INTERFACES``
+    .. versionadded:: 3.7
+
     is a list of <file_path> ('.ui' files) representing pages to load.
 
   ``TRANSLATIONS``
+    .. versionadded:: 3.8
+
     is a list of <file_path> ('.qm' files) representing translations to load.
 
   ``REPLACES``
+    .. versionadded:: 3.10
+
     list of identifiers of component or component group to replace.
 
   ``CHECKABLE``
+    .. versionadded:: 3.10
+
     Possible values are: TRUE, FALSE.
     Set to FALSE if you want to hide the checkbox for an item.
     This is useful when only a few subcomponents should be selected
@@ -242,7 +305,7 @@ The module defines the following commands:
 
 .. command:: cpack_ifw_add_repository
 
-  Add QtIFW_ specific remote repository to binary installer.
+  Add QtIFW specific remote repository to binary installer.
 
   ::
 
@@ -273,7 +336,9 @@ The module defines the following commands:
 
 .. command:: cpack_ifw_update_repository
 
-  Update QtIFW_ specific repository from remote repository.
+  .. versionadded:: 3.6
+
+  Update QtIFW specific repository from remote repository.
 
   ::
 
@@ -307,6 +372,8 @@ The module defines the following commands:
 
 
 .. command:: cpack_ifw_add_package_resources
+
+  .. versionadded:: 3.7
 
   Add additional resources in the installer binary.
 
@@ -362,6 +429,9 @@ set(_CPACK_IFW_PREFIXES
   "QtIFW-")
 
 set(_CPACK_IFW_VERSIONS
+  "4.0"
+  "3.2"
+  "3.2.0"
   "3.1"
   "3.1.0"
   "3.0"
@@ -435,6 +505,16 @@ find_program(CPACK_IFW_DEVTOOL_EXECUTABLE
   )
 mark_as_advanced(CPACK_IFW_DEVTOOL_EXECUTABLE)
 
+# Look for 'archivegen'
+
+find_program(CPACK_IFW_ARCHIVEGEN_EXECUTABLE
+  NAMES archivegen
+  PATHS ${_CPACK_IFW_PATHS}
+  PATH_SUFFIXES ${_CPACK_IFW_SUFFIXES}
+  DOC "QtIFW archivegen command line client"
+  )
+mark_as_advanced(CPACK_IFW_ARCHIVEGEN_EXECUTABLE)
+
 #
 ## Next code is included only once
 #
@@ -455,7 +535,7 @@ mark_as_advanced(CPACK_IFW_FRAMEWORK_VERSION_TIMEOUT)
 if(CPACK_IFW_INSTALLERBASE_EXECUTABLE AND NOT CPACK_IFW_FRAMEWORK_VERSION_FORCED)
   set(CPACK_IFW_FRAMEWORK_VERSION)
   # Invoke version from "installerbase" executable
-  foreach(_ifw_version_argument --framework-version --version)
+  foreach(_ifw_version_argument --version --framework-version)
     if(NOT CPACK_IFW_FRAMEWORK_VERSION)
       execute_process(COMMAND
         "${CPACK_IFW_INSTALLERBASE_EXECUTABLE}" ${_ifw_version_argument}

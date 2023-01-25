@@ -1,6 +1,8 @@
 target_link_options
 -------------------
 
+.. versionadded:: 3.13
+
 Add options to the link step for an executable, shared library or module
 library target.
 
@@ -34,14 +36,18 @@ specify the scope of the following arguments.  ``PRIVATE`` and ``PUBLIC``
 items will populate the :prop_tgt:`LINK_OPTIONS` property of
 ``<target>``.  ``PUBLIC`` and ``INTERFACE`` items will populate the
 :prop_tgt:`INTERFACE_LINK_OPTIONS` property of ``<target>``.
-(:ref:`IMPORTED targets <Imported Targets>` only support ``INTERFACE`` items.)
 The following arguments specify link options.  Repeated calls for the same
 ``<target>`` append items in the order called.
+
+.. note::
+  :ref:`IMPORTED targets <Imported Targets>` only support ``INTERFACE`` items.
 
 Arguments to ``target_link_options`` may use "generator expressions"
 with the syntax ``$<...>``. See the :manual:`cmake-generator-expressions(7)`
 manual for available expressions.  See the :manual:`cmake-buildsystem(7)`
 manual for more on defining buildsystem properties.
+
+.. include:: DEVICE_LINK_OPTIONS.txt
 
 .. include:: OPTIONS_SHELL.txt
 

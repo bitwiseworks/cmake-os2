@@ -1,19 +1,22 @@
 /* Distributed under the OSI-approved BSD 3-Clause License.  See accompanying
    file Copyright.txt or https://cmake.org/licensing for details.  */
-#ifndef cmSystemTools_h
-#define cmSystemTools_h
+#pragma once
 
 #include "cmConfigure.h" // IWYU pragma: keep
+
+#include <cstddef>
+#include <functional>
+#include <string>
+#include <vector>
+
+#include <cm/string_view>
+
+#include "cmsys/Process.h"
+#include "cmsys/SystemTools.hxx" // IWYU pragma: export
 
 #include "cmCryptoHash.h"
 #include "cmDuration.h"
 #include "cmProcessOutput.h"
-#include "cmsys/Process.h"
-#include "cmsys/SystemTools.hxx" // IWYU pragma: export
-#include <functional>
-#include <stddef.h>
-#include <string>
-#include <vector>
 
 /** \class cmSystemTools
  * \brief A collection of useful functions for CMake.
@@ -24,51 +27,8 @@
 class cmSystemTools : public cmsys::SystemTools
 {
 public:
-  typedef cmsys::SystemTools Superclass;
-  typedef cmProcessOutput::Encoding Encoding;
-
-  /**
-   * Expand the ; separated string @a arg into multiple arguments.
-   * All found arguments are appended to @a argsOut.
-   */
-  static void ExpandListArgument(const std::string& arg,
-                                 std::vector<std::string>& argsOut,
-                                 bool emptyArgs = false);
-
-  /**
-   * Expand out any arguments in the string range [@a first, @a last) that have
-   * ; separated strings into multiple arguments.  All found arguments are
-   * appended to @a argsOut.
-   */
-  template <class InputIt>
-  static void ExpandLists(InputIt first, InputIt last,
-                          std::vector<std::string>& argsOut)
-  {
-    for (; first != last; ++first) {
-      cmSystemTools::ExpandListArgument(*first, argsOut);
-    }
-  }
-
-  /**
-   * Same as ExpandListArgument but a new vector is created containing
-   * the expanded arguments from the string @a arg.
-   */
-  static std::vector<std::string> ExpandedListArgument(const std::string& arg,
-                                                       bool emptyArgs = false);
-
-  /**
-   * Same as ExpandList but a new vector is created containing the expanded
-   * versions of all arguments in the string range [@a first, @a last).
-   */
-  template <class InputIt>
-  static std::vector<std::string> ExpandedLists(InputIt first, InputIt last)
-  {
-    std::vector<std::string> argsOut;
-    for (; first != last; ++first) {
-      cmSystemTools::ExpandListArgument(*first, argsOut);
-    }
-    return argsOut;
-  }
+  using Superclass = cmsys::SystemTools;
+  using Encoding = cmProcessOutput::Encoding;
 
   /**
    * Look for and replace registry values in a string
@@ -76,16 +36,8 @@ public:
   static void ExpandRegistryValues(std::string& source,
                                    KeyWOW64 view = KeyWOW64_Default);
 
-  //! Escape quotes in a string.
-  static std::string EscapeQuotes(const std::string& str);
-
   /** Map help document name to file name.  */
-  static std::string HelpFileName(std::string);
-
-  /**
-   * Returns a string that has whitespace removed from the start and the end.
-   */
-  static std::string TrimWhitespace(const std::string& s);
+  static std::string HelpFileName(cm::string_view);
 
   using MessageCallback = std::function<void(const std::string&, const char*)>;
   /**
@@ -144,31 +96,6 @@ public:
     cmSystemTools::s_ErrorOccured = false;
   }
 
-  /**
-   * Does a string indicates that CMake/CPack/CTest internally
-   * forced this value. This is not the same as On, but this
-   * may be considered as "internally switched on".
-   */
-  static bool IsInternallyOn(const char* val);
-  /**
-   * does a string indicate a true or on value ? This is not the same
-   * as ifdef.
-   */
-  static bool IsOn(const char* val);
-  static bool IsOn(const std::string& val);
-
-  /**
-   * does a string indicate a false or off value ? Note that this is
-   * not the same as !IsOn(...) because there are a number of
-   * ambiguous values such as "/usr/local/bin" a path will result in
-   * IsON and IsOff both returning false. Note that the special path
-   * NOTFOUND, *-NOTFOUND or IGNORE will cause IsOff to return true.
-   */
-  static bool IsOff(const char* val);
-  static bool IsOff(const std::string& val);
-
-  //! Return true if value is NOTFOUND or ends in -NOTFOUND.
-  static bool IsNOTFOUND(const char* value);
   //! Return true if the path is a framework
   static bool IsPathToFramework(const std::string& value);
 
@@ -205,6 +132,10 @@ public:
       if possible).  */
   static bool RenameFile(const std::string& oldname,
                          const std::string& newname);
+
+  //! Rename a file if contents are different, delete the source otherwise
+  static void MoveFileIfDifferent(const std::string& source,
+                                  const std::string& destination);
 
   //! Compute the hash of a file
   static std::string ComputeFileHash(const std::string& source,
@@ -299,27 +230,6 @@ public:
   static void EnableRunCommandOutput() { s_DisableRunCommandOutput = false; }
   static bool GetRunCommandOutput() { return s_DisableRunCommandOutput; }
 
-  /**
-   * Some constants for different file formats.
-   */
-  enum FileFormat
-  {
-    NO_FILE_FORMAT = 0,
-    C_FILE_FORMAT,
-    CXX_FILE_FORMAT,
-    FORTRAN_FILE_FORMAT,
-    JAVA_FILE_FORMAT,
-    CUDA_FILE_FORMAT,
-    HEADER_FILE_FORMAT,
-    RESOURCE_FILE_FORMAT,
-    DEFINITION_FILE_FORMAT,
-    STATIC_LIBRARY_FILE_FORMAT,
-    SHARED_LIBRARY_FILE_FORMAT,
-    MODULE_FILE_FORMAT,
-    OBJECT_FILE_FORMAT,
-    UNKNOWN_FILE_FORMAT
-  };
-
   enum CompareOp
   {
     OP_EQUAL = 1,
@@ -350,11 +260,6 @@ public:
    */
   static int strverscmp(std::string const& lhs, std::string const& rhs);
 
-  /**
-   * Determine the file type based on the extension
-   */
-  static FileFormat GetFileFormat(std::string const& ext);
-
   /** Windows if this is true, the CreateProcess in RunCommand will
    *  not show new console windows when running programs.
    */
@@ -382,6 +287,12 @@ public:
   // running cmake needs paths to be in its format
   static std::string ConvertToRunCommandPath(const std::string& path);
 
+  /**
+   * For windows computes the long path for the given path,
+   * For Unix, it is a noop
+   */
+  static void ConvertToLongPath(std::string& path);
+
   /** compute the relative path from local to remote.  local must
       be a directory.  remote can be a file or a directory.
       Both remote and local must be full paths.  Basically, if
@@ -401,7 +312,7 @@ public:
   static std::string ForceToRelativePath(std::string const& local_path,
                                          std::string const& remote_path);
 
-#ifdef CMAKE_BUILD_WITH_CMAKE
+#ifndef CMAKE_BOOTSTRAP
   /** Remove an environment variable */
   static bool UnsetEnv(const char* value);
 
@@ -457,7 +368,8 @@ public:
                         const std::vector<std::string>& files,
                         cmTarCompression compressType, bool verbose,
                         std::string const& mtime = std::string(),
-                        std::string const& format = std::string());
+                        std::string const& format = std::string(),
+                        int compressionLevel = 0);
   static bool ExtractTar(const std::string& inFileName,
                          const std::vector<std::string>& files, bool verbose);
   // This should be called first thing in main
@@ -483,6 +395,10 @@ public:
   static std::string const& GetCMakeCursesCommand();
   static std::string const& GetCMClDepsCommand();
   static std::string const& GetCMakeRoot();
+  static std::string const& GetHTMLDoc();
+
+  /** Get the CWD mapped through the KWSys translation map.  */
+  static std::string GetCurrentWorkingDirectory();
 
   /** Echo a message in color using KWSys's Terminal cprintf.  */
   static void MakefileColorEcho(int color, const char* message, bool newLine,
@@ -499,6 +415,7 @@ public:
   /** Try to set the RPATH in an ELF binary.  */
   static bool ChangeRPath(std::string const& file, std::string const& oldRPath,
                           std::string const& newRPath,
+                          bool removeEnvironmentRPath,
                           std::string* emsg = nullptr,
                           bool* changed = nullptr);
 
@@ -513,14 +430,6 @@ public:
   /** Remove a directory; repeat a few times in case of locked files.  */
   static bool RepeatedRemoveDirectory(const std::string& dir);
 
-  /** Tokenize a string */
-  static std::vector<std::string> tokenize(const std::string& str,
-                                           const std::string& sep);
-
-  /** Convert string to long. Expected that the whole string is an integer */
-  static bool StringToLong(const char* str, long* value);
-  static bool StringToULong(const char* str, unsigned long* value);
-
   /** Encode a string as a URL.  */
   static std::string EncodeURL(std::string const& in,
                                bool escapeSlashes = true);
@@ -532,6 +441,7 @@ public:
     unsigned int Delay;
   };
   static WindowsFileRetry GetWindowsFileRetry();
+  static WindowsFileRetry GetWindowsDirectoryRetry();
 #endif
 
   /** Get the real path for a given path, removing all symlinks.
@@ -562,5 +472,3 @@ private:
   static bool s_FatalErrorOccured;
   static bool s_DisableRunCommandOutput;
 };
-
-#endif

@@ -2,10 +2,16 @@
    file Copyright.txt or https://cmake.org/licensing for details.  */
 #include "cmGlobalVisualStudioVersionedGenerator.h"
 
+#include <cmext/string_view>
+
+#include "cmsys/FStream.hxx"
+#include "cmsys/Glob.hxx"
+
 #include "cmAlgorithms.h"
 #include "cmDocumentationEntry.h"
 #include "cmLocalVisualStudio10Generator.h"
 #include "cmMakefile.h"
+#include "cmStringAlgorithms.h"
 #include "cmVSSetupHelper.h"
 #include "cmake.h"
 
@@ -99,6 +105,24 @@ static const char* VSVersionToToolset(
   return "";
 }
 
+static const char* VSVersionToAndroidToolset(
+  cmGlobalVisualStudioGenerator::VSVersion v)
+{
+  switch (v) {
+    case cmGlobalVisualStudioGenerator::VS9:
+    case cmGlobalVisualStudioGenerator::VS10:
+    case cmGlobalVisualStudioGenerator::VS11:
+    case cmGlobalVisualStudioGenerator::VS12:
+      return "";
+    case cmGlobalVisualStudioGenerator::VS14:
+      return "Clang_3_8";
+    case cmGlobalVisualStudioGenerator::VS15:
+    case cmGlobalVisualStudioGenerator::VS16:
+      return "Clang_5_0";
+  }
+  return "";
+}
+
 static const char vs15generatorName[] = "Visual Studio 15 2017";
 
 // Map generator name without year to name with year.
@@ -120,30 +144,33 @@ class cmGlobalVisualStudioVersionedGenerator::Factory15
   : public cmGlobalGeneratorFactory
 {
 public:
-  cmGlobalGenerator* CreateGlobalGenerator(const std::string& name,
-                                           cmake* cm) const override
+  std::unique_ptr<cmGlobalGenerator> CreateGlobalGenerator(
+    const std::string& name, bool allowArch, cmake* cm) const override
   {
     std::string genName;
     const char* p = cmVS15GenName(name, genName);
     if (!p) {
-      return 0;
+      return std::unique_ptr<cmGlobalGenerator>();
     }
     if (!*p) {
-      return new cmGlobalVisualStudioVersionedGenerator(
-        cmGlobalVisualStudioGenerator::VS15, cm, genName, "");
+      return std::unique_ptr<cmGlobalGenerator>(
+        new cmGlobalVisualStudioVersionedGenerator(
+          cmGlobalVisualStudioGenerator::VS15, cm, genName, ""));
     }
-    if (*p++ != ' ') {
-      return 0;
+    if (!allowArch || *p++ != ' ') {
+      return std::unique_ptr<cmGlobalGenerator>();
     }
     if (strcmp(p, "Win64") == 0) {
-      return new cmGlobalVisualStudioVersionedGenerator(
-        cmGlobalVisualStudioGenerator::VS15, cm, genName, "x64");
+      return std::unique_ptr<cmGlobalGenerator>(
+        new cmGlobalVisualStudioVersionedGenerator(
+          cmGlobalVisualStudioGenerator::VS15, cm, genName, "x64"));
     }
     if (strcmp(p, "ARM") == 0) {
-      return new cmGlobalVisualStudioVersionedGenerator(
-        cmGlobalVisualStudioGenerator::VS15, cm, genName, "ARM");
+      return std::unique_ptr<cmGlobalGenerator>(
+        new cmGlobalVisualStudioVersionedGenerator(
+          cmGlobalVisualStudioGenerator::VS15, cm, genName, "ARM"));
     }
-    return 0;
+    return std::unique_ptr<cmGlobalGenerator>();
   }
 
   void GetDocumentation(cmDocumentationEntry& entry) const override
@@ -178,16 +205,17 @@ public:
     platforms.emplace_back("Win32");
     platforms.emplace_back("ARM");
     platforms.emplace_back("ARM64");
+    platforms.emplace_back("ARM64EC");
     return platforms;
   }
 
   std::string GetDefaultPlatformName() const override { return "Win32"; }
 };
 
-cmGlobalGeneratorFactory*
+std::unique_ptr<cmGlobalGeneratorFactory>
 cmGlobalVisualStudioVersionedGenerator::NewFactory15()
 {
-  return new Factory15;
+  return std::unique_ptr<cmGlobalGeneratorFactory>(new Factory15);
 }
 
 static const char vs16generatorName[] = "Visual Studio 16 2019";
@@ -211,19 +239,20 @@ class cmGlobalVisualStudioVersionedGenerator::Factory16
   : public cmGlobalGeneratorFactory
 {
 public:
-  cmGlobalGenerator* CreateGlobalGenerator(const std::string& name,
-                                           cmake* cm) const override
+  std::unique_ptr<cmGlobalGenerator> CreateGlobalGenerator(
+    const std::string& name, bool /*allowArch*/, cmake* cm) const override
   {
     std::string genName;
     const char* p = cmVS16GenName(name, genName);
     if (!p) {
-      return 0;
+      return std::unique_ptr<cmGlobalGenerator>();
     }
     if (!*p) {
-      return new cmGlobalVisualStudioVersionedGenerator(
-        cmGlobalVisualStudioGenerator::VS16, cm, genName, "");
+      return std::unique_ptr<cmGlobalGenerator>(
+        new cmGlobalVisualStudioVersionedGenerator(
+          cmGlobalVisualStudioGenerator::VS16, cm, genName, ""));
     }
-    return 0;
+    return std::unique_ptr<cmGlobalGenerator>();
   }
 
   void GetDocumentation(cmDocumentationEntry& entry) const override
@@ -264,10 +293,10 @@ public:
   }
 };
 
-cmGlobalGeneratorFactory*
+std::unique_ptr<cmGlobalGeneratorFactory>
 cmGlobalVisualStudioVersionedGenerator::NewFactory16()
 {
-  return new Factory16;
+  return std::unique_ptr<cmGlobalGeneratorFactory>(new Factory16);
 }
 
 cmGlobalVisualStudioVersionedGenerator::cmGlobalVisualStudioVersionedGenerator(
@@ -279,6 +308,7 @@ cmGlobalVisualStudioVersionedGenerator::cmGlobalVisualStudioVersionedGenerator(
   this->Version = version;
   this->ExpressEdition = false;
   this->DefaultPlatformToolset = VSVersionToToolset(this->Version);
+  this->DefaultAndroidToolset = VSVersionToAndroidToolset(this->Version);
   this->DefaultCLFlagTableName = VSVersionToToolset(this->Version);
   this->DefaultCSharpFlagTableName = VSVersionToToolset(this->Version);
   this->DefaultLinkFlagTableName = VSVersionToToolset(this->Version);
@@ -361,44 +391,140 @@ bool cmGlobalVisualStudioVersionedGenerator::GetVSInstance(
   return vsSetupAPIHelper.GetVSInstanceInfo(dir);
 }
 
-bool cmGlobalVisualStudioVersionedGenerator::IsDefaultToolset(
-  const std::string& version) const
+cm::optional<unsigned long long>
+cmGlobalVisualStudioVersionedGenerator::GetVSInstanceVersion() const
 {
-  if (version.empty()) {
+  cm::optional<unsigned long long> result;
+  unsigned long long vsInstanceVersion;
+  if (vsSetupAPIHelper.GetVSInstanceVersion(vsInstanceVersion)) {
+    result = vsInstanceVersion;
+  }
+  return result;
+}
+
+bool cmGlobalVisualStudioVersionedGenerator::IsStdOutEncodingSupported() const
+{
+  // Supported from Visual Studio 16.7 Preview 3.
+  if (this->Version > cmGlobalVisualStudioGenerator::VSVersion::VS16) {
     return true;
   }
+  if (this->Version < cmGlobalVisualStudioGenerator::VSVersion::VS16) {
+    return false;
+  }
+  unsigned long long const vsInstanceVersion16_7_P2 = 4503631666610212;
+  cm::optional<unsigned long long> vsInstanceVersion =
+    this->GetVSInstanceVersion();
+  return (vsInstanceVersion && *vsInstanceVersion > vsInstanceVersion16_7_P2);
+}
 
-  std::string vcToolsetVersion;
-  if (this->vsSetupAPIHelper.GetVCToolsetVersion(vcToolsetVersion)) {
+const char*
+cmGlobalVisualStudioVersionedGenerator::GetAndroidApplicationTypeRevision()
+  const
+{
+  switch (this->Version) {
+    case cmGlobalVisualStudioGenerator::VS9:
+    case cmGlobalVisualStudioGenerator::VS10:
+    case cmGlobalVisualStudioGenerator::VS11:
+    case cmGlobalVisualStudioGenerator::VS12:
+      return "";
+    case cmGlobalVisualStudioGenerator::VS14:
+      return "2.0";
+    case cmGlobalVisualStudioGenerator::VS15:
+    case cmGlobalVisualStudioGenerator::VS16:
+      return "3.0";
+  }
+  return "";
+}
 
-    cmsys::RegularExpression regex("[0-9][0-9]\\.[0-9]+");
-    if (regex.find(version) && regex.find(vcToolsetVersion)) {
-      const auto majorMinorEnd = vcToolsetVersion.find('.', 3);
-      const auto majorMinor = vcToolsetVersion.substr(0, majorMinorEnd);
-      return version == majorMinor;
+cmGlobalVisualStudioVersionedGenerator::AuxToolset
+cmGlobalVisualStudioVersionedGenerator::FindAuxToolset(
+  std::string& version, std::string& props) const
+{
+  if (version.empty()) {
+    return AuxToolset::None;
+  }
+
+  std::string instancePath;
+  this->GetVSInstance(instancePath);
+  cmSystemTools::ConvertToUnixSlashes(instancePath);
+
+  // Translate three-component format accepted by "vcvarsall -vcvars_ver=".
+  cmsys::RegularExpression threeComponent(
+    "^([0-9]+\\.[0-9]+)\\.[0-9][0-9][0-9][0-9][0-9]$");
+  if (threeComponent.find(version)) {
+    // Load "VC/Auxiliary/Build/*/Microsoft.VCToolsVersion.*.txt" files
+    // with two matching components to check their three-component version.
+    std::string const& twoComponent = threeComponent.match(1);
+    std::string pattern =
+      cmStrCat(instancePath, "/VC/Auxiliary/Build/"_s, twoComponent,
+               "*/Microsoft.VCToolsVersion."_s, twoComponent, "*.txt"_s);
+    cmsys::Glob glob;
+    glob.SetRecurseThroughSymlinks(false);
+    if (glob.FindFiles(pattern)) {
+      for (std::string const& txt : glob.GetFiles()) {
+        std::string ver;
+        cmsys::ifstream fin(txt.c_str());
+        if (fin && std::getline(fin, ver)) {
+          // Strip trailing whitespace.
+          ver = ver.substr(0, ver.find_first_not_of("0123456789."));
+          // If the three-component version matches, translate it to
+          // that used by the "Microsoft.VCToolsVersion.*.txt" file name.
+          if (ver == version) {
+            cmsys::RegularExpression extractVersion(
+              "VCToolsVersion\\.([0-9.]+)\\.txt$");
+            if (extractVersion.find(txt)) {
+              version = extractVersion.match(1);
+              break;
+            }
+          }
+        }
+      }
     }
   }
 
-  return false;
-}
-
-std::string cmGlobalVisualStudioVersionedGenerator::GetAuxiliaryToolset() const
-{
-  const char* version = this->GetPlatformToolsetVersion();
-  if (version) {
-    std::string instancePath;
-    GetVSInstance(instancePath);
-    std::stringstream path;
-    path << instancePath;
-    path << "/VC/Auxiliary/Build/";
-    path << version;
-    path << "/Microsoft.VCToolsVersion." << version << ".props";
-
-    std::string toolsetPath = path.str();
-    cmSystemTools::ConvertToUnixSlashes(toolsetPath);
-    return toolsetPath;
+  if (cmSystemTools::VersionCompareGreaterEq(version, "14.20")) {
+    props = cmStrCat(instancePath, "/VC/Auxiliary/Build."_s, version,
+                     "/Microsoft.VCToolsVersion."_s, version, ".props"_s);
+    if (cmSystemTools::PathExists(props)) {
+      return AuxToolset::PropsExist;
+    }
   }
-  return {};
+  props = cmStrCat(instancePath, "/VC/Auxiliary/Build/"_s, version,
+                   "/Microsoft.VCToolsVersion."_s, version, ".props"_s);
+  if (cmSystemTools::PathExists(props)) {
+    return AuxToolset::PropsExist;
+  }
+
+  // Accept the toolset version that is default in the current VS version
+  // by matching the name later VS versions will use for the SxS props files.
+  std::string vcToolsetVersion;
+  if (this->vsSetupAPIHelper.GetVCToolsetVersion(vcToolsetVersion)) {
+    // Accept an exact-match (three-component version).
+    if (version == vcToolsetVersion) {
+      return AuxToolset::Default;
+    }
+
+    // Accept known SxS props file names using four version components
+    // in VS versions later than the current.
+    if (version == "14.28.16.9" && vcToolsetVersion == "14.28.29910") {
+      return AuxToolset::Default;
+    }
+    if (version == "14.29.16.10" && vcToolsetVersion == "14.29.30037") {
+      return AuxToolset::Default;
+    }
+
+    // The first two components of the default toolset version typically
+    // match the name used by later VS versions for the SxS props files.
+    cmsys::RegularExpression twoComponent("^([0-9]+\\.[0-9]+)");
+    if (twoComponent.find(version)) {
+      std::string const versionPrefix = cmStrCat(twoComponent.match(1), '.');
+      if (cmHasPrefix(vcToolsetVersion, versionPrefix)) {
+        return AuxToolset::Default;
+      }
+    }
+  }
+
+  return AuxToolset::PropsMissing;
 }
 
 bool cmGlobalVisualStudioVersionedGenerator::InitializeWindows(cmMakefile* mf)
@@ -470,8 +596,9 @@ bool cmGlobalVisualStudioVersionedGenerator::IsWin81SDKInstalled() const
   return false;
 }
 
-std::string cmGlobalVisualStudioVersionedGenerator::GetWindows10SDKMaxVersion()
-  const
+std::string
+cmGlobalVisualStudioVersionedGenerator::GetWindows10SDKMaxVersionDefault(
+  cmMakefile*) const
 {
   return std::string();
 }

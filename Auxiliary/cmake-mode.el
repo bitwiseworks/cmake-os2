@@ -1,5 +1,7 @@
 ;;; cmake-mode.el --- major-mode for editing CMake sources
 
+;; Package-Requires: ((emacs "24.1"))
+
 ; Distributed under the OSI-approved BSD 3-Clause License.  See accompanying
 ; file Copyright.txt or https://cmake.org/licensing for details.
 
@@ -24,6 +26,9 @@
 ;;
 ;; cmake-command-help Written by James Bigler
 ;;
+
+(require 'rst)
+(require 'rx)
 
 (defcustom cmake-mode-cmake-executable "cmake"
   "*The name of the cmake executable.
@@ -186,6 +191,61 @@ the indentation.  Otherwise it retains the same position on the line"
     )
   )
 
+
+;------------------------------------------------------------------------------
+
+;;
+;; Navigation / marking by function or macro
+;;
+
+(defconst cmake--regex-defun-start
+  (rx line-start
+      (zero-or-more space)
+      (or "function" "macro")
+      (zero-or-more space)
+      "("))
+
+(defconst cmake--regex-defun-end
+  (rx line-start
+      (zero-or-more space)
+      "end"
+      (or "function" "macro")
+      (zero-or-more space)
+      "(" (zero-or-more (not-char ")")) ")"))
+
+(defun cmake-beginning-of-defun ()
+  "Move backward to the beginning of a CMake function or macro.
+
+Return t unless search stops due to beginning of buffer."
+  (interactive)
+  (when (not (region-active-p))
+    (push-mark))
+  (let ((case-fold-search t))
+    (when (re-search-backward cmake--regex-defun-start nil 'move)
+      t)))
+
+(defun cmake-end-of-defun ()
+  "Move forward to the end of a CMake function or macro.
+
+Return t unless search stops due to end of buffer."
+  (interactive)
+  (when (not (region-active-p))
+    (push-mark))
+  (let ((case-fold-search t))
+    (when (re-search-forward cmake--regex-defun-end nil 'move)
+      (forward-line)
+      t)))
+
+(defun cmake-mark-defun ()
+  "Mark the current CMake function or macro.
+
+This puts the mark at the end, and point at the beginning."
+  (interactive)
+  (cmake-end-of-defun)
+  (push-mark nil :nomsg :activate)
+  (cmake-beginning-of-defun))
+
+
 ;------------------------------------------------------------------------------
 
 ;;
@@ -224,17 +284,11 @@ the indentation.  Otherwise it retains the same position on the line"
 ;;
 (defvar cmake-mode-hook nil)
 
-;------------------------------------------------------------------------------
-
-;; For compatibility with Emacs < 24
-(defalias 'cmake--parent-mode
-  (if (fboundp 'prog-mode) 'prog-mode 'fundamental-mode))
-
 ;;------------------------------------------------------------------------------
 ;; Mode definition.
 ;;
 ;;;###autoload
-(define-derived-mode cmake-mode cmake--parent-mode "CMake"
+(define-derived-mode cmake-mode prog-mode "CMake"
   "Major mode for editing CMake source files."
 
   ; Setup font-lock mode.
@@ -243,6 +297,12 @@ the indentation.  Otherwise it retains the same position on the line"
   (set (make-local-variable 'indent-line-function) 'cmake-indent)
   ; Setup comment syntax.
   (set (make-local-variable 'comment-start) "#"))
+
+;; Default cmake-mode key bindings
+(define-key cmake-mode-map "\e\C-a" #'cmake-beginning-of-defun)
+(define-key cmake-mode-map "\e\C-e" #'cmake-end-of-defun)
+(define-key cmake-mode-map "\e\C-h" #'cmake-mark-defun)
+
 
 ; Help mode starts here
 
@@ -262,7 +322,27 @@ optional argument topic will be appended to the argument list."
     (save-selected-window
       (select-window (display-buffer buffer 'not-this-window))
       (cmake-mode)
-      (read-only-mode 1))
+      (read-only-mode 1)
+      (view-mode 1))
+    )
+  )
+
+;;;###autoload
+(defun cmake-command-run-help (type &optional topic buffer)
+  "`cmake-command-run' but rendered in `rst-mode'."
+  (interactive "s")
+  (let* ((bufname (if buffer buffer (concat "*CMake" type (if topic "-") topic "*")))
+         (buffer  (if (get-buffer bufname) (get-buffer bufname) (generate-new-buffer bufname)))
+         (command (concat cmake-mode-cmake-executable " " type " " topic))
+         ;; Turn of resizing of mini-windows for shell-command.
+         (resize-mini-windows nil)
+         )
+    (shell-command command buffer)
+    (save-selected-window
+      (select-window (display-buffer buffer 'not-this-window))
+      (rst-mode)
+      (read-only-mode 1)
+      (view-mode 1))
     )
   )
 
@@ -270,7 +350,7 @@ optional argument topic will be appended to the argument list."
 (defun cmake-help-list-commands ()
   "Prints out a list of the cmake commands."
   (interactive)
-  (cmake-command-run "--help-command-list")
+  (cmake-command-run-help "--help-command-list")
   )
 
 (defvar cmake-commands '() "List of available topics for --help-command.")
@@ -296,7 +376,7 @@ and store the result as a list in LISTVAR."
     (if (not (symbol-value listvar))
         (let ((temp-buffer-name "*CMake Temporary*"))
           (save-window-excursion
-            (cmake-command-run (concat "--help-" listname "-list") nil temp-buffer-name)
+            (cmake-command-run-help (concat "--help-" listname "-list") nil temp-buffer-name)
             (with-current-buffer temp-buffer-name
               ; FIXME: Ignore first line if it is "cmake version ..." from CMake < 3.0.
               (set listvar (split-string (buffer-substring-no-properties (point-min) (point-max)) "\n" t)))))
@@ -330,25 +410,25 @@ and store the result as a list in LISTVAR."
 (defun cmake-help-command ()
   "Prints out the help message for the command the cursor is on."
   (interactive)
-  (cmake-command-run "--help-command" (cmake-help-type "command") "*CMake Help*"))
+  (cmake-command-run-help "--help-command" (cmake-help-type "command") "*CMake Help*"))
 
 ;;;###autoload
 (defun cmake-help-module ()
   "Prints out the help message for the module the cursor is on."
   (interactive)
-  (cmake-command-run "--help-module" (cmake-help-type "module") "*CMake Help*"))
+  (cmake-command-run-help "--help-module" (cmake-help-type "module") "*CMake Help*"))
 
 ;;;###autoload
 (defun cmake-help-variable ()
   "Prints out the help message for the variable the cursor is on."
   (interactive)
-  (cmake-command-run "--help-variable" (cmake-help-type "variable") "*CMake Help*"))
+  (cmake-command-run-help "--help-variable" (cmake-help-type "variable") "*CMake Help*"))
 
 ;;;###autoload
 (defun cmake-help-property ()
   "Prints out the help message for the property the cursor is on."
   (interactive)
-  (cmake-command-run "--help-property" (cmake-help-type "property") "*CMake Help*"))
+  (cmake-command-run-help "--help-property" (cmake-help-type "property") "*CMake Help*"))
 
 ;;;###autoload
 (defun cmake-help ()
@@ -371,13 +451,13 @@ and store the result as a list in LISTVAR."
     (if (string= input "")
         (error "No argument given")
       (if (member input command-list)
-          (cmake-command-run "--help-command" input "*CMake Help*")
+          (cmake-command-run-help "--help-command" input "*CMake Help*")
         (if (member input variable-list)
-            (cmake-command-run "--help-variable" input "*CMake Help*")
+            (cmake-command-run-help "--help-variable" input "*CMake Help*")
           (if (member input module-list)
-              (cmake-command-run "--help-module" input "*CMake Help*")
+              (cmake-command-run-help "--help-module" input "*CMake Help*")
             (if (member input property-list)
-                (cmake-command-run "--help-property" input "*CMake Help*")
+                (cmake-command-run-help "--help-property" input "*CMake Help*")
               (error "Not a know help topic.") ; this really should not happen
               ))))))
   )

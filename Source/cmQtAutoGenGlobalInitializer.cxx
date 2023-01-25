@@ -1,24 +1,28 @@
 /* Distributed under the OSI-approved BSD 3-Clause License.  See accompanying
    file Copyright.txt or https://cmake.org/licensing for details.  */
 #include "cmQtAutoGenGlobalInitializer.h"
-#include "cmQtAutoGen.h"
-#include "cmQtAutoGenInitializer.h"
 
-#include "cmAlgorithms.h"
+#include <set>
+#include <utility>
+
+#include <cm/memory>
+
 #include "cmCustomCommandLines.h"
 #include "cmDuration.h"
 #include "cmGeneratorTarget.h"
 #include "cmLocalGenerator.h"
 #include "cmMakefile.h"
 #include "cmMessageType.h"
+#include "cmPolicies.h"
 #include "cmProcessOutput.h"
+#include "cmProperty.h"
+#include "cmQtAutoGen.h"
+#include "cmQtAutoGenInitializer.h"
 #include "cmState.h"
 #include "cmStateTypes.h"
+#include "cmStringAlgorithms.h"
 #include "cmSystemTools.h"
 #include "cmTarget.h"
-
-#include <memory>
-#include <utility>
 
 cmQtAutoGenGlobalInitializer::Keywords::Keywords()
   : AUTOMOC("AUTOMOC")
@@ -39,41 +43,41 @@ cmQtAutoGenGlobalInitializer::Keywords::Keywords()
 }
 
 cmQtAutoGenGlobalInitializer::cmQtAutoGenGlobalInitializer(
-  std::vector<cmLocalGenerator*> const& localGenerators)
+  std::vector<std::unique_ptr<cmLocalGenerator>> const& localGenerators)
 {
-  for (cmLocalGenerator* localGen : localGenerators) {
+  for (const auto& localGen : localGenerators) {
     // Detect global autogen and autorcc target names
     bool globalAutoGenTarget = false;
     bool globalAutoRccTarget = false;
     {
       cmMakefile* makefile = localGen->GetMakefile();
       // Detect global autogen target name
-      if (cmSystemTools::IsOn(
-            makefile->GetSafeDefinition("CMAKE_GLOBAL_AUTOGEN_TARGET"))) {
+      if (makefile->IsOn("CMAKE_GLOBAL_AUTOGEN_TARGET")) {
         std::string targetName =
           makefile->GetSafeDefinition("CMAKE_GLOBAL_AUTOGEN_TARGET_NAME");
         if (targetName.empty()) {
           targetName = "autogen";
         }
-        GlobalAutoGenTargets_.emplace(localGen, std::move(targetName));
+        this->GlobalAutoGenTargets_.emplace(localGen.get(),
+                                            std::move(targetName));
         globalAutoGenTarget = true;
       }
 
       // Detect global autorcc target name
-      if (cmSystemTools::IsOn(
-            makefile->GetSafeDefinition("CMAKE_GLOBAL_AUTORCC_TARGET"))) {
+      if (makefile->IsOn("CMAKE_GLOBAL_AUTORCC_TARGET")) {
         std::string targetName =
           makefile->GetSafeDefinition("CMAKE_GLOBAL_AUTORCC_TARGET_NAME");
         if (targetName.empty()) {
           targetName = "autorcc";
         }
-        GlobalAutoRccTargets_.emplace(localGen, std::move(targetName));
+        this->GlobalAutoRccTargets_.emplace(localGen.get(),
+                                            std::move(targetName));
         globalAutoRccTarget = true;
       }
     }
 
     // Find targets that require AUTOMOC/UIC/RCC processing
-    for (cmGeneratorTarget* target : localGen->GetGeneratorTargets()) {
+    for (const auto& target : localGen->GetGeneratorTargets()) {
       // Process only certain target types
       switch (target->GetType()) {
         case cmStateEnums::EXECUTABLE:
@@ -91,20 +95,31 @@ cmQtAutoGenGlobalInitializer::cmQtAutoGenGlobalInitializer(
         // Don't process target
         continue;
       }
+      std::set<std::string> const& languages =
+        target->GetAllConfigCompileLanguages();
+      // cmGeneratorTarget::GetAllConfigCompileLanguages caches the target's
+      // sources. Clear it so that OBJECT library targets that are AUTOGEN
+      // initialized after this target get their added mocs_compilation.cpp
+      // source acknowledged by this target.
+      target->ClearSourcesCache();
+      if (languages.count("CSharp")) {
+        // Don't process target if it's a CSharp target
+        continue;
+      }
 
-      bool const moc = target->GetPropertyAsBool(kw().AUTOMOC);
-      bool const uic = target->GetPropertyAsBool(kw().AUTOUIC);
-      bool const rcc = target->GetPropertyAsBool(kw().AUTORCC);
+      bool const moc = target->GetPropertyAsBool(this->kw().AUTOMOC);
+      bool const uic = target->GetPropertyAsBool(this->kw().AUTOUIC);
+      bool const rcc = target->GetPropertyAsBool(this->kw().AUTORCC);
       if (moc || uic || rcc) {
-        std::string const mocExec =
-          target->GetSafeProperty(kw().AUTOMOC_EXECUTABLE);
-        std::string const uicExec =
-          target->GetSafeProperty(kw().AUTOUIC_EXECUTABLE);
-        std::string const rccExec =
-          target->GetSafeProperty(kw().AUTORCC_EXECUTABLE);
+        std::string const& mocExec =
+          target->GetSafeProperty(this->kw().AUTOMOC_EXECUTABLE);
+        std::string const& uicExec =
+          target->GetSafeProperty(this->kw().AUTOUIC_EXECUTABLE);
+        std::string const& rccExec =
+          target->GetSafeProperty(this->kw().AUTORCC_EXECUTABLE);
 
         // We support Qt4, Qt5 and Qt6
-        auto qtVersion = cmQtAutoGenInitializer::GetQtVersion(target);
+        auto qtVersion = cmQtAutoGenInitializer::GetQtVersion(target.get());
         bool const validQt = (qtVersion.first.Major == 4) ||
           (qtVersion.first.Major == 5) || (qtVersion.first.Major == 6);
 
@@ -119,30 +134,25 @@ cmQtAutoGenGlobalInitializer::cmQtAutoGenGlobalInitializer(
         bool const uicDisabled = (uic && !uicAvailable);
         bool const rccDisabled = (rcc && !rccAvailable);
         if (mocDisabled || uicDisabled || rccDisabled) {
-          std::string msg = "AUTOGEN: No valid Qt version found for target ";
-          msg += target->GetName();
-          msg += ". ";
-          msg += cmQtAutoGen::Tools(mocDisabled, uicDisabled, rccDisabled);
-          msg += " disabled.  Consider adding:\n";
-          {
-            std::string version = (qtVersion.second == 0)
-              ? std::string("<QTVERSION>")
-              : std::to_string(qtVersion.second);
-            std::string comp = uicDisabled ? "Widgets" : "Core";
-            msg += "  find_package(Qt";
-            msg += version;
-            msg += " COMPONENTS ";
-            msg += comp;
-            msg += ")\n";
-          }
-          msg += "to your CMakeLists.txt file.";
+          cmAlphaNum version = (qtVersion.second == 0)
+            ? cmAlphaNum("<QTVERSION>")
+            : cmAlphaNum(qtVersion.second);
+          cmAlphaNum component = uicDisabled ? "Widgets" : "Core";
+
+          std::string const msg = cmStrCat(
+            "AUTOGEN: No valid Qt version found for target ",
+            target->GetName(), ".  ",
+            cmQtAutoGen::Tools(mocDisabled, uicDisabled, rccDisabled),
+            " disabled.  Consider adding:\n", "  find_package(Qt", version,
+            " COMPONENTS ", component, ")\n", "to your CMakeLists.txt file.");
           target->Makefile->IssueMessage(MessageType::AUTHOR_WARNING, msg);
         }
         if (mocIsValid || uicIsValid || rccIsValid) {
           // Create autogen target initializer
-          Initializers_.emplace_back(cm::make_unique<cmQtAutoGenInitializer>(
-            this, target, qtVersion.first, mocIsValid, uicIsValid, rccIsValid,
-            globalAutoGenTarget, globalAutoRccTarget));
+          this->Initializers_.emplace_back(
+            cm::make_unique<cmQtAutoGenInitializer>(
+              this, target.get(), qtVersion.first, mocIsValid, uicIsValid,
+              rccIsValid, globalAutoGenTarget, globalAutoRccTarget));
         }
       }
     }
@@ -160,20 +170,22 @@ void cmQtAutoGenGlobalInitializer::GetOrCreateGlobalTarget(
     cmMakefile* makefile = localGen->GetMakefile();
 
     // Create utility target
-    cmTarget* target = makefile->AddUtilityCommand(
-      name, cmMakefile::TargetOrigin::Generator, true,
-      makefile->GetHomeOutputDirectory().c_str() /*work dir*/,
-      std::vector<std::string>() /*output*/,
-      std::vector<std::string>() /*depends*/, cmCustomCommandLines(), false,
-      comment.c_str());
-    localGen->AddGeneratorTarget(new cmGeneratorTarget(target, localGen));
+    std::vector<std::string> no_byproducts;
+    std::vector<std::string> no_depends;
+    cmCustomCommandLines no_commands;
+    const cmPolicies::PolicyStatus cmp0116_new = cmPolicies::NEW;
+    cmTarget* target = localGen->AddUtilityCommand(
+      name, true, makefile->GetHomeOutputDirectory().c_str(), no_byproducts,
+      no_depends, no_commands, cmp0116_new, false, comment.c_str());
+    localGen->AddGeneratorTarget(
+      cm::make_unique<cmGeneratorTarget>(target, localGen));
 
     // Set FOLDER property in the target
     {
-      char const* folder =
+      cmProp folder =
         makefile->GetState()->GetGlobalProperty("AUTOGEN_TARGETS_FOLDER");
       if (folder != nullptr) {
-        target->SetProperty("FOLDER", folder);
+        target->SetProperty("FOLDER", *folder);
       }
     }
   }
@@ -182,11 +194,11 @@ void cmQtAutoGenGlobalInitializer::GetOrCreateGlobalTarget(
 void cmQtAutoGenGlobalInitializer::AddToGlobalAutoGen(
   cmLocalGenerator* localGen, std::string const& targetName)
 {
-  auto it = GlobalAutoGenTargets_.find(localGen);
-  if (it != GlobalAutoGenTargets_.end()) {
+  auto it = this->GlobalAutoGenTargets_.find(localGen);
+  if (it != this->GlobalAutoGenTargets_.end()) {
     cmGeneratorTarget* target = localGen->FindGeneratorTargetToUse(it->second);
     if (target != nullptr) {
-      target->Target->AddUtility(targetName, localGen->GetMakefile());
+      target->Target->AddUtility(targetName, false, localGen->GetMakefile());
     }
   }
 }
@@ -194,11 +206,11 @@ void cmQtAutoGenGlobalInitializer::AddToGlobalAutoGen(
 void cmQtAutoGenGlobalInitializer::AddToGlobalAutoRcc(
   cmLocalGenerator* localGen, std::string const& targetName)
 {
-  auto it = GlobalAutoRccTargets_.find(localGen);
-  if (it != GlobalAutoRccTargets_.end()) {
+  auto it = this->GlobalAutoRccTargets_.find(localGen);
+  if (it != this->GlobalAutoRccTargets_.end()) {
     cmGeneratorTarget* target = localGen->FindGeneratorTargetToUse(it->second);
     if (target != nullptr) {
-      target->Target->AddUtility(targetName, localGen->GetMakefile());
+      target->Target->AddUtility(targetName, false, localGen->GetMakefile());
     }
   }
 }
@@ -218,11 +230,8 @@ cmQtAutoGenGlobalInitializer::GetCompilerFeatures(
 
   // Check if the executable exists
   if (!cmSystemTools::FileExists(executable, true)) {
-    error = "The \"";
-    error += generator;
-    error += "\" executable ";
-    error += cmQtAutoGen::Quoted(executable);
-    error += " does not exist.";
+    error = cmStrCat("The \"", generator, "\" executable ",
+                     cmQtAutoGen::Quoted(executable), " does not exist.");
     return cmQtAutoGen::CompilerFeaturesHandle();
   }
 
@@ -238,15 +247,10 @@ cmQtAutoGenGlobalInitializer::GetCompilerFeatures(
       command, &stdOut, &stdErr, &retVal, nullptr, cmSystemTools::OUTPUT_NONE,
       cmDuration::zero(), cmProcessOutput::Auto);
     if (!runResult) {
-      error = "Test run of \"";
-      error += generator;
-      error += "\" executable ";
-      error += cmQtAutoGen::Quoted(executable) + " failed.\n";
-      error += cmQtAutoGen::QuotedCommand(command);
-      error += "\n";
-      error += stdOut;
-      error += "\n";
-      error += stdErr;
+      error = cmStrCat("Test run of \"", generator, "\" executable ",
+                       cmQtAutoGen::Quoted(executable), " failed.\n",
+                       cmQtAutoGen::QuotedCommand(command), '\n', stdOut, '\n',
+                       stdErr);
       return cmQtAutoGen::CompilerFeaturesHandle();
     }
   }
@@ -264,7 +268,7 @@ cmQtAutoGenGlobalInitializer::GetCompilerFeatures(
 
 bool cmQtAutoGenGlobalInitializer::generate()
 {
-  return (InitializeCustomTargets() && SetupCustomTargets());
+  return (this->InitializeCustomTargets() && this->SetupCustomTargets());
 }
 
 bool cmQtAutoGenGlobalInitializer::InitializeCustomTargets()
@@ -272,19 +276,19 @@ bool cmQtAutoGenGlobalInitializer::InitializeCustomTargets()
   // Initialize global autogen targets
   {
     std::string const comment = "Global AUTOGEN target";
-    for (auto const& pair : GlobalAutoGenTargets_) {
-      GetOrCreateGlobalTarget(pair.first, pair.second, comment);
+    for (auto const& pair : this->GlobalAutoGenTargets_) {
+      this->GetOrCreateGlobalTarget(pair.first, pair.second, comment);
     }
   }
   // Initialize global autorcc targets
   {
     std::string const comment = "Global AUTORCC target";
-    for (auto const& pair : GlobalAutoRccTargets_) {
-      GetOrCreateGlobalTarget(pair.first, pair.second, comment);
+    for (auto const& pair : this->GlobalAutoRccTargets_) {
+      this->GetOrCreateGlobalTarget(pair.first, pair.second, comment);
     }
   }
   // Initialize per target autogen targets
-  for (auto& initializer : Initializers_) {
+  for (auto& initializer : this->Initializers_) {
     if (!initializer->InitCustomTargets()) {
       return false;
     }
@@ -294,7 +298,7 @@ bool cmQtAutoGenGlobalInitializer::InitializeCustomTargets()
 
 bool cmQtAutoGenGlobalInitializer::SetupCustomTargets()
 {
-  for (auto& initializer : Initializers_) {
+  for (auto& initializer : this->Initializers_) {
     if (!initializer->SetupCustomTargets()) {
       return false;
     }

@@ -199,6 +199,7 @@ The reply index file contains a JSON object:
         "root": "/prefix/share/cmake-3.14"
       },
       "generator": {
+        "multiConfig": false,
         "name": "Unix Makefiles"
       }
     },
@@ -267,6 +268,9 @@ The members are:
     A JSON object describing the CMake generator used for the build.
     It has members:
 
+    ``multiConfig``
+      A boolean specifying whether the generator supports multiple output
+      configurations.
     ``name``
       A string specifying the name of the generator.
     ``platform``
@@ -421,7 +425,7 @@ Version 1 does not exist to avoid confusion with that from
 
   {
     "kind": "codemodel",
-    "version": { "major": 2, "minor": 0 },
+    "version": { "major": 2, "minor": 2 },
     "paths": {
       "source": "/path/to/top-level-source-dir",
       "build": "/path/to/top-level-build-dir"
@@ -646,7 +650,8 @@ with members:
 ``type``
   A string specifying the type of the target.  The value is one of
   ``EXECUTABLE``, ``STATIC_LIBRARY``, ``SHARED_LIBRARY``,
-  ``MODULE_LIBRARY``, ``OBJECT_LIBRARY``, or ``UTILITY``.
+  ``MODULE_LIBRARY``, ``OBJECT_LIBRARY``, ``INTERFACE_LIBRARY``,
+  or ``UTILITY``.
 
 ``backtrace``
   Optional member that is present when a CMake language backtrace to
@@ -865,6 +870,26 @@ with members:
     A string specifying the language (e.g. ``C``, ``CXX``, ``Fortran``)
     of the toolchain is used to compile the source file.
 
+  ``languageStandard``
+    Optional member that is present when the language standard is set
+    explicitly (e.g. via :prop_tgt:`CXX_STANDARD`) or implicitly by
+    compile features.  Each entry is a JSON object with two members:
+
+    ``backtraces``
+      Optional member that is present when a CMake language backtrace to
+      the ``<LANG>_STANDARD`` setting is available.  If the language
+      standard was set implicitly by compile features those are used as
+      the backtrace(s).  It's possible for multiple compile features to
+      require the same language standard so there could be multiple
+      backtraces. The value is a JSON array with each entry being an
+      unsigned integer 0-based index into the ``backtraceGraph``
+      member's ``nodes`` array.
+
+    ``standard``
+      String representing the language standard.
+
+    This field was added in codemodel version 2.2.
+
   ``compileCommandFragments``
     Optional member that is present when fragments of the compiler command
     line invocation are available.  The value is a JSON array of entries
@@ -894,6 +919,24 @@ with members:
       that added this include directory is available.  The value is
       an unsigned integer 0-based index into the ``backtraceGraph``
       member's ``nodes`` array.
+
+  ``precompileHeaders``
+    Optional member that is present when :command:`target_precompile_headers`
+    or other command invocations set :prop_tgt:`PRECOMPILE_HEADERS` on the
+    target.  The value is a JSON array with an entry for each header.  Each
+    entry is a JSON object with members:
+
+    ``header``
+      Full path to the precompile header file.
+
+    ``backtrace``
+      Optional member that is present when a CMake language backtrace to
+      the :command:`target_precompile_headers` or other command invocation
+      that added this precompiled header is available.  The value is an
+      unsigned integer 0-based index into the ``backtraceGraph`` member's
+      ``nodes`` array.
+
+    This field was added in codemodel version 2.1.
 
   ``defines``
     Optional member that is present when there are preprocessor definitions.
@@ -1111,3 +1154,160 @@ The members specific to ``cmakeFiles`` objects are:
   ``isCMake``
     Optional member that is present with boolean value ``true``
     if the path specifies a file in the CMake installation.
+
+Object Kind "toolchains"
+------------------------
+
+The ``toolchains`` object kind lists properties of the toolchains used during
+the build.  These include the language, compiler path, ID, and version.
+
+There is only one ``toolchains`` object major version, version 1.
+
+"toolchains" version 1
+^^^^^^^^^^^^^^^^^^^^^^
+
+``toolchains`` object version 1 is a JSON object:
+
+.. code-block:: json
+
+  {
+    "kind": "toolchains",
+    "version": { "major": 1, "minor": 0 },
+    "toolchains": [
+      {
+        "language": "C",
+        "compiler": {
+          "path": "/usr/bin/cc",
+          "id": "GNU",
+          "version": "9.3.0",
+          "implicit": {
+            "includeDirectories": [
+              "/usr/lib/gcc/x86_64-linux-gnu/9/include",
+              "/usr/local/include",
+              "/usr/include/x86_64-linux-gnu",
+              "/usr/include"
+            ],
+            "linkDirectories": [
+              "/usr/lib/gcc/x86_64-linux-gnu/9",
+              "/usr/lib/x86_64-linux-gnu",
+              "/usr/lib",
+              "/lib/x86_64-linux-gnu",
+              "/lib"
+            ],
+            "linkFrameworkDirectories": [],
+            "linkLibraries": [ "gcc", "gcc_s", "c", "gcc", "gcc_s" ]
+          }
+        },
+        "sourceFileExtensions": [ "c", "m" ]
+      },
+      {
+        "language": "CXX",
+        "compiler": {
+          "path": "/usr/bin/c++",
+          "id": "GNU",
+          "version": "9.3.0",
+          "implicit": {
+            "includeDirectories": [
+              "/usr/include/c++/9",
+              "/usr/include/x86_64-linux-gnu/c++/9",
+              "/usr/include/c++/9/backward",
+              "/usr/lib/gcc/x86_64-linux-gnu/9/include",
+              "/usr/local/include",
+              "/usr/include/x86_64-linux-gnu",
+              "/usr/include"
+            ],
+            "linkDirectories": [
+              "/usr/lib/gcc/x86_64-linux-gnu/9",
+              "/usr/lib/x86_64-linux-gnu",
+              "/usr/lib",
+              "/lib/x86_64-linux-gnu",
+              "/lib"
+            ],
+            "linkFrameworkDirectories": [],
+            "linkLibraries": [
+              "stdc++", "m", "gcc_s", "gcc", "c", "gcc_s", "gcc"
+            ]
+          }
+        },
+        "sourceFileExtensions": [
+          "C", "M", "c++", "cc", "cpp", "cxx", "mm", "CPP"
+        ]
+      }
+    ]
+  }
+
+The members specific to ``toolchains`` objects are:
+
+``toolchains``
+  A JSON array whose entries are each a JSON object specifying a toolchain
+  associated with a particular language. The members of each entry are:
+
+  ``language``
+    A JSON string specifying the toolchain language, like C or CXX. Language
+    names are the same as langauge names that can be passed to the
+    :command:`project` command. Because CMake only supports a single toolchain
+    per language, this field can be used as a key.
+
+  ``compiler``
+    A JSON object containing members:
+
+    ``path``
+      Optional member that is present when the
+      :variable:`CMAKE_<LANG>_COMPILER` variable is defined for the current
+      language. Its value is a JSON string holding the path to the compiler.
+
+    ``id``
+      Optional member that is present when the
+      :variable:`CMAKE_<LANG>_COMPILER_ID` variable is defined for the current
+      language. Its value is a JSON string holding the ID (GNU, MSVC, etc.) of
+      the compiler.
+
+    ``version``
+      Optional member that is present when the
+      :variable:`CMAKE_<LANG>_COMPILER_VERSION` variable is defined for the
+      current language. Its value is a JSON string holding the version of the
+      compiler.
+
+    ``target``
+      Optional member that is present when the
+      :variable:`CMAKE_<LANG>_COMPILER_TARGET` variable is defined for the
+      current language. Its value is a JSON string holding the cross-compiling
+      target of the compiler.
+
+    ``implicit``
+      A JSON object containing members:
+
+      ``includeDirectories``
+        Optional member that is present when the
+        :variable:`CMAKE_<LANG>_IMPLICIT_INCLUDE_DIRECTORIES` variable is
+        defined for the current language. Its value is a JSON array of JSON
+        strings where each string holds a path to an implicit include
+        directory for the compiler.
+
+      ``linkDirectories``
+        Optional member that is present when the
+        :variable:`CMAKE_<LANG>_IMPLICIT_LINK_DIRECTORIES` variable is
+        defined for the current language. Its value is a JSON array of JSON
+        strings where each string holds a path to an implicit link directory
+        for the compiler.
+
+      ``linkFrameworkDirectories``
+        Optional member that is present when the
+        :variable:`CMAKE_<LANG>_IMPLICIT_LINK_FRAMEWORK_DIRECTORIES` variable
+        is defined for the current language. Its value is a JSON array of JSON
+        strings where each string holds a path to an implicit link framework
+        directory for the compiler.
+
+      ``linkLibraries``
+        Optional member that is present when the
+        :variable:`CMAKE_<LANG>_IMPLICIT_LINK_LIBRARIES` variable is defined
+        for the current language. Its value is a JSON array of JSON strings
+        where each string holds a path to an implicit link library for the
+        compiler.
+
+  ``sourceFileExtensions``
+    Optional member that is present when the
+    :variable:`CMAKE_<LANG>_SOURCE_FILE_EXTENSIONS` variable is defined for
+    the current language. Its value is a JSON array of JSON strings where each
+    each string holds a file extension (without the leading dot) for the
+    language.

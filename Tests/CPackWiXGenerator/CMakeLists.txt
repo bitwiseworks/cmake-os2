@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 2.8)
+cmake_minimum_required(VERSION 2.8.12)
 
 project(CPackWiXGenerator)
 
@@ -48,6 +48,9 @@ set(CPACK_PACKAGE_INSTALL_DIRECTORY "CPack Component Example")
 
 set(CPACK_WIX_UPGRADE_GUID "BF20CE5E-7F7C-401D-8F7C-AB45E8D170E6")
 set(CPACK_WIX_UNINSTALL "1")
+
+# Support non-interactive sessions (like CI).
+set(CPACK_WIX_LIGHT_EXTRA_FLAGS "-sval")
 
 set(CPACK_PACKAGE_EXECUTABLES
   "my-libapp" "CPack WiX Test"

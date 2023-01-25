@@ -1,10 +1,12 @@
-project(test_include_dirs)
-include(CTest)
+enable_language(CXX)
 include(GoogleTest)
 
 enable_testing()
 
+include(xcode_sign_adhoc.cmake)
+
 add_executable(fake_gtest fake_gtest.cpp)
+xcode_sign_adhoc(fake_gtest)
 
 gtest_discover_tests(
   fake_gtest
@@ -23,6 +25,7 @@ gtest_discover_tests(
 )
 
 add_executable(no_tests_defined no_tests_defined.cpp)
+xcode_sign_adhoc(no_tests_defined)
 
 gtest_discover_tests(
   no_tests_defined
@@ -34,6 +37,7 @@ gtest_discover_tests(
 # 3.10.3 and later behavior, old behavior added in 3.10.1
 # is not supported.
 add_executable(property_timeout_test timeout_test.cpp)
+xcode_sign_adhoc(property_timeout_test)
 target_compile_definitions(property_timeout_test PRIVATE sleepSec=10)
 
 gtest_discover_tests(
@@ -50,10 +54,9 @@ gtest_discover_tests(
   PROPERTIES TIMEOUT 2
 )
 
-add_executable(discovery_timeout_test timeout_test.cpp)
-target_compile_definitions(discovery_timeout_test PRIVATE discoverySleepSec=10)
+add_executable(skip_test skip_test.cpp)
+xcode_sign_adhoc(skip_test)
+
 gtest_discover_tests(
-  discovery_timeout_test
-  TEST_PREFIX discovery_
-  DISCOVERY_TIMEOUT 2
+  skip_test
 )

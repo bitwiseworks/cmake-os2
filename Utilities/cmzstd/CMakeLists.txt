@@ -2,7 +2,7 @@ project(zstd C)
 
 # Disable warnings to avoid changing 3rd party code.
 if(CMAKE_C_COMPILER_ID MATCHES
-    "^(GNU|Clang|AppleClang|XLClang|XL|VisualAge|SunPro|HP|Intel)$")
+    "^(GNU|Clang|AppleClang|XLClang|XL|VisualAge|SunPro|HP|Intel|IntelLLVM)$")
   set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -w")
 elseif(CMAKE_C_COMPILER_ID STREQUAL "PathScale")
   set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -woffall")
@@ -21,7 +21,10 @@ add_library(cmzstd STATIC
   lib/compress/fse_compress.c
   lib/compress/hist.c
   lib/compress/huf_compress.c
+  lib/compress/zstd_compress_literals.c
   lib/compress/zstd_compress.c
+  lib/compress/zstd_compress_sequences.c
+  lib/compress/zstd_compress_superblock.c
   lib/compress/zstd_double_fast.c
   lib/compress/zstd_fast.c
   lib/compress/zstd_lazy.c

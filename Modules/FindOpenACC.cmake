@@ -5,12 +5,24 @@
 FindOpenACC
 -----------
 
+.. versionadded:: 3.10
+
 Detect OpenACC support by the compiler.
 
 This module can be used to detect OpenACC support in a compiler.
 If the compiler supports OpenACC, the flags required to compile with
 OpenACC support are returned in variables for the different languages.
-Currently, only PGI, GNU and Cray compilers are supported.
+Currently, only NVHPC, PGI, GNU and Cray compilers are supported.
+
+Imported Targets
+^^^^^^^^^^^^^^^^
+
+.. versionadded:: 3.16
+
+The module provides :prop_tgt:`IMPORTED` targets:
+
+``OpenACC::OpenACC_<lang>``
+  Target for using OpenACC from ``<lang>``.
 
 Variables
 ^^^^^^^^^
@@ -22,6 +34,11 @@ project, where ``<lang>`` is one of C, CXX, or Fortran:
   Variable indicating if OpenACC support for ``<lang>`` was detected.
 ``OpenACC_<lang>_FLAGS``
   OpenACC compiler flags for ``<lang>``, separated by spaces.
+``OpenACC_<lang>_OPTIONS``
+  .. versionadded:: 3.16
+
+  OpenACC compiler flags for ``<lang>``, as a list. Suitable for usage
+  with target_compile_options or target_link_options.
 
 The module will also try to provide the OpenACC version variables:
 
@@ -60,9 +77,7 @@ int main(){
 set(OpenACC_Fortran_TEST_SOURCE
 "
 program test
-#ifdef _OPENACC
-  return 0;
-#else
+#ifndef _OPENACC
   breaks_on_purpose
 #endif
 endprogram test
@@ -124,6 +139,7 @@ endfunction()
 
 
 function(_OPENACC_GET_FLAGS_CANDIDATE LANG FLAG_VAR)
+  set(ACC_FLAG_NVHPC "-acc")
   set(ACC_FLAG_PGI "-acc")
   set(ACC_FLAG_GNU "-fopenacc")
   set(ACC_FLAG_Cray "-h acc")
@@ -140,6 +156,7 @@ endfunction()
 
 function(_OPENACC_GET_ACCEL_TARGET_FLAG LANG TARGET FLAG_VAR)
   # Find target accelerator flags.
+  set(ACC_TARGET_FLAG_NVHPC "-ta")
   set(ACC_TARGET_FLAG_PGI "-ta")
   if(DEFINED ACC_TARGET_FLAG_${CMAKE_${LANG}_COMPILER_ID})
     set("${FLAG_VAR}" "${ACC_TARGET_FLAG_${CMAKE_${LANG}_COMPILER_ID}}=${TARGET}" PARENT_SCOPE)
@@ -149,6 +166,7 @@ endfunction()
 
 function(_OPENACC_GET_VERBOSE_FLAG LANG FLAG_VAR)
   # Find compiler's verbose flag for OpenACC.
+  set(ACC_VERBOSE_FLAG_NVHPC "-Minfo=accel")
   set(ACC_VERBOSE_FLAG_PGI "-Minfo=accel")
   if(DEFINED ACC_VERBOSE_FLAG_${CMAKE_${LANG}_COMPILER_ID})
     set("${FLAG_VAR}" "${ACC_VERBOSE_FLAG_${CMAKE_${LANG}_COMPILER_ID}}" PARENT_SCOPE)
@@ -241,13 +259,34 @@ foreach (LANG IN ITEMS C CXX Fortran)
     if(NOT DEFINED OpenACC_${LANG}_FLAGS)
       _OPENACC_GET_FLAGS("${LANG}" OpenACC_${LANG}_FLAGS)
     endif()
+    if(NOT DEFINED OpenACC_${LANG}_OPTIONS)
+      separate_arguments(OpenACC_${LANG}_OPTIONS NATIVE_COMMAND "${OpenACC_${LANG}_FLAGS}")
+    endif()
     _OPENACC_GET_SPEC_DATE("${LANG}" OpenACC_${LANG}_SPEC_DATE)
     _OPENACC_SET_VERSION_BY_SPEC_DATE("${LANG}")
 
     find_package_handle_standard_args(OpenACC_${LANG}
+      NAME_MISMATCHED
       REQUIRED_VARS OpenACC_${LANG}_FLAGS
       VERSION_VAR OpenACC_${LANG}_VERSION
     )
+  endif()
+endforeach()
+
+foreach (LANG IN ITEMS C CXX Fortran)
+  if(OpenACC_${LANG}_FOUND AND NOT TARGET OpenACC::OpenACC_${LANG})
+    add_library(OpenACC::OpenACC_${LANG} INTERFACE IMPORTED)
+  endif()
+  if(OpenACC_${LANG}_LIBRARIES)
+    set_property(TARGET OpenACC::OpenACC_${LANG} PROPERTY
+      INTERFACE_LINK_LIBRARIES "${OpenACC_${LANG}_LIBRARIES}")
+  endif()
+  if(OpenACC_${LANG}_FLAGS)
+    set_property(TARGET OpenACC::OpenACC_${LANG} PROPERTY
+      INTERFACE_COMPILE_OPTIONS "$<$<COMPILE_LANGUAGE:${LANG}>:${OpenACC_${LANG}_OPTIONS}>")
+    set_property(TARGET OpenACC::OpenACC_${LANG} PROPERTY
+      INTERFACE_LINK_OPTIONS "$<$<COMPILE_LANGUAGE:${LANG}>:${OpenACC_${LANG}_OPTIONS}>")
+    unset(_OpenACC_${LANG}_OPTIONS)
   endif()
 endforeach()
 
