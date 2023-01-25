@@ -6,12 +6,14 @@
 // NOLINTNEXTLINE(bugprone-reserved-identifier)
 #  define _POSIX_C_SOURCE 200809L
 #endif
-#if defined(__FreeBSD__) || defined(__NetBSD__) || defined(__QNX__)
+#if defined(__FreeBSD__) || defined(__NetBSD__) || defined(__QNX__) || defined(__OS2__)
 // For isascii
 // NOLINTNEXTLINE(bugprone-reserved-identifier)
 #  define _XOPEN_SOURCE 700
 #endif
-
+#if defined(__OS2__)
+#  define _BSD_SOURCE
+#endif
 #include "cmSystemTools.h"
 
 #include <cmext/algorithm>

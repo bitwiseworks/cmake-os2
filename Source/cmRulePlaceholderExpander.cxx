@@ -3,6 +3,9 @@
 #include "cmRulePlaceholderExpander.h"
 
 #include <cctype>
+#ifdef __OS2__
+#include <string.h>
+#endif
 #include <utility>
 
 #include "cmOutputConverter.h"

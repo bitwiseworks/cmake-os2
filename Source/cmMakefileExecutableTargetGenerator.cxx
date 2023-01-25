@@ -582,12 +582,12 @@ void cmMakefileExecutableTargetGenerator::WriteExecutableRule(bool relink)
     vars.LinkFlags = linkFlags.c_str();
     vars.Manifests = manifests.c_str();
 #ifdef __OS2__
-    vars.OS2DefVendor = this->GeneratorTarget->GetProperty("OS2_DEF_VENDOR");
-    vars.OS2DefVersion = this->GeneratorTarget->GetProperty("OS2_DEF_VERSION");
-    vars.OS2DefPatch = this->GeneratorTarget->GetProperty("OS2_DEF_PATCH");
-    vars.OS2DefExeType = this->GeneratorTarget->GetProperty("OS2_DEF_EXEType");
-    vars.OS2DefExeStack = this->GeneratorTarget->GetProperty("OS2_DEF_EXEStack");
-    vars.Version = this->GeneratorTarget->GetProperty("VERSION");
+    vars.OS2DefVendor = cmToCStr(this->GeneratorTarget->GetProperty("OS2_DEF_VENDOR"));
+    vars.OS2DefVersion = cmToCStr(this->GeneratorTarget->GetProperty("OS2_DEF_VERSION"));
+    vars.OS2DefPatch = cmToCStr(this->GeneratorTarget->GetProperty("OS2_DEF_PATCH"));
+    vars.OS2DefExeType = cmToCStr(this->GeneratorTarget->GetProperty("OS2_DEF_EXEType"));
+    vars.OS2DefExeStack = cmToCStr(this->GeneratorTarget->GetProperty("OS2_DEF_EXEStack"));
+    vars.Version = cmToCStr(this->GeneratorTarget->GetProperty("VERSION"));
 #endif
 
     if (this->GeneratorTarget->GetPropertyAsBool("LINK_WHAT_YOU_USE")) {
