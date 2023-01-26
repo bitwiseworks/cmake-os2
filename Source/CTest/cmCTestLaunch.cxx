@@ -174,8 +174,8 @@ void cmCTestLaunch::RunChild()
 #if defined(__OS2__)
   // Do this so that newline transformation is not done when writing to cout
   // and cerr below.
-  _setmode(fileno(stdout), O_BINARY);
-  _setmode(fileno(stderr), O_BINARY);
+  setmode(fileno(stdout), O_BINARY);
+  setmode(fileno(stderr), O_BINARY);
 #endif
 
   // Run the real command.
