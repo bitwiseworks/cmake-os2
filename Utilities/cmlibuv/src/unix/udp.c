@@ -439,7 +439,6 @@ static void uv__udp_sendmsg(uv_udp_t* handle) {
     assert(req != NULL);
 
     memset(&h, 0, sizeof h);
-<<<<<<< HEAD
     h.msg_name = &req->addr;
     if (req->addr.ss_family == AF_UNSPEC) {
       h.msg_name = NULL;
