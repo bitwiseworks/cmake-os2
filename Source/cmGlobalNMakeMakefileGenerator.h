@@ -4,8 +4,18 @@
 
 #include <iosfwd>
 #include <memory>
+#include <string>
+#include <vector>
 
+#include "cm_codecvt.hxx"
+
+#include "cmGlobalGeneratorFactory.h"
 #include "cmGlobalUnixMakefileGenerator3.h"
+#include "cmValue.h"
+
+class cmMakefile;
+class cmake;
+struct cmDocumentationEntry;
 
 /** \class cmGlobalNMakeMakefileGenerator
  * \brief Write a NMake makefiles.
@@ -31,7 +41,7 @@ public:
   /** Get encoding used by generator for makefile files */
   codecvt::Encoding GetMakefileEncoding() const override
   {
-    return codecvt::ANSI;
+    return this->NMakeSupportsUTF8 ? codecvt::UTF8_WITH_BOM : codecvt::ANSI;
   }
 
   /** Get the documentation entry for this generator.  */
@@ -48,13 +58,19 @@ protected:
   std::vector<GeneratedMakeCommand> GenerateBuildCommand(
     const std::string& makeProgram, const std::string& projectName,
     const std::string& projectDir, std::vector<std::string> const& targetNames,
-    const std::string& config, bool fast, int jobs, bool verbose,
+    const std::string& config, int jobs, bool verbose,
+    const cmBuildOptions& buildOptions = cmBuildOptions(),
     std::vector<std::string> const& makeOptions =
       std::vector<std::string>()) override;
 
   void PrintBuildCommandAdvice(std::ostream& os, int jobs) const override;
 
 private:
+  bool NMakeSupportsUTF8 = false;
+  std::string NMakeVersion;
+  bool FindMakeProgram(cmMakefile* mf) override;
+  void CheckNMakeFeatures();
+
   void PrintCompilerAdvice(std::ostream& os, std::string const& lang,
-                           const char* envVar) const override;
+                           cmValue envVar) const override;
 };

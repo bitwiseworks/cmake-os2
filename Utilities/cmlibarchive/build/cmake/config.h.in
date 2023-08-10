@@ -1,4 +1,5 @@
 /* config.h.  Generated from build/cmake/config.h.in by cmake configure */
+#define __LIBARCHIVE_CONFIG_H_INCLUDED 1
 #if defined(__osf__)
 # define _OSF_SOURCE
 #endif
@@ -521,14 +522,18 @@
 /* Define to 1 if you have the `zstd' library (-lzstd). */
 #cmakedefine HAVE_LIBZSTD 1
 
+/* Define to 1 if you have the `zstd' library (-lzstd) with compression
+   support. */
+#cmakedefine HAVE_LIBZSTD_COMPRESSOR 1
+
 /* Define to 1 if you have the <limits.h> header file. */
 #cmakedefine HAVE_LIMITS_H 1
 
 /* Define to 1 if you have the `link' function. */
 #cmakedefine HAVE_LINK 1
 
-/* Define to 1 if you have the <linux/types.h> header file. */
-#cmakedefine HAVE_LINUX_TYPES_H 1
+/* Define to 1 if you have the `linkat' function. */
+#cmakedefine HAVE_LINKAT 1
 
 /* Define to 1 if you have the <linux/fiemap.h> header file. */
 #cmakedefine HAVE_LINUX_FIEMAP_H 1
@@ -741,6 +746,9 @@
 
 /* Define to 1 if you have the `strchr' function. */
 #cmakedefine HAVE_STRCHR 1
+
+/* Define to 1 if you have the `strnlen' function. */
+#cmakedefine HAVE_STRNLEN 1
 
 /* Define to 1 if you have the `strdup' function. */
 #cmakedefine HAVE_STRDUP 1

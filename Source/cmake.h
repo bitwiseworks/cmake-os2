@@ -16,22 +16,23 @@
 #include <vector>
 
 #include <cm/string_view>
+#include <cmext/string_view>
 
 #include "cmGeneratedFileStream.h"
 #include "cmInstalledFile.h"
 #include "cmListFileCache.h"
 #include "cmMessageType.h"
-#include "cmProperty.h"
 #include "cmState.h"
 #include "cmStateSnapshot.h"
 #include "cmStateTypes.h"
+#include "cmValue.h"
 
 #if !defined(CMAKE_BOOTSTRAP)
 #  include <cm/optional>
 
 #  include <cm3p/json/value.h>
 
-#  include "cmCMakePresetsFile.h"
+#  include "cmCMakePresetsGraph.h"
 #endif
 
 class cmExternalMakefileProjectGeneratorFactory;
@@ -45,6 +46,7 @@ class cmMakefileProfilingData;
 #endif
 class cmMessenger;
 class cmVariableWatch;
+struct cmBuildOptions;
 struct cmDocumentationEntry;
 
 /** \brief Represents a cmake invocation.
@@ -118,19 +120,6 @@ public:
     FIND_PACKAGE_MODE
   };
 
-  /** \brief Define log level constants. */
-  enum LogLevel
-  {
-    LOG_UNDEFINED,
-    LOG_ERROR,
-    LOG_WARNING,
-    LOG_NOTICE,
-    LOG_STATUS,
-    LOG_VERBOSE,
-    LOG_DEBUG,
-    LOG_TRACE
-  };
-
   /** \brief Define supported trace formats **/
   enum TraceFormat
   {
@@ -168,7 +157,8 @@ public:
   static const int DEFAULT_BUILD_PARALLEL_LEVEL = 0;
 
   /// Default constructor
-  cmake(Role role, cmState::Mode mode);
+  cmake(Role role, cmState::Mode mode,
+        cmState::ProjectKind projectKind = cmState::ProjectKind::Normal);
   /// Destructor
   ~cmake();
 
@@ -181,6 +171,22 @@ public:
 #endif
   std::string ReportCapabilities() const;
 
+  /**
+   * Set the home directory from `-S` or from a known location
+   * that contains a CMakeLists.txt. Will generate warnings
+   * when overriding an existing source directory.
+   *
+   *  |    args           | src dir| warning        |
+   *  | ----------------- | ------ | -------------- |
+   *  | `dirA dirA`       | dirA   | N/A            |
+   *  | `-S dirA -S dirA` | dirA   | N/A            |
+   *  | `-S dirA -S dirB` | dirB   | Ignoring dirA  |
+   *  | `-S dirA dirB`    | dirB   | Ignoring dirA  |
+   *  | `dirA -S dirB`    | dirB   | Ignoring dirA  |
+   *  | `dirA dirB`       | dirB   | Ignoring dirA  |
+   */
+  void SetHomeDirectoryViaCommandLine(std::string const& path);
+
   //@{
   /**
    * Set/Get the home directory (or output directory) in the project. The
@@ -192,6 +198,14 @@ public:
   void SetHomeOutputDirectory(const std::string& dir);
   std::string const& GetHomeOutputDirectory() const;
   //@}
+
+  /**
+   * Working directory at CMake launch
+   */
+  std::string const& GetCMakeWorkingDirectory() const
+  {
+    return this->CMakeWorkingDirectory;
+  }
 
   /**
    * Handle a command line invocation of cmake.
@@ -239,7 +253,7 @@ public:
 
 #ifndef CMAKE_BOOTSTRAP
   //! Print list of configure presets
-  void PrintPresetList(const cmCMakePresetsFile& file) const;
+  void PrintPresetList(const cmCMakePresetsGraph& graph) const;
 #endif
 
   //! Return the global generator assigned to this instance of cmake
@@ -289,7 +303,7 @@ public:
     return this->CLikeSourceFileExtensions.Test(ext) ||
       this->CudaFileExtensions.Test(ext) ||
       this->FortranFileExtensions.Test(ext) ||
-      this->ISPCFileExtensions.Test(ext);
+      this->HipFileExtensions.Test(ext) || this->ISPCFileExtensions.Test(ext);
   }
 
   bool IsACLikeSourceExtension(cm::string_view ext) const
@@ -320,9 +334,21 @@ public:
   /**
    * Given a variable name, return its value (as a string).
    */
-  cmProp GetCacheDefinition(const std::string&) const;
+  cmValue GetCacheDefinition(const std::string&) const;
   //! Add an entry into the cache
   void AddCacheEntry(const std::string& key, const char* value,
+                     const char* helpString, int type)
+  {
+    this->AddCacheEntry(key,
+                        value ? cmValue(std::string(value)) : cmValue(nullptr),
+                        helpString, type);
+  }
+  void AddCacheEntry(const std::string& key, const std::string& value,
+                     const char* helpString, int type)
+  {
+    this->AddCacheEntry(key, cmValue(value), helpString, type);
+  }
+  void AddCacheEntry(const std::string& key, cmValue value,
                      const char* helpString, int type);
 
   bool DoWriteGlobVerifyTarget() const;
@@ -348,7 +374,6 @@ public:
 
   //! Is this cmake running as a result of a TRY_COMPILE command
   bool GetIsInTryCompile() const;
-  void SetIsInTryCompile(bool b);
 
 #ifndef CMAKE_BOOTSTRAP
   void SetWarningFromPreset(const std::string& name,
@@ -388,9 +413,14 @@ public:
 
   //! Set/Get a property of this target file
   void SetProperty(const std::string& prop, const char* value);
+  void SetProperty(const std::string& prop, cmValue value);
+  void SetProperty(const std::string& prop, const std::string& value)
+  {
+    this->SetProperty(prop, cmValue(value));
+  }
   void AppendProperty(const std::string& prop, const std::string& value,
                       bool asString = false);
-  cmProp GetProperty(const std::string& prop);
+  cmValue GetProperty(const std::string& prop);
   bool GetPropertyAsBool(const std::string& prop);
 
   //! Get or create an cmInstalledFile instance and return a pointer to it
@@ -427,9 +457,10 @@ public:
   bool WasLogLevelSetViaCLI() const { return this->LogLevelWasSetViaCLI; }
 
   //! Get the selected log level for `message()` commands during the cmake run.
-  LogLevel GetLogLevel() const { return this->MessageLogLevel; }
-  void SetLogLevel(LogLevel level) { this->MessageLogLevel = level; }
-  static LogLevel StringToLogLevel(const std::string& levelStr);
+  Message::LogLevel GetLogLevel() const { return this->MessageLogLevel; }
+  void SetLogLevel(Message::LogLevel level) { this->MessageLogLevel = level; }
+  static Message::LogLevel StringToLogLevel(cm::string_view levelStr);
+  static std::string LogLevelToString(Message::LogLevel level);
   static TraceFormat StringToTraceFormat(const std::string& levelStr);
 
   bool HasCheckInProgress() const
@@ -461,7 +492,11 @@ public:
 
   //! Do we want debug output from the find commands during the cmake run.
   bool GetDebugFindOutput() const { return this->DebugFindOutput; }
-  void SetDebugFindOutputOn(bool b) { this->DebugFindOutput = b; }
+  bool GetDebugFindOutput(std::string const& var) const;
+  bool GetDebugFindPkgOutput(std::string const& pkg) const;
+  void SetDebugFindOutput(bool b) { this->DebugFindOutput = b; }
+  void SetDebugFindOutputPkgs(std::string const& args);
+  void SetDebugFindOutputVars(std::string const& args);
 
   //! Do we want trace output during the cmake run.
   bool GetTrace() const { return this->Trace; }
@@ -488,6 +523,8 @@ public:
   void SetWarnUnusedCli(bool b) { this->WarnUnusedCli = b; }
   bool GetCheckSystemVars() const { return this->CheckSystemVars; }
   void SetCheckSystemVars(bool b) { this->CheckSystemVars = b; }
+  bool GetIgnoreWarningAsError() const { return this->IgnoreWarningAsError; }
+  void SetIgnoreWarningAsError(bool b) { this->IgnoreWarningAsError = b; }
 
   void MarkCliAsUsed(const std::string& variable);
 
@@ -558,11 +595,25 @@ public:
   //! run the --build option
   int Build(int jobs, std::string dir, std::vector<std::string> targets,
             std::string config, std::vector<std::string> nativeOptions,
-            bool clean, bool verbose, const std::string& presetName,
-            bool listPresets);
+            cmBuildOptions& buildOptions, bool verbose,
+            const std::string& presetName, bool listPresets);
 
   //! run the --open option
   bool Open(const std::string& dir, bool dryRun);
+
+  //! run the --workflow option
+  enum class WorkflowListPresets
+  {
+    No,
+    Yes,
+  };
+  enum class WorkflowFresh
+  {
+    No,
+    Yes,
+  };
+  int Workflow(const std::string& presetName, WorkflowListPresets listPresets,
+               WorkflowFresh fresh);
 
   void UnwatchUnusedCli(const std::string& var);
   void WatchUnusedCli(const std::string& var);
@@ -619,7 +670,7 @@ protected:
    */
   int CheckBuildSystem();
 
-  void SetDirectoriesFromFile(const std::string& arg);
+  bool SetDirectoriesFromFile(const std::string& arg);
 
   //! Make sure all commands are what they say they are and there is no
   /// macros.
@@ -628,6 +679,7 @@ protected:
   void GenerateGraphViz(const std::string& fileName) const;
 
 private:
+  std::string CMakeWorkingDirectory;
   ProgressCallbackType ProgressCallback;
   WorkingMode CurrentWorkingMode = NORMAL_MODE;
   bool DebugOutput = false;
@@ -639,6 +691,7 @@ private:
   bool WarnUninitialized = false;
   bool WarnUnusedCli = true;
   bool CheckSystemVars = false;
+  bool IgnoreWarningAsError = false;
   std::map<std::string, bool> UsedCliVariables;
   std::string CMakeEditCommand;
   std::string CXXEnvironment;
@@ -653,14 +706,16 @@ private:
   FileExtensions CudaFileExtensions;
   FileExtensions ISPCFileExtensions;
   FileExtensions FortranFileExtensions;
+  FileExtensions HipFileExtensions;
   bool ClearBuildSystem = false;
   bool DebugTryCompile = false;
+  bool FreshCache = false;
   bool RegenerateDuringBuild = false;
   std::unique_ptr<cmFileTimeCache> FileTimeCache;
   std::string GraphVizFile;
   InstalledFilesMap InstalledFiles;
 #ifndef CMAKE_BOOTSTRAP
-  std::map<std::string, cm::optional<cmCMakePresetsFile::CacheVariable>>
+  std::map<std::string, cm::optional<cmCMakePresetsGraph::CacheVariable>>
     UnprocessedPresetVariables;
   std::map<std::string, cm::optional<std::string>>
     UnprocessedPresetEnvironment;
@@ -677,7 +732,10 @@ private:
 
   std::vector<std::string> TraceOnlyThisSources;
 
-  LogLevel MessageLogLevel = LogLevel::LOG_STATUS;
+  std::set<std::string> DebugFindPkgs;
+  std::set<std::string> DebugFindVars;
+
+  Message::LogLevel MessageLogLevel = Message::LogLevel::LOG_STATUS;
   bool LogLevelWasSetViaCLI = false;
   bool LogContext = false;
 
@@ -697,6 +755,16 @@ private:
   void AppendExtraGeneratorsDocumentation(std::vector<cmDocumentationEntry>&);
 
 #if !defined(CMAKE_BOOTSTRAP)
+  template <typename T>
+  const T* FindPresetForWorkflow(
+    cm::static_string_view type,
+    const std::map<std::string, cmCMakePresetsGraph::PresetPair<T>>& presets,
+    const cmCMakePresetsGraph::WorkflowPreset::WorkflowStep& step);
+
+  std::function<int()> BuildWorkflowStep(const std::vector<std::string>& args);
+#endif
+
+#if !defined(CMAKE_BOOTSTRAP)
   std::unique_ptr<cmMakefileProfilingData> ProfilingOutput;
 #endif
 };
@@ -712,6 +780,10 @@ private:
       "Specify toolset name if supported by generator." },                    \
     { "-A <platform-name>",                                                   \
       "Specify platform name if supported by generator." },                   \
+    { "--toolchain <file>",                                                   \
+      "Specify toolchain file [CMAKE_TOOLCHAIN_FILE]." },                     \
+    { "--install-prefix <directory>",                                         \
+      "Specify install directory [CMAKE_INSTALL_PREFIX]." },                  \
     { "-Wdev", "Enable developer warnings." },                                \
     { "-Wno-dev", "Suppress developer warnings." },                           \
     { "-Werror=dev", "Make developer warnings errors." },                     \
@@ -739,6 +811,8 @@ private:
   F(c_std_90)                                                                 \
   F(c_std_99)                                                                 \
   F(c_std_11)                                                                 \
+  F(c_std_17)                                                                 \
+  F(c_std_23)                                                                 \
   FOR_EACH_C90_FEATURE(F)                                                     \
   FOR_EACH_C99_FEATURE(F)                                                     \
   FOR_EACH_C11_FEATURE(F)
@@ -812,6 +886,7 @@ private:
   F(cxx_std_17)                                                               \
   F(cxx_std_20)                                                               \
   F(cxx_std_23)                                                               \
+  F(cxx_std_26)                                                               \
   FOR_EACH_CXX98_FEATURE(F)                                                   \
   FOR_EACH_CXX11_FEATURE(F)                                                   \
   FOR_EACH_CXX14_FEATURE(F)
@@ -822,4 +897,14 @@ private:
   F(cuda_std_14)                                                              \
   F(cuda_std_17)                                                              \
   F(cuda_std_20)                                                              \
-  F(cuda_std_23)
+  F(cuda_std_23)                                                              \
+  F(cuda_std_26)
+
+#define FOR_EACH_HIP_FEATURE(F)                                               \
+  F(hip_std_98)                                                               \
+  F(hip_std_11)                                                               \
+  F(hip_std_14)                                                               \
+  F(hip_std_17)                                                               \
+  F(hip_std_20)                                                               \
+  F(hip_std_23)                                                               \
+  F(hip_std_26)

@@ -273,6 +273,7 @@ int main()
     std::string clrest = rest;
     // rc: /fo x.dir\x.rc.res  ->  cl: /out:x.dir\x.rc.res.dep.obj
     clrest = replace(clrest, "/fo ", "/out:");
+    clrest = replace(clrest, "-fo ", "-out:");
     clrest = replace(clrest, objfile, objfile + ".dep.obj ");
 
     cl = "\"" + cl + "\" /P /DRC_INVOKED /TC ";
@@ -294,7 +295,8 @@ int main()
       return exit_code;
 
     // compile rc file with rc.exe
-    return process(srcfilename, "", objfile, prefix, binpath + " " + rest);
+    return process(srcfilename, "", objfile, prefix, binpath + " " + rest,
+                   std::string(), true);
   }
 
   usage("Invalid language specified.");

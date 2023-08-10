@@ -13,30 +13,37 @@
 #include <cm/string_view>
 #include <cmext/string_view>
 
+#include "cmArgumentParser.h"
+#include "cmArgumentParserTypes.h"
+#include "cmDependencyProvider.h"
 #include "cmExecutionStatus.h"
 #include "cmGlobalGenerator.h"
 #include "cmListFileCache.h"
 #include "cmMakefile.h"
+#include "cmMessageType.h"
 #include "cmRange.h"
+#include "cmState.h"
 #include "cmStringAlgorithms.h"
 #include "cmSystemTools.h"
+#include "cmake.h"
 
 namespace {
 
 bool FatalError(cmExecutionStatus& status, std::string const& error)
 {
   status.SetError(error);
-  cmSystemTools::SetFatalErrorOccured();
+  cmSystemTools::SetFatalErrorOccurred();
   return false;
 }
 
-std::array<cm::static_string_view, 12> InvalidCommands{
+std::array<cm::static_string_view, 14> InvalidCommands{
   { // clang-format off
   "function"_s, "endfunction"_s,
   "macro"_s, "endmacro"_s,
   "if"_s, "elseif"_s, "else"_s, "endif"_s,
   "while"_s, "endwhile"_s,
-  "foreach"_s, "endforeach"_s
+  "foreach"_s, "endforeach"_s,
+  "block"_s, "endblock"_s
   } // clang-format on
 };
 
@@ -84,7 +91,8 @@ bool cmCMakeLanguageCommandCALL(std::vector<cmListFileArgument> const& args,
   for (size_t i = startArg; i < args.size(); ++i) {
     funcArgs.emplace_back(args[i].Value, args[i].Delim, context.Line);
   }
-  cmListFileFunction func{ callCommand, context.Line, std::move(funcArgs) };
+  cmListFileFunction func{ callCommand, context.Line, context.Line,
+                           std::move(funcArgs) };
 
   if (defer) {
     if (defer->Id.empty()) {
@@ -214,6 +222,112 @@ bool cmCMakeLanguageCommandEVAL(std::vector<cmListFileArgument> const& args,
   return makefile.ReadListFileAsString(
     code, cmStrCat(context.FilePath, ":", context.Line, ":EVAL"));
 }
+
+bool cmCMakeLanguageCommandSET_DEPENDENCY_PROVIDER(
+  std::vector<std::string> const& args, cmExecutionStatus& status)
+{
+  cmState* state = status.GetMakefile().GetState();
+  if (!state->InTopLevelIncludes()) {
+    return FatalError(
+      status,
+      "Dependency providers can only be set as part of the first call to "
+      "project(). More specifically, cmake_language(SET_DEPENDENCY_PROVIDER) "
+      "can only be called while the first project() command processes files "
+      "listed in CMAKE_PROJECT_TOP_LEVEL_INCLUDES.");
+  }
+
+  struct SetProviderArgs
+  {
+    std::string Command;
+    ArgumentParser::NonEmpty<std::vector<std::string>> Methods;
+  };
+
+  auto const ArgsParser =
+    cmArgumentParser<SetProviderArgs>()
+      .Bind("SET_DEPENDENCY_PROVIDER"_s, &SetProviderArgs::Command)
+      .Bind("SUPPORTED_METHODS"_s, &SetProviderArgs::Methods);
+
+  std::vector<std::string> unparsed;
+  auto parsedArgs = ArgsParser.Parse(args, &unparsed);
+
+  if (!unparsed.empty()) {
+    return FatalError(
+      status, cmStrCat("Unrecognized keyword: \"", unparsed.front(), "\""));
+  }
+
+  // We store the command that FetchContent_MakeAvailable() can call in a
+  // global (but considered internal) property. If the provider doesn't
+  // support this method, we set this property to an empty string instead.
+  // This simplifies the logic in FetchContent_MakeAvailable() and doesn't
+  // require us to define a new internal command or sub-command.
+  std::string fcmasProperty = "__FETCHCONTENT_MAKEAVAILABLE_SERIAL_PROVIDER";
+
+  if (parsedArgs.Command.empty()) {
+    if (!parsedArgs.Methods.empty()) {
+      return FatalError(status,
+                        "Must specify a non-empty command name when provider "
+                        "methods are given");
+    }
+    state->ClearDependencyProvider();
+    state->SetGlobalProperty(fcmasProperty, "");
+    return true;
+  }
+
+  cmState::Command command = state->GetCommand(parsedArgs.Command);
+  if (!command) {
+    return FatalError(status,
+                      cmStrCat("Command \"", parsedArgs.Command,
+                               "\" is not a defined command"));
+  }
+
+  if (parsedArgs.Methods.empty()) {
+    return FatalError(status, "Must specify at least one provider method");
+  }
+
+  bool supportsFetchContentMakeAvailableSerial = false;
+  std::vector<cmDependencyProvider::Method> methods;
+  for (auto const& method : parsedArgs.Methods) {
+    if (method == "FIND_PACKAGE") {
+      methods.emplace_back(cmDependencyProvider::Method::FindPackage);
+    } else if (method == "FETCHCONTENT_MAKEAVAILABLE_SERIAL") {
+      supportsFetchContentMakeAvailableSerial = true;
+      methods.emplace_back(
+        cmDependencyProvider::Method::FetchContentMakeAvailableSerial);
+    } else {
+      return FatalError(
+        status,
+        cmStrCat("Unknown dependency provider method \"", method, "\""));
+    }
+  }
+
+  state->SetDependencyProvider({ parsedArgs.Command, methods });
+  state->SetGlobalProperty(
+    fcmasProperty,
+    supportsFetchContentMakeAvailableSerial ? parsedArgs.Command.c_str() : "");
+
+  return true;
+}
+
+bool cmCMakeLanguageCommandGET_MESSAGE_LOG_LEVEL(
+  std::vector<cmListFileArgument> const& args, cmExecutionStatus& status)
+{
+  cmMakefile& makefile = status.GetMakefile();
+  std::vector<std::string> expandedArgs;
+  makefile.ExpandArguments(args, expandedArgs);
+
+  if (args.size() < 2 || expandedArgs.size() > 2) {
+    return FatalError(
+      status,
+      "sub-command GET_MESSAGE_LOG_LEVEL expects exactly one argument");
+  }
+
+  Message::LogLevel logLevel = makefile.GetCurrentLogLevel();
+  std::string outputValue = cmake::LogLevelToString(logLevel);
+
+  const std::string& outputVariable = expandedArgs[1];
+  makefile.AddDefinition(outputVariable, outputValue);
+  return true;
+}
 }
 
 bool cmCMakeLanguageCommand(std::vector<cmListFileArgument> const& args,
@@ -243,6 +357,11 @@ bool cmCMakeLanguageCommand(std::vector<cmListFileArgument> const& args,
 
   if (!moreArgs()) {
     return FatalError(status, "called with incorrect number of arguments");
+  }
+
+  if (expArgs[expArg] == "SET_DEPENDENCY_PROVIDER"_s) {
+    finishArgs();
+    return cmCMakeLanguageCommandSET_DEPENDENCY_PROVIDER(expArgs, status);
   }
 
   cm::optional<Defer> maybeDefer;
@@ -355,6 +474,10 @@ bool cmCMakeLanguageCommand(std::vector<cmListFileArgument> const& args,
 
   if (expArgs[expArg] == "EVAL") {
     return cmCMakeLanguageCommandEVAL(args, status);
+  }
+
+  if (expArgs[expArg] == "GET_MESSAGE_LOG_LEVEL") {
+    return cmCMakeLanguageCommandGET_MESSAGE_LOG_LEVEL(args, status);
   }
 
   return FatalError(status, "called with unknown meta-operation");

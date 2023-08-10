@@ -5,6 +5,7 @@ if(CMAKE_ANDROID_NDK)
 endif()
 
 include(Platform/Linux)
+unset(LINUX)
 
 set(ANDROID 1)
 
@@ -12,6 +13,12 @@ set(ANDROID 1)
 if(CMAKE_HOST_SYSTEM_NAME STREQUAL "Android")
   return()
 endif()
+
+# NDK organizes API level specific libraries in numbered subdirectories. To
+# avoid incorrect inclusion of libraries below the targeted API level, disable
+# architecture specific path suffixes by default.
+set_property(GLOBAL PROPERTY FIND_LIBRARY_USE_LIB32_PATHS OFF)
+set_property(GLOBAL PROPERTY FIND_LIBRARY_USE_LIB64_PATHS OFF)
 
 # Conventionally Android does not use versioned soname
 # But in modern versions it is acceptable

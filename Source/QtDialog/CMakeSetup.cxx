@@ -112,7 +112,10 @@ int main(int argc, char** argv)
   cmAddPluginPath();
 #endif
 
-#if QT_VERSION >= 0x050600
+// HighDpiScaling is always enabled starting with Qt6, but will still issue a
+// deprecation warning if you try to set the attribute for it
+#if (QT_VERSION >= QT_VERSION_CHECK(5, 6, 0) &&                               \
+     QT_VERSION < QT_VERSION_CHECK(6, 0, 0))
   QGuiApplication::setAttribute(Qt::AA_EnableHighDpiScaling);
 #endif
 
@@ -129,12 +132,12 @@ int main(int argc, char** argv)
 
   // pick up translation files if they exists in the data directory
   QDir translationsDir = cmExecDir;
-  translationsDir.cd(QString::fromLocal8Bit(".." CMAKE_DATA_DIR));
+  translationsDir.cd(".." CMAKE_DATA_DIR);
   translationsDir.cd("i18n");
   QTranslator translator;
-  QString transfile = QString("cmake_%1").arg(QLocale::system().name());
-  translator.load(transfile, translationsDir.path());
-  QApplication::installTranslator(&translator);
+  if (translator.load(QLocale(), "cmake", "_", translationsDir.path())) {
+    QApplication::installTranslator(&translator);
+  }
 
   // app setup
   QApplication::setApplicationName("CMakeSetup");
@@ -168,8 +171,7 @@ int main(int argc, char** argv)
         }
       }
 
-      sourceDirectory =
-        cmSystemTools::CollapseFullPath(path.toLocal8Bit().data());
+      sourceDirectory = cmSystemTools::CollapseFullPath(path.toStdString());
       cmSystemTools::ConvertToUnixSlashes(sourceDirectory);
     } else if (arg.startsWith("-B")) {
       QString path = arg.mid(2);
@@ -186,8 +188,7 @@ int main(int argc, char** argv)
         }
       }
 
-      binaryDirectory =
-        cmSystemTools::CollapseFullPath(path.toLocal8Bit().data());
+      binaryDirectory = cmSystemTools::CollapseFullPath(path.toStdString());
       cmSystemTools::ConvertToUnixSlashes(binaryDirectory);
     } else if (arg.startsWith("--preset=")) {
       QString preset = arg.mid(cmStrLen("--preset="));
@@ -195,7 +196,7 @@ int main(int argc, char** argv)
         std::cerr << "No preset specified for --preset" << std::endl;
         return 1;
       }
-      presetName = preset.toLocal8Bit().data();
+      presetName = preset.toStdString();
     } else if (arg == "--browse-manual") {
       OpenReferenceManual();
       return 0;
@@ -203,21 +204,20 @@ int main(int argc, char** argv)
   }
   if (!sourceDirectory.empty() &&
       (!binaryDirectory.empty() || !presetName.empty())) {
-    dialog.setSourceDirectory(QString::fromLocal8Bit(sourceDirectory.c_str()));
+    dialog.setSourceDirectory(QString::fromStdString(sourceDirectory));
     if (!binaryDirectory.empty()) {
-      dialog.setBinaryDirectory(
-        QString::fromLocal8Bit(binaryDirectory.c_str()));
+      dialog.setBinaryDirectory(QString::fromStdString(binaryDirectory));
       if (!presetName.empty()) {
         dialog.setStartupBinaryDirectory(true);
       }
     }
     if (!presetName.empty()) {
-      dialog.setDeferredPreset(QString::fromLocal8Bit(presetName.c_str()));
+      dialog.setDeferredPreset(QString::fromStdString(presetName));
     }
   } else {
     if (args.count() == 2) {
       std::string filePath =
-        cmSystemTools::CollapseFullPath(args[1].toLocal8Bit().data());
+        cmSystemTools::CollapseFullPath(args[1].toStdString());
 
       // check if argument is a directory containing CMakeCache.txt
       std::string buildFilePath = cmStrCat(filePath, "/CMakeCache.txt");
@@ -232,12 +232,12 @@ int main(int argc, char** argv)
       std::string srcFilePath = cmStrCat(filePath, "/CMakeLists.txt");
 
       if (cmSystemTools::FileExists(buildFilePath.c_str())) {
-        dialog.setBinaryDirectory(QString::fromLocal8Bit(
-          cmSystemTools::GetFilenamePath(buildFilePath).c_str()));
+        dialog.setBinaryDirectory(QString::fromStdString(
+          cmSystemTools::GetFilenamePath(buildFilePath)));
       } else if (cmSystemTools::FileExists(srcFilePath.c_str())) {
-        dialog.setSourceDirectory(QString::fromLocal8Bit(filePath.c_str()));
-        dialog.setBinaryDirectory(QString::fromLocal8Bit(
-          cmSystemTools::CollapseFullPath(".").c_str()));
+        dialog.setSourceDirectory(QString::fromStdString(filePath));
+        dialog.setBinaryDirectory(
+          QString::fromStdString(cmSystemTools::CollapseFullPath(".")));
       }
     }
   }

@@ -21,7 +21,7 @@ class cmInstallScriptGenerator : public cmInstallGenerator
 public:
   cmInstallScriptGenerator(
     std::string script, bool code, std::string const& component,
-    bool exclude_from_all,
+    bool exclude_from_all, bool all_components,
     cmListFileBacktrace backtrace = cmListFileBacktrace());
   ~cmInstallScriptGenerator() override;
 
@@ -41,5 +41,5 @@ protected:
   std::string const Script;
   bool const Code;
   cmLocalGenerator* LocalGenerator;
-  bool AllowGenex;
+  bool AllowGenex = false;
 };

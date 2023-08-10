@@ -218,85 +218,6 @@ std::string cmCatViews(std::initializer_list<cm::string_view> views)
   return result;
 }
 
-bool cmIsInternallyOn(cm::string_view val)
-{
-  return (val.size() == 4) &&           //
-    (val[0] == 'I' || val[0] == 'i') && //
-    (val[1] == '_') &&                  //
-    (val[2] == 'O' || val[2] == 'o') && //
-    (val[3] == 'N' || val[3] == 'n');
-}
-
-bool cmIsNOTFOUND(cm::string_view val)
-{
-  return (val == "NOTFOUND") || cmHasLiteralSuffix(val, "-NOTFOUND");
-}
-
-bool cmIsOn(cm::string_view val)
-{
-  switch (val.size()) {
-    case 1:
-      return val[0] == '1' || val[0] == 'Y' || val[0] == 'y';
-    case 2:
-      return                                //
-        (val[0] == 'O' || val[0] == 'o') && //
-        (val[1] == 'N' || val[1] == 'n');
-    case 3:
-      return                                //
-        (val[0] == 'Y' || val[0] == 'y') && //
-        (val[1] == 'E' || val[1] == 'e') && //
-        (val[2] == 'S' || val[2] == 's');
-    case 4:
-      return                                //
-        (val[0] == 'T' || val[0] == 't') && //
-        (val[1] == 'R' || val[1] == 'r') && //
-        (val[2] == 'U' || val[2] == 'u') && //
-        (val[3] == 'E' || val[3] == 'e');
-    default:
-      break;
-  }
-
-  return false;
-}
-
-bool cmIsOff(cm::string_view val)
-{
-  switch (val.size()) {
-    case 0:
-      return true;
-    case 1:
-      return val[0] == '0' || val[0] == 'N' || val[0] == 'n';
-    case 2:
-      return                                //
-        (val[0] == 'N' || val[0] == 'n') && //
-        (val[1] == 'O' || val[1] == 'o');
-    case 3:
-      return                                //
-        (val[0] == 'O' || val[0] == 'o') && //
-        (val[1] == 'F' || val[1] == 'f') && //
-        (val[2] == 'F' || val[2] == 'f');
-    case 5:
-      return                                //
-        (val[0] == 'F' || val[0] == 'f') && //
-        (val[1] == 'A' || val[1] == 'a') && //
-        (val[2] == 'L' || val[2] == 'l') && //
-        (val[3] == 'S' || val[3] == 's') && //
-        (val[4] == 'E' || val[4] == 'e');
-    case 6:
-      return                                //
-        (val[0] == 'I' || val[0] == 'i') && //
-        (val[1] == 'G' || val[1] == 'g') && //
-        (val[2] == 'N' || val[2] == 'n') && //
-        (val[3] == 'O' || val[3] == 'o') && //
-        (val[4] == 'R' || val[4] == 'r') && //
-        (val[5] == 'E' || val[5] == 'e');
-    default:
-      break;
-  }
-
-  return cmIsNOTFOUND(val);
-}
-
 bool cmStrToLong(const char* str, long* value)
 {
   errno = 0;
@@ -327,6 +248,38 @@ bool cmStrToULong(const char* str, unsigned long* value)
 bool cmStrToULong(std::string const& str, unsigned long* value)
 {
   return cmStrToULong(str.c_str(), value);
+}
+
+bool cmStrToLongLong(const char* str, long long* value)
+{
+  errno = 0;
+  char* endp;
+  *value = strtoll(str, &endp, 10);
+  return (*endp == '\0') && (endp != str) && (errno == 0);
+}
+
+bool cmStrToLongLong(std::string const& str, long long* value)
+{
+  return cmStrToLongLong(str.c_str(), value);
+}
+
+bool cmStrToULongLong(const char* str, unsigned long long* value)
+{
+  errno = 0;
+  char* endp;
+  while (cmIsSpace(*str)) {
+    ++str;
+  }
+  if (*str == '-') {
+    return false;
+  }
+  *value = strtoull(str, &endp, 10);
+  return (*endp == '\0') && (endp != str) && (errno == 0);
+}
+
+bool cmStrToULongLong(std::string const& str, unsigned long long* value)
+{
+  return cmStrToULongLong(str.c_str(), value);
 }
 
 template <typename Range>

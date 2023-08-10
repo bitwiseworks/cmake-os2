@@ -2,11 +2,19 @@
    file Copyright.txt or https://cmake.org/licensing for details.  */
 #include "cmGlobalVisualStudio71Generator.h"
 
-#include "cmDocumentationEntry.h"
+#include <map>
+#include <sstream>
+
 #include "cmGeneratorTarget.h"
-#include "cmLocalVisualStudio7Generator.h"
+#include "cmGlobalGenerator.h"
+#include "cmGlobalVisualStudioGenerator.h"
+#include "cmListFileCache.h"
+#include "cmLocalGenerator.h"
 #include "cmMakefile.h"
-#include "cmMessageType.h"
+#include "cmStringAlgorithms.h"
+#include "cmSystemTools.h"
+
+class cmake;
 
 cmGlobalVisualStudio71Generator::cmGlobalVisualStudio71Generator(
   cmake* cm, const std::string& platformName)
@@ -102,7 +110,7 @@ void cmGlobalVisualStudio71Generator::WriteProject(std::ostream& fout,
     ext = ".csproj";
     project = "Project(\"{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}\") = \"";
   }
-  cmProp targetExt = t->GetProperty("GENERATOR_FILE_NAME_EXT");
+  cmValue targetExt = t->GetProperty("GENERATOR_FILE_NAME_EXT");
   if (targetExt) {
     ext = *targetExt;
   }
@@ -157,11 +165,11 @@ void cmGlobalVisualStudio71Generator::WriteProjectDepends(
 // executables to the libraries it uses are also done here
 void cmGlobalVisualStudio71Generator::WriteExternalProject(
   std::ostream& fout, const std::string& name, const std::string& location,
-  const char* typeGuid,
-  const std::set<BT<std::pair<std::string, bool>>>& depends)
+  cmValue typeGuid, const std::set<BT<std::pair<std::string, bool>>>& depends)
 {
   fout << "Project(\"{"
-       << (typeGuid ? typeGuid : this->ExternalProjectType(location))
+       << (typeGuid ? typeGuid
+                    : std::string(this->ExternalProjectType(location)))
        << "}\") = \"" << name << "\", \""
        << this->ConvertToSolutionPath(location) << "\", \"{"
        << this->GetGUID(name) << "}\"\n";
@@ -172,7 +180,7 @@ void cmGlobalVisualStudio71Generator::WriteExternalProject(
     fout << "\tProjectSection(ProjectDependencies) = postProject\n";
     for (BT<std::pair<std::string, bool>> const& it : depends) {
       std::string const& dep = it.Value.first;
-      if (!dep.empty()) {
+      if (this->IsDepInSolution(dep)) {
         fout << "\t\t{" << this->GetGUID(dep) << "} = {" << this->GetGUID(dep)
              << "}\n";
       }
@@ -198,8 +206,8 @@ void cmGlobalVisualStudio71Generator::WriteProjectConfigurations(
     std::vector<std::string> mapConfig;
     const char* dstConfig = i.c_str();
     if (target.GetProperty("EXTERNAL_MSPROJECT")) {
-      if (cmProp m = target.GetProperty("MAP_IMPORTED_CONFIG_" +
-                                        cmSystemTools::UpperCase(i))) {
+      if (cmValue m = target.GetProperty("MAP_IMPORTED_CONFIG_" +
+                                         cmSystemTools::UpperCase(i))) {
         cmExpandList(*m, mapConfig);
         if (!mapConfig.empty()) {
           dstConfig = mapConfig[0].c_str();

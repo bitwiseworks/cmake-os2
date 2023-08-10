@@ -2,26 +2,45 @@
    file Copyright.txt or https://cmake.org/licensing for details.  */
 #include "cmLocalVisualStudio7Generator.h"
 
+#include <algorithm>
+#include <cassert>
+#include <cstring>
+#include <functional>
+#include <sstream>
+#include <utility>
+
 #include <cm/memory>
 #include <cmext/algorithm>
 
 #include <windows.h>
 
 #include <cm3p/expat.h>
-#include <ctype.h> // for isspace
+
+#include "cmsys/FStream.hxx"
 
 #include "cmComputeLinkInformation.h"
 #include "cmCustomCommand.h"
 #include "cmCustomCommandGenerator.h"
+#include "cmCustomCommandLines.h"
 #include "cmGeneratedFileStream.h"
 #include "cmGeneratorExpression.h"
 #include "cmGeneratorTarget.h"
+#include "cmGlobalGenerator.h"
 #include "cmGlobalVisualStudio7Generator.h"
+#include "cmGlobalVisualStudioGenerator.h"
+#include "cmListFileCache.h"
 #include "cmMakefile.h"
-#include "cmMessageType.h"
+#include "cmOutputConverter.h"
+#include "cmPolicies.h"
 #include "cmSourceFile.h"
+#include "cmSourceGroup.h"
+#include "cmStateTypes.h"
 #include "cmStringAlgorithms.h"
 #include "cmSystemTools.h"
+#include "cmTarget.h"
+#include "cmTargetDepend.h"
+#include "cmValue.h"
+#include "cmVsProjectType.h"
 #include "cmXMLParser.h"
 #include "cmake.h"
 
@@ -69,7 +88,7 @@ void cmLocalVisualStudio7Generator::AddHelperCommands()
     if (!l->IsInBuildSystem()) {
       continue;
     }
-    cmProp path = l->GetProperty("EXTERNAL_MSPROJECT");
+    cmValue path = l->GetProperty("EXTERNAL_MSPROJECT");
     if (path) {
       this->ReadAndStoreExternalGUID(l->GetName(), path->c_str());
     }
@@ -109,19 +128,21 @@ void cmLocalVisualStudio7Generator::FixGlobalTargets()
   const auto& tgts = this->GetGeneratorTargets();
   for (auto& l : tgts) {
     if (l->GetType() == cmStateEnums::GLOBAL_TARGET) {
-      std::vector<std::string> no_depends;
       cmCustomCommandLines force_commands =
         cmMakeSingleCommandLine({ "cd", "." });
-      std::string no_main_dependency;
       std::string force = cmStrCat(this->GetCurrentBinaryDirectory(),
                                    "/CMakeFiles/", l->GetName(), "_force");
       if (cmSourceFile* sf =
             this->Makefile->GetOrCreateGeneratedSource(force)) {
         sf->SetProperty("SYMBOLIC", "1");
       }
-      if (cmSourceFile* file = this->AddCustomCommandToOutput(
-            force, no_depends, no_main_dependency, force_commands, " ",
-            nullptr, cmPolicies::NEW, true)) {
+      auto cc = cm::make_unique<cmCustomCommand>();
+      cc->SetOutputs(force);
+      cc->SetCommandLines(force_commands);
+      cc->SetComment(" ");
+      cc->SetCMP0116Status(cmPolicies::NEW);
+      if (cmSourceFile* file =
+            this->AddCustomCommandToOutput(std::move(cc), true)) {
         l->AddSource(file->ResolveFullPath());
       }
     }
@@ -174,11 +195,11 @@ void cmLocalVisualStudio7Generator::GenerateTarget(cmGeneratorTarget* target)
   this->FortranProject = gg->TargetIsFortranOnly(target);
   this->WindowsCEProject = gg->TargetsWindowsCE();
 
-  // Intel Fortran for VS10 uses VS9 format ".vfproj" files.
+  // Intel Fortran always uses VS9 format ".vfproj" files.
   cmGlobalVisualStudioGenerator::VSVersion realVersion = gg->GetVersion();
   if (this->FortranProject &&
-      gg->GetVersion() >= cmGlobalVisualStudioGenerator::VS10) {
-    gg->SetVersion(cmGlobalVisualStudioGenerator::VS9);
+      gg->GetVersion() >= cmGlobalVisualStudioGenerator::VSVersion::VS11) {
+    gg->SetVersion(cmGlobalVisualStudioGenerator::VSVersion::VS9);
   }
 
   // add to the list of projects
@@ -239,16 +260,20 @@ cmSourceFile* cmLocalVisualStudio7Generator::CreateVCProjBuildRule()
   std::string argB = cmStrCat("-B", this->GetBinaryDirectory());
   std::string stampName =
     cmStrCat(this->GetCurrentBinaryDirectory(), "/CMakeFiles/generate.stamp");
-  bool stdPipesUTF8 = true;
   cmCustomCommandLines commandLines =
     cmMakeSingleCommandLine({ cmSystemTools::GetCMakeCommand(), argS, argB,
                               "--check-stamp-file", stampName });
   std::string comment = cmStrCat("Building Custom Rule ", makefileIn);
-  const char* no_working_directory = nullptr;
-  this->AddCustomCommandToOutput(stampName, listFiles, makefileIn,
-                                 commandLines, comment.c_str(),
-                                 no_working_directory, cmPolicies::NEW, true,
-                                 false, false, false, "", "", stdPipesUTF8);
+  auto cc = cm::make_unique<cmCustomCommand>();
+  cc->SetOutputs(stampName);
+  cc->SetMainDependency(makefileIn);
+  cc->SetDepends(listFiles);
+  cc->SetCommandLines(commandLines);
+  cc->SetComment(comment.c_str());
+  cc->SetCMP0116Status(cmPolicies::NEW);
+  cc->SetEscapeOldStyle(false);
+  cc->SetStdPipesUTF8(true);
+  this->AddCustomCommandToOutput(std::move(cc), true);
   if (cmSourceFile* file = this->Makefile->GetSource(makefileIn)) {
     // Finalize the source file path now since we're adding this after
     // the generator validated all project-named sources.
@@ -402,6 +427,7 @@ cmVS7FlagTable cmLocalVisualStudio7GeneratorFlagTable[] = {
     cmVS7FlagTable::UserValueIgnored | cmVS7FlagTable::Continue },
   { "PrecompiledHeaderThrough", "Yc", "Precompiled Header Name", "",
     cmVS7FlagTable::UserValueRequired },
+  { "UsePrecompiledHeader", "Y-", "Don't use precompiled header", "0", 0 },
   { "PrecompiledHeaderFile", "Fp", "Generated Precompiled Header", "",
     cmVS7FlagTable::UserValue },
   // The YX and Yu options are in a per-global-generator table because
@@ -545,7 +571,17 @@ public:
     this->First = true;
     this->Stream << "\t\t\t<Tool\n\t\t\t\tName=\"" << tool << "\"";
   }
-  void Finish() { this->Stream << (this->First ? "" : "\"") << "/>\n"; }
+  void Finish()
+  {
+    // If any commands were generated, finish constructing them.
+    if (!this->First) {
+      std::string finishScript =
+        this->LG->FinishConstructScript(VsProjectType::vcxproj);
+      this->Stream << this->LG->EscapeForXML(finishScript) << "\"";
+    }
+
+    this->Stream << "/>\n";
+  }
   void Write(std::vector<cmCustomCommand> const& ccs)
   {
     for (cmCustomCommand const& command : ccs) {
@@ -582,7 +618,7 @@ void cmLocalVisualStudio7Generator::WriteConfiguration(
   const std::string& libName, cmGeneratorTarget* target)
 {
   std::string mfcFlag;
-  if (cmProp p = this->Makefile->GetDefinition("CMAKE_MFC_FLAG")) {
+  if (cmValue p = this->Makefile->GetDefinition("CMAKE_MFC_FLAG")) {
     mfcFlag = cmGeneratorExpression::Evaluate(*p, this, configName);
   } else {
     mfcFlag = "0";
@@ -644,7 +680,8 @@ void cmLocalVisualStudio7Generator::WriteConfiguration(
     langForClCompile = linkLanguage;
     if (langForClCompile == "C" || langForClCompile == "CXX" ||
         langForClCompile == "Fortran") {
-      this->AddLanguageFlags(flags, target, langForClCompile, configName);
+      this->AddLanguageFlags(flags, target, cmBuildStep::Compile,
+                             langForClCompile, configName);
     }
     // set the correct language
     if (linkLanguage == "C") {
@@ -781,11 +818,10 @@ void cmLocalVisualStudio7Generator::WriteConfiguration(
   fout << "\t\t\t<Tool\n"
        << "\t\t\t\tName=\"" << tool << "\"\n";
   if (this->FortranProject) {
-    cmProp target_mod_dir = target->GetProperty("Fortran_MODULE_DIRECTORY");
+    cmValue target_mod_dir = target->GetProperty("Fortran_MODULE_DIRECTORY");
     std::string modDir;
     if (target_mod_dir) {
-      modDir = this->MaybeConvertToRelativePath(
-        this->GetCurrentBinaryDirectory(), *target_mod_dir);
+      modDir = this->MaybeRelativeToCurBinDir(*target_mod_dir);
     } else {
       modDir = ".";
     }
@@ -939,7 +975,7 @@ void cmLocalVisualStudio7Generator::OutputBuildTool(
       " " + GetBuildTypeLinkerFlags("CMAKE_MODULE_LINKER_FLAGS", configName);
   }
 
-  cmProp targetLinkFlags = target->GetProperty("LINK_FLAGS");
+  cmValue targetLinkFlags = target->GetProperty("LINK_FLAGS");
   if (targetLinkFlags) {
     extraLinkOptions += " ";
     extraLinkOptions += *targetLinkFlags;
@@ -1071,14 +1107,15 @@ void cmLocalVisualStudio7Generator::OutputBuildTool(
         fout << "\t\t\t\tGenerateDebugInformation=\"true\"\n";
       }
       if (this->WindowsCEProject) {
-        if (this->GetVersion() < cmGlobalVisualStudioGenerator::VS9) {
+        if (this->GetVersion() <
+            cmGlobalVisualStudioGenerator::VSVersion::VS9) {
           fout << "\t\t\t\tSubSystem=\"9\"\n";
         } else {
           fout << "\t\t\t\tSubSystem=\"8\"\n";
         }
       }
       std::string stackVar = cmStrCat("CMAKE_", linkLanguage, "_STACK_SIZE");
-      cmProp stackVal = this->Makefile->GetDefinition(stackVar);
+      cmValue stackVal = this->Makefile->GetDefinition(stackVar);
       if (stackVal) {
         fout << "\t\t\t\tStackReserveSize=\"" << *stackVal << "\"\n";
       }
@@ -1148,7 +1185,8 @@ void cmLocalVisualStudio7Generator::OutputBuildTool(
         fout << "\t\t\t\tGenerateDebugInformation=\"true\"\n";
       }
       if (this->WindowsCEProject) {
-        if (this->GetVersion() < cmGlobalVisualStudioGenerator::VS9) {
+        if (this->GetVersion() <
+            cmGlobalVisualStudioGenerator::VSVersion::VS9) {
           fout << "\t\t\t\tSubSystem=\"9\"\n";
         } else {
           fout << "\t\t\t\tSubSystem=\"8\"\n";
@@ -1169,7 +1207,7 @@ void cmLocalVisualStudio7Generator::OutputBuildTool(
              << "\"\n";
       }
       std::string stackVar = cmStrCat("CMAKE_", linkLanguage, "_STACK_SIZE");
-      cmProp stackVal = this->Makefile->GetDefinition(stackVar);
+      cmValue stackVal = this->Makefile->GetDefinition(stackVar);
       if (stackVal) {
         fout << "\t\t\t\tStackReserveSize=\"" << *stackVal << "\"";
       }
@@ -1210,11 +1248,11 @@ void cmLocalVisualStudio7Generator::OutputDeploymentDebuggerTool(
   std::ostream& fout, std::string const& config, cmGeneratorTarget* target)
 {
   if (this->WindowsCEProject) {
-    cmProp dir = target->GetProperty("DEPLOYMENT_REMOTE_DIRECTORY");
-    cmProp additionalFiles =
+    cmValue dir = target->GetProperty("DEPLOYMENT_REMOTE_DIRECTORY");
+    cmValue additionalFiles =
       target->GetProperty("DEPLOYMENT_ADDITIONAL_FILES");
 
-    if (dir == nullptr && additionalFiles == nullptr) {
+    if (!dir && !additionalFiles) {
       return;
     }
 
@@ -1228,7 +1266,7 @@ void cmLocalVisualStudio7Generator::OutputDeploymentDebuggerTool(
          << GetEscapedPropertyIfValueNotNULL(additionalFiles->c_str())
          << "\"/>\n";
 
-    if (dir != nullptr) {
+    if (dir) {
       std::string const exe = *dir + "\\" + target->GetFullName(config);
 
       fout << "\t\t\t<DebuggerTool\n"
@@ -1254,12 +1292,12 @@ void cmLocalVisualStudio7GeneratorInternals::OutputLibraries(
   std::ostream& fout, ItemVector const& libs)
 {
   cmLocalVisualStudio7Generator* lg = this->LocalGenerator;
-  std::string currentBinDir = lg->GetCurrentBinaryDirectory();
   for (auto const& lib : libs) {
-    if (lib.IsPath) {
-      std::string rel =
-        lg->MaybeConvertToRelativePath(currentBinDir, lib.Value.Value);
-      fout << lg->ConvertToXMLOutputPath(rel) << " ";
+    if (lib.IsPath == cmComputeLinkInformation::ItemIsPath::Yes) {
+      std::string rel = lg->MaybeRelativeToCurBinDir(lib.Value.Value);
+      rel = lg->ConvertToXMLOutputPath(rel);
+      fout << (lib.HasFeature() ? lib.GetFormattedItem(rel).Value : rel)
+           << " ";
     } else if (!lib.Target ||
                lib.Target->GetType() != cmStateEnums::INTERFACE_LIBRARY) {
       fout << lib.Value.Value << " ";
@@ -1274,7 +1312,6 @@ void cmLocalVisualStudio7GeneratorInternals::OutputObjects(
   // VS < 8 does not support per-config source locations so we
   // list object library content on the link line instead.
   cmLocalVisualStudio7Generator* lg = this->LocalGenerator;
-  std::string currentBinDir = lg->GetCurrentBinaryDirectory();
 
   std::vector<cmSourceFile const*> objs;
   gt->GetExternalObjects(objs, configName);
@@ -1283,7 +1320,7 @@ void cmLocalVisualStudio7GeneratorInternals::OutputObjects(
   for (cmSourceFile const* obj : objs) {
     if (!obj->GetObjectLibrary().empty()) {
       std::string const& objFile = obj->GetFullPath();
-      std::string rel = lg->MaybeConvertToRelativePath(currentBinDir, objFile);
+      std::string rel = lg->MaybeRelativeToCurBinDir(objFile);
       fout << sep << lg->ConvertToXMLOutputPath(rel);
       sep = " ";
     }
@@ -1294,7 +1331,6 @@ void cmLocalVisualStudio7Generator::OutputLibraryDirectories(
   std::ostream& fout, std::vector<std::string> const& dirs)
 {
   const char* comma = "";
-  std::string currentBinDir = this->GetCurrentBinaryDirectory();
   for (std::string dir : dirs) {
     // Remove any trailing slash and skip empty paths.
     if (dir.back() == '/') {
@@ -1306,7 +1342,7 @@ void cmLocalVisualStudio7Generator::OutputLibraryDirectories(
 
     // Switch to a relative path specification if it is shorter.
     if (cmSystemTools::FileIsFullPath(dir)) {
-      std::string rel = this->MaybeConvertToRelativePath(currentBinDir, dir);
+      std::string rel = this->MaybeRelativeToCurBinDir(dir);
       if (rel.size() < dir.size()) {
         dir = rel;
       }
@@ -1452,12 +1488,12 @@ cmLocalVisualStudio7GeneratorFCInfo::cmLocalVisualStudio7GeneratorFCInfo(
       needfc = true;
     }
     const std::string COMPILE_FLAGS("COMPILE_FLAGS");
-    if (cmProp cflags = sf.GetProperty(COMPILE_FLAGS)) {
+    if (cmValue cflags = sf.GetProperty(COMPILE_FLAGS)) {
       fc.CompileFlags = genexInterpreter.Evaluate(*cflags, COMPILE_FLAGS);
       needfc = true;
     }
     const std::string COMPILE_OPTIONS("COMPILE_OPTIONS");
-    if (cmProp coptions = sf.GetProperty(COMPILE_OPTIONS)) {
+    if (cmValue coptions = sf.GetProperty(COMPILE_OPTIONS)) {
       lg->AppendCompileOptions(
         fc.CompileFlags,
         genexInterpreter.Evaluate(*coptions, COMPILE_OPTIONS));
@@ -1509,25 +1545,25 @@ cmLocalVisualStudio7GeneratorFCInfo::cmLocalVisualStudio7GeneratorFCInfo(
       }
     }
     const std::string COMPILE_DEFINITIONS("COMPILE_DEFINITIONS");
-    if (cmProp cdefs = sf.GetProperty(COMPILE_DEFINITIONS)) {
+    if (cmValue cdefs = sf.GetProperty(COMPILE_DEFINITIONS)) {
       fc.CompileDefs = genexInterpreter.Evaluate(*cdefs, COMPILE_DEFINITIONS);
       needfc = true;
     }
     std::string defPropName = cmStrCat("COMPILE_DEFINITIONS_", configUpper);
-    if (cmProp ccdefs = sf.GetProperty(defPropName)) {
+    if (cmValue ccdefs = sf.GetProperty(defPropName)) {
       fc.CompileDefsConfig =
         genexInterpreter.Evaluate(*ccdefs, COMPILE_DEFINITIONS);
       needfc = true;
     }
 
     const std::string INCLUDE_DIRECTORIES("INCLUDE_DIRECTORIES");
-    if (cmProp cincs = sf.GetProperty(INCLUDE_DIRECTORIES)) {
+    if (cmValue cincs = sf.GetProperty(INCLUDE_DIRECTORIES)) {
       fc.IncludeDirs = genexInterpreter.Evaluate(*cincs, INCLUDE_DIRECTORIES);
       needfc = true;
     }
 
     // Check for extra object-file dependencies.
-    if (cmProp deps = sf.GetProperty("OBJECT_DEPENDS")) {
+    if (cmValue deps = sf.GetProperty("OBJECT_DEPENDS")) {
       std::vector<std::string> depends = cmExpandedList(*deps);
       const char* sep = "";
       for (const std::string& d : depends) {
@@ -1788,6 +1824,7 @@ void cmLocalVisualStudio7Generator::WriteCustomRule(
     if (this->FortranProject) {
       cmSystemTools::ReplaceString(script, "$(Configuration)", config);
     }
+    script += this->FinishConstructScript(VsProjectType::vcxproj);
     /* clang-format off */
     fout << "\t\t\t\t\t<Tool\n"
          << "\t\t\t\t\tName=\"" << customTool << "\"\n"
@@ -1902,9 +1939,9 @@ void cmLocalVisualStudio7Generator::WriteProjectSCC(std::ostream& fout,
 {
   // if we have all the required Source code control tags
   // then add that to the project
-  cmProp vsProjectname = target->GetProperty("VS_SCC_PROJECTNAME");
-  cmProp vsLocalpath = target->GetProperty("VS_SCC_LOCALPATH");
-  cmProp vsProvider = target->GetProperty("VS_SCC_PROVIDER");
+  cmValue vsProjectname = target->GetProperty("VS_SCC_PROJECTNAME");
+  cmValue vsLocalpath = target->GetProperty("VS_SCC_LOCALPATH");
+  cmValue vsProvider = target->GetProperty("VS_SCC_PROVIDER");
 
   if (vsProvider && vsLocalpath && vsProjectname) {
     /* clang-format off */
@@ -1913,7 +1950,7 @@ void cmLocalVisualStudio7Generator::WriteProjectSCC(std::ostream& fout,
          << "\tSccProvider=\"" << *vsProvider << "\"\n";
     /* clang-format on */
 
-    cmProp vsAuxPath = target->GetProperty("VS_SCC_AUXPATH");
+    cmValue vsAuxPath = target->GetProperty("VS_SCC_AUXPATH");
     if (vsAuxPath) {
       fout << "\tSccAuxPath=\"" << *vsAuxPath << "\"\n";
     }
@@ -1933,7 +1970,7 @@ void cmLocalVisualStudio7Generator::WriteProjectStartFortran(
        << "\tProjectCreator=\"Intel Fortran\"\n"
        << "\tVersion=\"" << gg->GetIntelProjectVersion() << "\"\n";
   /* clang-format on */
-  cmProp p = target->GetProperty("VS_KEYWORD");
+  cmValue p = target->GetProperty("VS_KEYWORD");
   const char* keyword = p ? p->c_str() : "Console Application";
   const char* projectType = 0;
   switch (target->GetType()) {
@@ -1994,15 +2031,16 @@ void cmLocalVisualStudio7Generator::WriteProjectStart(
        << "<VisualStudioProject\n"
        << "\tProjectType=\"Visual C++\"\n";
   /* clang-format on */
-  fout << "\tVersion=\"" << (gg->GetVersion() / 10) << ".00\"\n";
-  cmProp p = target->GetProperty("PROJECT_LABEL");
+  fout << "\tVersion=\"" << (static_cast<uint16_t>(gg->GetVersion()) / 10)
+       << ".00\"\n";
+  cmValue p = target->GetProperty("PROJECT_LABEL");
   const std::string projLabel = p ? *p : libName;
   p = target->GetProperty("VS_KEYWORD");
   const std::string keyword = p ? *p : "Win32Proj";
   fout << "\tName=\"" << projLabel << "\"\n";
   fout << "\tProjectGUID=\"{" << gg->GetGUID(libName) << "}\"\n";
   this->WriteProjectSCC(fout, target);
-  if (cmProp targetFrameworkVersion =
+  if (cmValue targetFrameworkVersion =
         target->GetProperty("VS_DOTNET_TARGET_FRAMEWORK_VERSION")) {
     fout << "\tTargetFrameworkVersion=\"" << *targetFrameworkVersion << "\"\n";
   }
@@ -2147,7 +2185,7 @@ void cmLocalVisualStudio7Generator::ReadAndStoreExternalGUID(
   std::string guidStoreName = cmStrCat(name, "_GUID_CMAKE");
   // save the GUID in the cache
   this->GlobalGenerator->GetCMakeInstance()->AddCacheEntry(
-    guidStoreName, parser.GUID.c_str(), "Stored GUID", cmStateEnums::INTERNAL);
+    guidStoreName, parser.GUID, "Stored GUID", cmStateEnums::INTERNAL);
 }
 
 std::string cmLocalVisualStudio7Generator::GetTargetDirectory(

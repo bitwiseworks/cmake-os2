@@ -6,6 +6,7 @@
 
 #include "cmGeneratorExpression.h"
 #include "cmInstallType.h"
+#include "cmListFileCache.h"
 #include "cmStringAlgorithms.h"
 
 class cmLocalGenerator;
@@ -17,8 +18,7 @@ cmInstallFilesGenerator::cmInstallFilesGenerator(
   MessageLevel message, bool exclude_from_all, std::string rename,
   bool optional, cmListFileBacktrace backtrace)
   : cmInstallGenerator(dest, configurations, component, message,
-                       exclude_from_all, std::move(backtrace))
-  , LocalGenerator(nullptr)
+                       exclude_from_all, false, std::move(backtrace))
   , Files(files)
   , FilePermissions(std::move(file_permissions))
   , Rename(std::move(rename))

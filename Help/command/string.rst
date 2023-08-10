@@ -45,16 +45,16 @@ Synopsis
 
   `JSON`_
     string(JSON <out-var> [ERROR_VARIABLE <error-var>]
-           {`GET`_ | `TYPE`_ | :ref:`LENGTH <JSONLENGTH>` | `REMOVE`_}
+           {:ref:`GET <JSON_GET>` | :ref:`TYPE <JSON_TYPE>` | :ref:`LENGTH <JSON_LENGTH>` | :ref:`REMOVE <JSON_REMOVE>`}
            <json-string> <member|index> [<member|index> ...])
     string(JSON <out-var> [ERROR_VARIABLE <error-var>]
-           `MEMBER`_ <json-string>
+           :ref:`MEMBER <JSON_MEMBER>` <json-string>
            [<member|index> ...] <index>)
     string(JSON <out-var> [ERROR_VARIABLE <error-var>]
-           `SET`_ <json-string>
+           :ref:`SET <JSON_SET>` <json-string>
            <member|index> [<member|index> ...] <value>)
     string(JSON <out-var> [ERROR_VARIABLE <error-var>]
-           `EQUAL`_ <json-string1> <json-string2>)
+           :ref:`EQUAL <JSON_EQUAL>` <json-string1> <json-string2>)
 
 Search and Replace
 ^^^^^^^^^^^^^^^^^^
@@ -449,38 +449,78 @@ be in Coordinated Universal Time (UTC) rather than local time.
 The optional ``<format_string>`` may contain the following format
 specifiers:
 
-::
+``%%``
+  .. versionadded:: 3.8
 
-   %%        A literal percent sign (%).
-   %d        The day of the current month (01-31).
-   %H        The hour on a 24-hour clock (00-23).
-   %I        The hour on a 12-hour clock (01-12).
-   %j        The day of the current year (001-366).
-   %m        The month of the current year (01-12).
-   %b        Abbreviated month name (e.g. Oct).
-   %B        Full month name (e.g. October).
-   %M        The minute of the current hour (00-59).
-   %s        Seconds since midnight (UTC) 1-Jan-1970 (UNIX time).
-   %S        The second of the current minute.
-             60 represents a leap second. (00-60)
-   %U        The week number of the current year (00-53).
-   %w        The day of the current week. 0 is Sunday. (0-6)
-   %a        Abbreviated weekday name (e.g. Fri).
-   %A        Full weekday name (e.g. Friday).
-   %y        The last two digits of the current year (00-99)
-   %Y        The current year.
+  A literal percent sign (%).
 
-.. versionadded:: 3.6
-  ``%s`` format specifier (UNIX time).
+``%d``
+  The day of the current month (01-31).
 
-.. versionadded:: 3.7
-  ``%a`` and ``%b`` format specifiers (abbreviated month and weekday names).
+``%H``
+  The hour on a 24-hour clock (00-23).
 
-.. versionadded:: 3.8
-  ``%%`` specifier (literal ``%``).
+``%I``
+  The hour on a 12-hour clock (01-12).
 
-.. versionadded:: 3.7
-  ``%A`` and ``%B`` format specifiers (full month and weekday names).
+``%j``
+  The day of the current year (001-366).
+
+``%m``
+  The month of the current year (01-12).
+
+``%b``
+  .. versionadded:: 3.7
+
+  Abbreviated month name (e.g. Oct).
+
+``%B``
+  .. versionadded:: 3.10
+
+  Full month name (e.g. October).
+
+``%M``
+  The minute of the current hour (00-59).
+
+``%s``
+  .. versionadded:: 3.6
+
+  Seconds since midnight (UTC) 1-Jan-1970 (UNIX time).
+
+``%S``
+  The second of the current minute.  60 represents a leap second. (00-60)
+
+``%f``
+  .. versionadded:: 3.23
+
+  The microsecond of the current second (000000-999999).
+
+``%U``
+  The week number of the current year (00-53).
+
+``%V``
+  .. versionadded:: 3.22
+
+  The ISO 8601 week number of the current year (01-53).
+
+``%w``
+  The day of the current week. 0 is Sunday. (0-6)
+
+``%a``
+  .. versionadded:: 3.7
+
+  Abbreviated weekday name (e.g. Fri).
+
+``%A``
+  .. versionadded:: 3.10
+
+  Full weekday name (e.g. Friday).
+
+``%y``
+  The last two digits of the current year (00-99).
+
+``%Y``
+  The current year.
 
 Unknown format specifiers will be ignored and copied to the output
 as-is.
@@ -535,7 +575,7 @@ Functionality for querying a JSON string.
   option is not present, a fatal error message is generated.  If no error
   occurs, the ``<error-variable>`` will be set to ``NOTFOUND``.
 
-.. _GET:
+.. _JSON_GET:
 .. code-block:: cmake
 
   string(JSON <out-var> [ERROR_VARIABLE <error-variable>]
@@ -548,7 +588,7 @@ Boolean elements will be returned as ``ON`` or ``OFF``.
 Null elements will be returned as an empty string.
 Number and string types will be returned as strings.
 
-.. _TYPE:
+.. _JSON_TYPE:
 .. code-block:: cmake
 
   string(JSON <out-var> [ERROR_VARIABLE <error-variable>]
@@ -559,7 +599,7 @@ given by the list of ``<member|index>`` arguments. The ``<out-var>``
 will be set to one of ``NULL``, ``NUMBER``, ``STRING``, ``BOOLEAN``,
 ``ARRAY``, or ``OBJECT``.
 
-.. _MEMBER:
+.. _JSON_MEMBER:
 .. code-block:: cmake
 
   string(JSON <out-var> [ERROR_VARIABLE <error-var>]
@@ -570,17 +610,17 @@ Get the name of the ``<index>``-th member in ``<json-string>`` at the location
 given by the list of ``<member|index>`` arguments.
 Requires an element of object type.
 
-.. _JSONLENGTH:
+.. _JSON_LENGTH:
 .. code-block:: cmake
 
   string(JSON <out-var> [ERROR_VARIABLE <error-variable>]
-         LENGTH <json-string> <member|index> [<member|index> ...])
+         LENGTH <json-string> [<member|index> ...])
 
 Get the length of an element in ``<json-string>`` at the location
 given by the list of ``<member|index>`` arguments.
 Requires an element of array or object type.
 
-.. _REMOVE:
+.. _JSON_REMOVE:
 .. code-block:: cmake
 
   string(JSON <out-var> [ERROR_VARIABLE <error-variable>]
@@ -590,7 +630,7 @@ Remove an element from ``<json-string>`` at the location
 given by the list of ``<member|index>`` arguments. The JSON string
 without the removed element will be stored in ``<out-var>``.
 
-.. _SET:
+.. _JSON_SET:
 .. code-block:: cmake
 
   string(JSON <out-var> [ERROR_VARIABLE <error-variable>]
@@ -600,7 +640,7 @@ Set an element in ``<json-string>`` at the location
 given by the list of ``<member|index>`` arguments to ``<value>``.
 The contents of ``<value>`` should be valid JSON.
 
-.. _EQUAL:
+.. _JSON_EQUAL:
 .. code-block:: cmake
 
   string(JSON <out-var> [ERROR_VARIABLE <error-var>]

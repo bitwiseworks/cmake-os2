@@ -3,8 +3,15 @@
 #pragma once
 
 #include <memory>
+#include <string>
+#include <vector>
 
+#include "cmGlobalGeneratorFactory.h"
 #include "cmGlobalUnixMakefileGenerator3.h"
+
+class cmMakefile;
+class cmake;
+struct cmDocumentationEntry;
 
 /** \class cmGlobalMinGWMakefileGenerator
  * \brief Write a NMake makefiles.
@@ -29,11 +36,4 @@ public:
 
   /** Get the documentation entry for this generator.  */
   static void GetDocumentation(cmDocumentationEntry& entry);
-
-  /**
-   * Try to determine system information such as shared library
-   * extension, pthreads, byte order etc.
-   */
-  virtual void EnableLanguage(std::vector<std::string> const& languages,
-                              cmMakefile*, bool optional);
 };

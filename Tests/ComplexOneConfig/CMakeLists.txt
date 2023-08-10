@@ -5,6 +5,14 @@ cmake_minimum_required(VERSION 2.4)
 cmake_policy(SET CMP0054 NEW)
 project (Complex)
 
+# Inform the test if the debug configuration is getting built.
+string(APPEND CMAKE_C_FLAGS_RELEASE " -DCOMPLEX_NDEBUG")
+string(APPEND CMAKE_CXX_FLAGS_RELEASE " -DCOMPLEX_NDEBUG")
+string(APPEND CMAKE_C_FLAGS_RELWITHDEBINFO " -DCOMPLEX_NDEBUG")
+string(APPEND CMAKE_CXX_FLAGS_RELWITHDEBINFO " -DCOMPLEX_NDEBUG")
+string(APPEND CMAKE_C_FLAGS_MINSIZEREL " -DCOMPLEX_NDEBUG")
+string(APPEND CMAKE_CXX_FLAGS_MINSIZEREL " -DCOMPLEX_NDEBUG")
+
 # Try setting a new policy.  The IF test is for coverage.
 if(POLICY CMP0003)
   cmake_policy(SET CMP0003 NEW)
@@ -386,21 +394,6 @@ string(REGEX REPLACE ".([bd])." "[\\1]" RESULT "a(b)c(d)e")
 if(NOT RESULT STREQUAL "a[b]c[d]e")
   message(SEND_ERROR
     "string(REGEX REPLACE ... ) test failed (\"${RESULT}\" v. \"a[b]c[d]e\")")
-endif()
-
-#
-# This tests needs Ansi C++98
-#
-set(CMAKE_CXX_STANDARD 98)
-#
-# GNU extensions are needed for stricmp() on Windows.
-#
-set(CMAKE_CXX_EXTENSIONS TRUE)
-
-# Clang/C2 in C++98 mode cannot properly handle some of MSVC headers
-if (CMAKE_CXX_COMPILER_ID STREQUAL "Clang" AND
-    CMAKE_CXX_SIMULATE_ID STREQUAL "MSVC")
-  set(CMAKE_CXX_STANDARD 11)
 endif()
 
 #

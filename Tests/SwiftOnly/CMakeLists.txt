@@ -1,4 +1,7 @@
 cmake_minimum_required(VERSION 3.3)
+if(POLICY CMP0126)
+  cmake_policy(SET CMP0126 NEW)
+endif()
 
 # NOTE: Force the Release mode configuration as there are some issues with the
 # debug information handling on macOS on certain Xcode builds.
@@ -19,9 +22,13 @@ elseif(NOT XCODE_VERSION VERSION_LESS 8.0)
   set(CMAKE_Swift_LANGUAGE_VERSION 3.0)
 endif()
 
+add_subdirectory(SubA)
+add_subdirectory(SubB)
+
 set(CMAKE_Swift_MODULE_DIRECTORY ${CMAKE_BINARY_DIR}/swift)
 
 add_executable(SwiftOnly main.swift)
+target_compile_definitions(SwiftOnly PRIVATE SWIFTONLY)
 
 add_library(L L.swift)
 

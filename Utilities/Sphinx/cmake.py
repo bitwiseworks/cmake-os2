@@ -20,7 +20,7 @@ from pygments.lexer import bygroups
 # - [\.\+-] are needed for string constants like gtk+-2.0
 # - Unix paths are recognized by '/'; support for Windows paths may be added if needed
 # - (\\.) allows for \-escapes (used in manual/cmake-language.7)
-# - $<..$<..$>..> nested occurence in cmake-buildsystem
+# - $<..$<..$>..> nested occurrence in cmake-buildsystem
 # - Nested variable evaluations are only supported in a limited capacity. Only
 #   one level of nesting is supported and at most one nested variable can be present.
 
@@ -59,12 +59,6 @@ CMakeLexer.tokens["root"] = [
 
 from docutils.parsers.rst import Directive, directives
 from docutils.transforms import Transform
-try:
-    from docutils.utils.error_reporting import SafeString, ErrorString
-except ImportError:
-    # error_reporting was not in utils before version 0.11:
-    from docutils.error_reporting import SafeString, ErrorString
-
 from docutils import io, nodes
 
 from sphinx.directives import ObjectDescription
@@ -130,13 +124,13 @@ class CMakeModule(Directive):
             f = io.FileInput(source_path=path, encoding=encoding,
                              error_handler=e_handler)
         except UnicodeEncodeError as error:
-            raise self.severe('Problems with "%s" directive path:\n'
-                              'Cannot encode input file path "%s" '
-                              '(wrong locale?).' %
-                              (self.name, SafeString(path)))
+            msg = ('Problems with "%s" directive path:\n'
+                   'Cannot encode input file path "%s" '
+                   '(wrong locale?).' % (self.name, path))
+            raise self.severe(msg)
         except IOError as error:
-            raise self.severe('Problems with "%s" directive path:\n%s.' %
-                      (self.name, ErrorString(error)))
+            msg = 'Problems with "%s" directive path:\n%s.' % (self.name, error)
+            raise self.severe(msg)
         raw_lines = f.read().splitlines()
         f.close()
         rst = None
@@ -260,6 +254,8 @@ class CMakeTransform(Transform):
             # Insert the object link target.
             if objtype == 'command':
                 targetname = title.lower()
+            elif objtype == 'guide' and not tail.endswith('/index'):
+                targetname = tail
             else:
                 if objtype == 'genex':
                     m = CMakeXRefRole._re_genex.match(title)
@@ -312,6 +308,7 @@ class CMakeXRefRole(XRefRole):
     _re = re.compile(r'^(.+?)(\s*)(?<!\x00)<(.*?)>$', re.DOTALL)
     _re_sub = re.compile(r'^([^()\s]+)\s*\(([^()]*)\)$', re.DOTALL)
     _re_genex = re.compile(r'^\$<([^<>:]+)(:[^<>]+)?>$', re.DOTALL)
+    _re_guide = re.compile(r'^([^<>/]+)/([^<>]*)$', re.DOTALL)
 
     def __call__(self, typ, rawtext, text, *args, **keys):
         # Translate CMake command cross-references of the form:
@@ -326,6 +323,10 @@ class CMakeXRefRole(XRefRole):
             m = CMakeXRefRole._re_genex.match(text)
             if m:
                 text = '%s <%s>' % (text, m.group(1))
+        elif typ == 'cmake:guide':
+            m = CMakeXRefRole._re_guide.match(text)
+            if m:
+                text = '%s <%s>' % (m.group(2), text)
         # CMake cross-reference targets frequently contain '<' so escape
         # any explicit `<target>` with '<' not preceded by whitespace.
         while True:
@@ -369,6 +370,10 @@ class CMakeXRefTransform(Transform):
                 continue
 
             objname = ref['reftarget']
+            if objtype == 'guide' and CMakeXRefRole._re_guide.match(objname):
+                # Do not index cross-references to guide sections.
+                continue
+
             targetnum = env.new_serialno('index-%s:%s' % (objtype, objname))
 
             targetid = 'index-%s-%s:%s' % (targetnum, objtype, objname)

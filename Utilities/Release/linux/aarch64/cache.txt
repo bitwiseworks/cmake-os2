@@ -3,9 +3,6 @@ CMAKE_BUILD_TYPE:STRING=Release
 CMAKE_C_STANDARD:STRING=11
 CMAKE_CXX_STANDARD:STRING=14
 
-# Require only older APIs where possible.
-CMAKE_C_FLAGS:STRING=-D_POSIX_C_SOURCE=199506L -D_POSIX_SOURCE=1 -D_SVID_SOURCE=1 -D_BSD_SOURCE=1
-
 # Link C++ library statically.
 CMAKE_EXE_LINKER_FLAGS:STRING=-static-libstdc++ -static-libgcc
 
@@ -32,7 +29,7 @@ SPHINX_EXECUTABLE:FILEPATH=/usr/local/bin/sphinx-build
 SPHINX_HTML:BOOL=ON
 SPHINX_MAN:BOOL=ON
 SPHINX_QTHELP:BOOL=ON
-QCOLLECTIONGENERATOR_EXECUTABLE:PATH=/opt/qt/bin/qhelpgenerator
+QHELPGENERATOR_EXECUTABLE:PATH=/opt/qt/bin/qhelpgenerator
 
 # We bootstrap as part of the build so skip its test.
 CMAKE_SKIP_BOOTSTRAP_TEST:STRING=TRUE

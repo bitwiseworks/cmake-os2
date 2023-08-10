@@ -116,7 +116,7 @@ public:
 #  define END_IGNORE_UNINITIALIZED
 #endif
 
-void swap(EventLogger& e1, EventLogger& e2)
+static void swap(EventLogger& e1, EventLogger& e2)
 {
   BEGIN_IGNORE_UNINITIALIZED
   events.push_back({ Event::SWAP, &e1, &e2, e2.Value });
@@ -180,37 +180,37 @@ EventLogger& EventLogger::operator=(int value)
   return *this;
 }
 
-bool operator==(const EventLogger& lhs, const EventLogger& rhs)
+static bool operator==(const EventLogger& lhs, const EventLogger& rhs)
 {
   events.push_back({ Event::COMPARE_EE_EQ, &lhs, &rhs, lhs.Value });
   return lhs.Value == rhs.Value;
 }
 
-bool operator!=(const EventLogger& lhs, const EventLogger& rhs)
+static bool operator!=(const EventLogger& lhs, const EventLogger& rhs)
 {
   events.push_back({ Event::COMPARE_EE_NE, &lhs, &rhs, lhs.Value });
   return lhs.Value != rhs.Value;
 }
 
-bool operator<(const EventLogger& lhs, const EventLogger& rhs)
+static bool operator<(const EventLogger& lhs, const EventLogger& rhs)
 {
   events.push_back({ Event::COMPARE_EE_LT, &lhs, &rhs, lhs.Value });
   return lhs.Value < rhs.Value;
 }
 
-bool operator<=(const EventLogger& lhs, const EventLogger& rhs)
+static bool operator<=(const EventLogger& lhs, const EventLogger& rhs)
 {
   events.push_back({ Event::COMPARE_EE_LE, &lhs, &rhs, lhs.Value });
   return lhs.Value <= rhs.Value;
 }
 
-bool operator>(const EventLogger& lhs, const EventLogger& rhs)
+static bool operator>(const EventLogger& lhs, const EventLogger& rhs)
 {
   events.push_back({ Event::COMPARE_EE_GT, &lhs, &rhs, lhs.Value });
   return lhs.Value > rhs.Value;
 }
 
-bool operator>=(const EventLogger& lhs, const EventLogger& rhs)
+static bool operator>=(const EventLogger& lhs, const EventLogger& rhs)
 {
   events.push_back({ Event::COMPARE_EE_GE, &lhs, &rhs, lhs.Value });
   return lhs.Value >= rhs.Value;
@@ -301,12 +301,14 @@ static bool testMoveConstruct(std::vector<Event>& expected)
   cm::optional<EventLogger> o3{};
   const cm::optional<EventLogger> o4{ std::move(o3) };
 
+#ifndef __clang_analyzer__ /* cplusplus.Move */
   expected = {
     { Event::VALUE_CONSTRUCT, &*o1, nullptr, 4 },
     { Event::MOVE_CONSTRUCT, &*o2, &*o1, 4 },
     { Event::DESTRUCT, &*o2, nullptr, 4 },
     { Event::DESTRUCT, &*o1, nullptr, 4 },
   };
+#endif
   return true;
 }
 

@@ -107,22 +107,21 @@ void StartCompilerSetup::setGenerators(
   QStringList generator_list;
 
   for (cmake::GeneratorInfo const& gen : gens) {
-    generator_list.append(QString::fromLocal8Bit(gen.name.c_str()));
+    generator_list.append(QString::fromStdString(gen.name));
 
     if (gen.supportsPlatform) {
       this->GeneratorsSupportingPlatform.append(
-        QString::fromLocal8Bit(gen.name.c_str()));
+        QString::fromStdString(gen.name));
 
-      this
-        ->GeneratorDefaultPlatform[QString::fromLocal8Bit(gen.name.c_str())] =
-        QString::fromLocal8Bit(gen.defaultPlatform.c_str());
+      this->GeneratorDefaultPlatform[QString::fromStdString(gen.name)] =
+        QString::fromStdString(gen.defaultPlatform);
 
       auto platformIt = gen.supportedPlatforms.cbegin();
       while (platformIt != gen.supportedPlatforms.cend()) {
 
         this->GeneratorSupportedPlatforms.insert(
-          QString::fromLocal8Bit(gen.name.c_str()),
-          QString::fromLocal8Bit((*platformIt).c_str()));
+          QString::fromStdString(gen.name),
+          QString::fromStdString((*platformIt)));
 
         platformIt++;
       }
@@ -130,7 +129,7 @@ void StartCompilerSetup::setGenerators(
 
     if (gen.supportsToolset) {
       this->GeneratorsSupportingToolset.append(
-        QString::fromLocal8Bit(gen.name.c_str()));
+        QString::fromStdString(gen.name));
     }
   }
 
@@ -245,7 +244,8 @@ void StartCompilerSetup::onGeneratorChanged(int index)
     if (!DefaultGeneratorPlatform.isEmpty()) {
       int platform_index = platforms.indexOf(DefaultGeneratorPlatform);
       if (platform_index != -1) {
-        this->PlatformOptions->setCurrentIndex(platform_index);
+        // The index is off-by-one due to the first empty item added above.
+        this->PlatformOptions->setCurrentIndex(platform_index + 1);
       }
     }
   } else {

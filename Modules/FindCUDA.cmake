@@ -2,19 +2,19 @@
 FindCUDA
 --------
 
-.. deprecated:: 3.10
+.. warning:: *Deprecated since version 3.10.*
 
 It is no longer necessary to use this module or call ``find_package(CUDA)``
 for compiling CUDA code. Instead, list ``CUDA`` among the languages named
 in the top-level call to the :command:`project` command, or call the
 :command:`enable_language` command with ``CUDA``.
-Then one can add CUDA (``.cu``) sources to programs directly
-in calls to :command:`add_library` and :command:`add_executable`.
+Then one can add CUDA (``.cu``) sources directly to targets similar to other
+languages.
 
 .. versionadded:: 3.17
-  To find and use the CUDA toolkit libraries the :module:`FindCUDAToolkit`
-  module has superseded this module.  It works whether or not the ``CUDA``
-  language is enabled.
+  To find and use the CUDA toolkit libraries manually, use the
+  :module:`FindCUDAToolkit` module instead.  It works regardless of the
+  ``CUDA`` language being enabled.
 
 Documentation of Deprecated Usage
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -799,7 +799,9 @@ if(NOT "${CUDA_TOOLKIT_ROOT_DIR}" STREQUAL "${CUDA_TOOLKIT_ROOT_DIR_INTERNAL}")
   unset(CUDA_VERSION CACHE)
 endif()
 
-if(NOT "${CUDA_TOOLKIT_TARGET_DIR}" STREQUAL "${CUDA_TOOLKIT_TARGET_DIR_INTERNAL}")
+# If CUDA_TOOLKIT_TARGET_DIR exists, check if it has changed.
+if(DEFINED CUDA_TOOLKIT_TARGET_DIR
+    AND NOT "${CUDA_TOOLKIT_TARGET_DIR}" STREQUAL "${CUDA_TOOLKIT_TARGET_DIR_INTERNAL}")
   cuda_unset_include_and_libraries()
 endif()
 
@@ -926,8 +928,8 @@ mark_as_advanced(CUDA_NVCC_EXECUTABLE)
 if(CUDA_NVCC_EXECUTABLE AND NOT CUDA_VERSION)
   # Compute the version.
   execute_process (COMMAND ${CUDA_NVCC_EXECUTABLE} "--version" OUTPUT_VARIABLE NVCC_OUT)
-  string(REGEX REPLACE ".*release ([0-9]+)\\.([0-9]+).*" "\\1" CUDA_VERSION_MAJOR ${NVCC_OUT})
-  string(REGEX REPLACE ".*release ([0-9]+)\\.([0-9]+).*" "\\2" CUDA_VERSION_MINOR ${NVCC_OUT})
+  string(REGEX REPLACE ".*release ([0-9]+)\\.([0-9]+).*" "\\1" CUDA_VERSION_MAJOR "${NVCC_OUT}")
+  string(REGEX REPLACE ".*release ([0-9]+)\\.([0-9]+).*" "\\2" CUDA_VERSION_MINOR "${NVCC_OUT}")
   set(CUDA_VERSION "${CUDA_VERSION_MAJOR}.${CUDA_VERSION_MINOR}" CACHE STRING "Version of CUDA as computed from nvcc.")
   mark_as_advanced(CUDA_VERSION)
 else()
@@ -1148,8 +1150,10 @@ if(NOT CUDA_VERSION VERSION_LESS "9.0")
   find_cuda_helper_libs(nppc)
   find_cuda_helper_libs(nppial)
   find_cuda_helper_libs(nppicc)
+  set(CUDA_npp_LIBRARY ${CUDA_nppc_LIBRARY} ${CUDA_nppial_LIBRARY} ${CUDA_nppicc_LIBRARY})
   if(CUDA_VERSION VERSION_LESS "11.0")
     find_cuda_helper_libs(nppicom)
+    list(APPEND CUDA_npp_LIBRARY ${CUDA_nppicom_LIBRARY})
   endif()
   find_cuda_helper_libs(nppidei)
   find_cuda_helper_libs(nppif)
@@ -1159,7 +1163,7 @@ if(NOT CUDA_VERSION VERSION_LESS "9.0")
   find_cuda_helper_libs(nppisu)
   find_cuda_helper_libs(nppitc)
   find_cuda_helper_libs(npps)
-  set(CUDA_npp_LIBRARY "${CUDA_nppc_LIBRARY};${CUDA_nppial_LIBRARY};${CUDA_nppicc_LIBRARY};${CUDA_nppicom_LIBRARY};${CUDA_nppidei_LIBRARY};${CUDA_nppif_LIBRARY};${CUDA_nppig_LIBRARY};${CUDA_nppim_LIBRARY};${CUDA_nppist_LIBRARY};${CUDA_nppisu_LIBRARY};${CUDA_nppitc_LIBRARY};${CUDA_npps_LIBRARY}")
+  list(APPEND CUDA_npp_LIBRARY ${CUDA_nppidei_LIBRARY} ${CUDA_nppif_LIBRARY} ${CUDA_nppig_LIBRARY} ${CUDA_nppim_LIBRARY} ${CUDA_nppist_LIBRARY} ${CUDA_nppisu_LIBRARY} ${CUDA_nppitc_LIBRARY} ${CUDA_npps_LIBRARY})
 elseif(CUDA_VERSION VERSION_GREATER "5.0")
   # In CUDA 5.5 NPP was split into 3 separate libraries.
   find_cuda_helper_libs(nppc)

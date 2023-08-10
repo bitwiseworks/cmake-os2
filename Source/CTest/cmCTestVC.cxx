@@ -10,8 +10,8 @@
 #include "cmsys/Process.h"
 
 #include "cmCTest.h"
-#include "cmStringAlgorithms.h"
 #include "cmSystemTools.h"
+#include "cmValue.h"
 #include "cmXMLWriter.h"
 
 cmCTestVC::cmCTestVC(cmCTest* ct, std::ostream& log)
@@ -66,7 +66,7 @@ bool cmCTestVC::InitialCheckout(const std::string& command)
   this->Log << "--- Begin Initial Checkout ---\n";
   OutputLogger out(this->Log, "co-out> ");
   OutputLogger err(this->Log, "co-err> ");
-  bool result = this->RunChild(&vc_co[0], &out, &err, parent.c_str());
+  bool result = this->RunChild(vc_co.data(), &out, &err, parent.c_str());
   this->Log << "--- End Initial Checkout ---\n";
   if (!result) {
     cmCTestLog(this->CTest, ERROR_MESSAGE,
@@ -123,9 +123,10 @@ std::string cmCTestVC::GetNightlyTime()
     this->CTest->GetCTestConfiguration("NightlyStartTime"),
     this->CTest->GetTomorrowTag());
   char current_time[1024];
-  sprintf(current_time, "%04d-%02d-%02d %02d:%02d:%02d", t->tm_year + 1900,
-          t->tm_mon + 1, t->tm_mday, t->tm_hour, t->tm_min, t->tm_sec);
-  return std::string(current_time);
+  snprintf(current_time, sizeof(current_time), "%04d-%02d-%02d %02d:%02d:%02d",
+           t->tm_year + 1900, t->tm_mon + 1, t->tm_mday, t->tm_hour, t->tm_min,
+           t->tm_sec);
+  return { current_time };
 }
 
 void cmCTestVC::Cleanup()

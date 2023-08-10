@@ -9,6 +9,7 @@
 #include "cmExecutionStatus.h"
 #include "cmGlobalGenerator.h"
 #include "cmInstalledFile.h"
+#include "cmListFileCache.h"
 #include "cmMakefile.h"
 #include "cmMessageType.h"
 #include "cmPolicies.h"
@@ -21,6 +22,7 @@
 #include "cmSystemTools.h"
 #include "cmTarget.h"
 #include "cmTest.h"
+#include "cmValue.h"
 #include "cmake.h"
 
 namespace {
@@ -116,7 +118,7 @@ bool HandleSourceFileDirectoryScopes(
           "given non-existent target for TARGET_DIRECTORY ", target_name));
         return false;
       }
-      cmProp target_source_dir = target->GetProperty("BINARY_DIR");
+      cmValue target_source_dir = target->GetProperty("BINARY_DIR");
       cmMakefile* target_dir_mf =
         status.GetMakefile().GetGlobalGenerator()->FindMakefile(
           *target_source_dir);
@@ -294,7 +296,7 @@ bool HandleAndValidateSourceFilePropertyGENERATED(
         sf->SetProperty("GENERATED", nullptr);
         break;
       case PropertyOp::Set:
-        sf->SetProperty("GENERATED", propertyValue.c_str());
+        sf->SetProperty("GENERATED", propertyValue);
         break;
     }
   } else {
@@ -474,7 +476,7 @@ bool HandleGlobalMode(cmExecutionStatus& status,
     if (remove) {
       cm->SetProperty(propertyName, nullptr);
     } else {
-      cm->SetProperty(propertyName, propertyValue.c_str());
+      cm->SetProperty(propertyName, propertyValue);
     }
   }
 
@@ -520,7 +522,7 @@ bool HandleDirectoryMode(cmExecutionStatus& status,
     if (remove) {
       mf->SetProperty(propertyName, nullptr);
     } else {
-      mf->SetProperty(propertyName, propertyValue.c_str());
+      mf->SetProperty(propertyName, propertyValue);
     }
   }
 
@@ -560,7 +562,8 @@ bool HandleTarget(cmTarget* target, cmMakefile& makefile,
 {
   // Set or append the property.
   if (appendMode) {
-    target->AppendProperty(propertyName, propertyValue, appendAsString);
+    target->AppendProperty(propertyName, propertyValue,
+                           makefile.GetBacktrace(), appendAsString);
   } else {
     if (remove) {
       target->SetProperty(propertyName, nullptr);
@@ -631,7 +634,7 @@ bool HandleSource(cmSourceFile* sf, const std::string& propertyName,
     if (remove) {
       sf->SetProperty(propertyName, nullptr);
     } else {
-      sf->SetProperty(propertyName, propertyValue.c_str());
+      sf->SetProperty(propertyName, propertyValue);
     }
   }
   return true;
@@ -681,7 +684,7 @@ bool HandleTest(cmTest* test, const std::string& propertyName,
     if (remove) {
       test->SetProperty(propertyName, nullptr);
     } else {
-      test->SetProperty(propertyName, propertyValue.c_str());
+      test->SetProperty(propertyName, propertyValue);
     }
   }
 
@@ -719,7 +722,7 @@ bool HandleCacheMode(cmExecutionStatus& status,
   for (std::string const& name : names) {
     // Get the source file.
     cmake* cm = status.GetMakefile().GetCMakeInstance();
-    cmProp existingValue = cm->GetState()->GetCacheEntryValue(name);
+    cmValue existingValue = cm->GetState()->GetCacheEntryValue(name);
     if (existingValue) {
       if (!HandleCacheEntry(name, status.GetMakefile(), propertyName,
                             propertyValue, appendAsString, appendMode,

@@ -84,6 +84,7 @@ cmake_sphinx_info=""
 cmake_sphinx_man=""
 cmake_sphinx_html=""
 cmake_sphinx_qthelp=""
+cmake_sphinx_latexpdf=""
 cmake_sphinx_build=""
 cmake_sphinx_flags=""
 
@@ -96,8 +97,17 @@ else
   cmake_system_cygwin=false
 fi
 
+# Determine whether this is a MSYS environment.
+if echo "${cmake_system}" | grep MSYS >/dev/null 2>&1; then
+  cmake_system_msys=true
+  cmake_doc_dir_keyword="MSYS"
+  cmake_man_dir_keyword="MSYS"
+else
+  cmake_system_msys=false
+fi
+
 # Determine whether this is a MinGW environment.
-if echo "${cmake_system}" | grep 'MINGW\|MSYS' >/dev/null 2>&1; then
+if echo "${cmake_system}" | grep 'MINGW' >/dev/null 2>&1; then
   cmake_system_mingw=true
 else
   cmake_system_mingw=false
@@ -147,12 +157,19 @@ else
   cmake_system_hpux=false
 fi
 
+# Determine whether this is AIX
+if echo "${cmake_system}" | grep AIX >/dev/null 2>&1; then
+  cmake_system_aix=true
+else
+  cmake_system_aix=false
+fi
+
 # Determine whether this is Linux
 if echo "${cmake_system}" | grep Linux >/dev/null 2>&1; then
   cmake_system_linux=true
 else
   cmake_system_linux=false
- fi
+fi
 
 # Determine whether this is a PA-RISC machine
 # This only works for Linux or HP-UX, not other PA-RISC OSs (BSD maybe?). Also
@@ -253,7 +270,6 @@ CMAKE_PROBLEMATIC_FILES="\
   Utilities/cmlibarchive/config.h \
   Utilities/cmliblzma/config.h \
   Utilities/cmnghttp2/config.h \
-  Utilities/cmzlib/zlibDllConfig.h \
   "
 
 CMAKE_UNUSED_SOURCES="\
@@ -265,6 +281,7 @@ CMAKE_UNUSED_SOURCES="\
 "
 
 CMAKE_CXX_SOURCES="\
+  cmAddCompileDefinitionsCommand \
   cmAddCustomCommandCommand \
   cmAddCustomTargetCommand \
   cmAddDefinitionsCommand \
@@ -285,8 +302,10 @@ CMAKE_CXX_SOURCES="\
   cmBinUtilsWindowsPEDumpbinGetRuntimeDependenciesTool \
   cmBinUtilsWindowsPELinker \
   cmBinUtilsWindowsPEObjdumpGetRuntimeDependenciesTool \
+  cmBlockCommand \
   cmBreakCommand \
   cmBuildCommand \
+  cmCMakeLanguageCommand \
   cmCMakeMinimumRequired \
   cmCMakePath \
   cmCMakePathCommand \
@@ -311,14 +330,17 @@ CMAKE_CXX_SOURCES="\
   cmCustomCommand \
   cmCustomCommandGenerator \
   cmCustomCommandLines \
+  cmCxxModuleMapper \
   cmDefinePropertyCommand \
   cmDefinitions \
   cmDocumentationFormatter \
+  cmELF \
   cmEnableLanguageCommand \
   cmEnableTestingCommand \
   cmExecProgramCommand \
   cmExecuteProcessCommand \
   cmExpandedCommandArgument \
+  cmExperimental \
   cmExportBuildFileGenerator \
   cmExportFileGenerator \
   cmExportInstallFileGenerator \
@@ -329,6 +351,7 @@ CMAKE_CXX_SOURCES="\
   cmFileCommand \
   cmFileCopier \
   cmFileInstaller \
+  cmFileSet \
   cmFileTime \
   cmFileTimeCache \
   cmFileTimes \
@@ -372,11 +395,17 @@ CMAKE_CXX_SOURCES="\
   cmIncludeRegularExpressionCommand \
   cmInstallCommand \
   cmInstallCommandArguments \
+  cmInstallCxxModuleBmiGenerator \
   cmInstallDirectoryGenerator \
   cmInstallExportGenerator \
+  cmInstallFileSetGenerator \
   cmInstallFilesCommand \
   cmInstallFilesGenerator \
   cmInstallGenerator \
+  cmInstallGetRuntimeDependenciesGenerator \
+  cmInstallImportedRuntimeArtifactsGenerator \
+  cmInstallRuntimeDependencySet \
+  cmInstallRuntimeDependencySetGenerator \
   cmInstallScriptGenerator \
   cmInstallSubdirectoryGenerator \
   cmInstallTargetGenerator \
@@ -411,11 +440,13 @@ CMAKE_CXX_SOURCES="\
   cmPolicies \
   cmProcessOutput \
   cmProjectCommand \
+  cmValue \
   cmPropertyDefinition \
   cmPropertyMap \
   cmGccDepfileLexerHelper \
   cmGccDepfileReader \
   cmReturnCommand \
+  cmPlaceholderExpander \
   cmRulePlaceholderExpander \
   cmRuntimeDependencyArchive \
   cmScriptGenerator \
@@ -463,6 +494,7 @@ CMAKE_CXX_SOURCES="\
   cmUVProcessChain \
   cmVersion \
   cmWhileCommand \
+  cmWindowsRegistry \
   cmWorkingDirectory \
   cmake  \
   cmakemain \
@@ -524,6 +556,7 @@ KWSYS_CXX_SOURCES="\
   FStream \
   Glob \
   RegularExpression \
+  Status \
   SystemTools"
 
 KWSYS_FILES="\
@@ -534,6 +567,7 @@ KWSYS_FILES="\
   Glob.hxx \
   Process.h \
   RegularExpression.hxx \
+  Status.hxx \
   String.h \
   String.hxx \
   System.h \
@@ -559,6 +593,7 @@ if ${cmake_system_mingw}; then
     src/inet.c \
     src/threadpool.c \
     src/strscpy.c \
+    src/strtok.c \
     src/timer.c \
     src/uv-common.c \
     src/win/async.c \
@@ -589,6 +624,7 @@ if ${cmake_system_mingw}; then
 else
   LIBUV_C_SOURCES="\
     src/strscpy.c \
+    src/strtok.c \
     src/timer.c \
     src/uv-common.c \
     src/unix/cmake-bootstrap.c \
@@ -604,6 +640,8 @@ else
     src/unix/process.c \
     src/unix/signal.c \
     src/unix/stream.c \
+    src/unix/tcp.c \
+    src/unix/tty.c \
     "
 fi
 
@@ -662,6 +700,7 @@ Configuration:
   --sphinx-man            build man pages with Sphinx
   --sphinx-html           build html help with Sphinx
   --sphinx-qthelp         build qch help with Sphinx
+  --sphinx-latexpdf       build PDF with Sphinx using LaTeX
   --sphinx-build=<sb>     use <sb> as the sphinx-build executable
   --sphinx-flags=<flags>  pass <flags> to sphinx-build executable
 
@@ -926,6 +965,7 @@ while test $# != 0; do
   --sphinx-man) cmake_sphinx_man="1" ;;
   --sphinx-html) cmake_sphinx_html="1" ;;
   --sphinx-qthelp) cmake_sphinx_qthelp="1" ;;
+  --sphinx-latexpdf) cmake_sphinx_latexpdf="1" ;;
   --sphinx-build=*) cmake_sphinx_build=`cmake_arg "$1"` ;;
   --sphinx-flags=*) cmake_sphinx_flags=`cmake_arg "$1"` ;;
   --help) cmake_usage ;;
@@ -1066,7 +1106,7 @@ else
 fi
 
 # Add Cygwin-specific flags
-if ${cmake_system_cygwin}; then
+if ${cmake_system_cygwin} || ${cmake_system_msys}; then
   cmake_ld_flags="${LDFLAGS} -Wl,--enable-auto-import"
 fi
 
@@ -1085,12 +1125,20 @@ if ${cmake_system_haiku}; then
   cmake_ld_flags="${LDFLAGS} -lroot -lbe"
 fi
 
+# Add AIX arch-specific link flags.
+if ${cmake_system_aix}; then
+  if uname -p | grep powerpc >/dev/null 2>&1; then
+    cmake_ld_flags="${LDFLAGS} -Wl,-bbigtoc"
+  fi
+fi
+
 #-----------------------------------------------------------------------------
 # Detect known toolchains on some platforms.
 cmake_toolchains=''
 case "${cmake_system}" in
   *AIX*)   cmake_toolchains='XL GNU' ;;
   *CYGWIN*) cmake_toolchains='GNU' ;;
+  *MSYS*) cmake_toolchains='GNU' ;;
   *Darwin*) cmake_toolchains='Clang GNU' ;;
   *Linux*) cmake_toolchains='GNU Clang XL PGI PathScale' ;;
   *MINGW*) cmake_toolchains='GNU' ;;
@@ -1572,6 +1620,9 @@ if ${cmake_system_mingw}; then
   cmake_report cmConfigure.h${_tmp} "#if defined(_WIN32) && !defined(NOMINMAX)"
   cmake_report cmConfigure.h${_tmp} "#  define NOMINMAX"
   cmake_report cmConfigure.h${_tmp} "#endif"
+  cmake_report cmConfigure.h${_tmp} "#if defined(_WIN32) && !defined(KWSYS_ENCODING_DEFAULT_CODEPAGE)"
+  cmake_report cmConfigure.h${_tmp} "#  define KWSYS_ENCODING_DEFAULT_CODEPAGE CP_UTF8"
+  cmake_report cmConfigure.h${_tmp} "#endif"
 fi
 
 # Regenerate configured headers
@@ -1726,6 +1777,16 @@ fi
 
 if test "x${cmake_ansi_cxx_flags}" != "x"; then
   cmake_cxx_flags="${cmake_ansi_cxx_flags} ${cmake_cxx_flags}"
+fi
+
+system_flags=''
+case "${cmake_system}" in
+  # Ensure filesystem access uses 64-bit offsets even on 32-bit hosts.
+  *Linux*) system_flags='-D_FILE_OFFSET_BITS=64' ;;
+esac
+if test "x${system_flags}" != "x"; then
+  cmake_c_flags="${cmake_c_flags} ${system_flags}"
+  cmake_cxx_flags="${cmake_cxx_flags} ${system_flags}"
 fi
 
 if test "x${cmake_c_flags}" != "x"; then
@@ -1915,6 +1976,11 @@ fi
 if test "x${cmake_sphinx_qthelp}" != "x"; then
   echo '
 set (SPHINX_QTHELP "'"${cmake_sphinx_qthelp}"'" CACHE BOOL "Build qch help with Sphinx" FORCE)
+' >> "${cmake_bootstrap_dir}/InitialCacheFlags.cmake"
+fi
+if test "x${cmake_sphinx_latexpdf}" != "x"; then
+  echo '
+set (SPHINX_LATEXPDF "'"${cmake_sphinx_latexpdf}"'" CACHE BOOL "Build PDF help with Sphinx using LaTeX" FORCE)
 ' >> "${cmake_bootstrap_dir}/InitialCacheFlags.cmake"
 fi
 if test "x${cmake_sphinx_build}" != "x"; then

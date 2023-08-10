@@ -26,6 +26,14 @@ function(CMAKE_DETERMINE_COMPILER_ABI lang src)
     if(DEFINED CMAKE_${lang}_VERBOSE_COMPILE_FLAG)
       set(COMPILE_DEFINITIONS "${CMAKE_${lang}_VERBOSE_COMPILE_FLAG}")
     endif()
+    if(lang STREQUAL "CUDA")
+      if(CMAKE_CUDA_ARCHITECTURES STREQUAL "native")
+        # We are about to detect the native architectures, so we do
+        # not yet know them.  Use all architectures during detection.
+        set(CMAKE_CUDA_ARCHITECTURES "all")
+      endif()
+      set(CMAKE_CUDA_RUNTIME_LIBRARY "Static")
+    endif()
     if(NOT "x${CMAKE_${lang}_COMPILER_ID}" STREQUAL "xMSVC")
       # Avoid adding our own platform standard libraries for compilers
       # from which we might detect implicit link libraries.
@@ -47,7 +55,7 @@ function(CMAKE_DETERMINE_COMPILER_ABI lang src)
     set(ENV{LANG}        C)
 
     try_compile(CMAKE_${lang}_ABI_COMPILED
-      ${CMAKE_BINARY_DIR} ${src}
+      SOURCES ${src}
       CMAKE_FLAGS ${CMAKE_FLAGS}
                   # Ignore unused flags when we are just determining the ABI.
                   "--no-warn-unused-cli"
@@ -141,7 +149,8 @@ function(CMAKE_DETERMINE_COMPILER_ABI lang src)
       if(CMAKE_${lang}_VERBOSE_FLAG)
         CMAKE_PARSE_IMPLICIT_LINK_INFO("${OUTPUT}" implicit_libs implicit_dirs implicit_fwks log
           "${CMAKE_${lang}_IMPLICIT_OBJECT_REGEX}"
-          COMPUTE_IMPLICIT_OBJECTS implicit_objs)
+          COMPUTE_IMPLICIT_OBJECTS implicit_objs
+          LANGUAGE ${lang})
         file(APPEND ${CMAKE_BINARY_DIR}${CMAKE_FILES_DIRECTORY}/CMakeOutput.log
           "Parsed ${lang} implicit link information from above output:\n${log}\n\n")
       endif()
@@ -153,8 +162,9 @@ function(CMAKE_DETERMINE_COMPILER_ABI lang src)
         message(CHECK_START "Determine Intel Fortran Compiler Implicit Link Path")
         # Build a sample project which reports symbols.
         try_compile(IFORT_LIB_PATH_COMPILED
-          ${CMAKE_BINARY_DIR}/CMakeFiles/IntelVSImplicitPath
-          ${CMAKE_ROOT}/Modules/IntelVSImplicitPath
+          PROJECT IntelFortranImplicit
+          SOURCE_DIR ${CMAKE_ROOT}/Modules/IntelVSImplicitPath
+          BINARY_DIR ${CMAKE_BINARY_DIR}/CMakeFiles/IntelVSImplicitPath
           IntelFortranImplicit
           CMAKE_FLAGS
           "-DCMAKE_Fortran_FLAGS:STRING=${CMAKE_Fortran_FLAGS}"

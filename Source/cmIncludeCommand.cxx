@@ -120,6 +120,7 @@ bool cmIncludeCommand(std::vector<std::string> const& args,
       case cmPolicies::WARN:
         e << cmPolicies::GetPolicyWarning(cmPolicies::CMP0024) << "\n";
         modal = "should";
+        CM_FALLTHROUGH;
       case cmPolicies::OLD:
         break;
       case cmPolicies::REQUIRED_IF_USED:
@@ -176,7 +177,7 @@ bool cmIncludeCommand(std::vector<std::string> const& args,
       resultVarName, readit ? fname_abs.c_str() : "NOTFOUND");
   }
 
-  if (!optional && !readit && !cmSystemTools::GetFatalErrorOccured()) {
+  if (!optional && !readit && !cmSystemTools::GetFatalErrorOccurred()) {
     std::string m = cmStrCat("could not load requested file:\n  ", fname);
     status.SetError(m);
     return false;

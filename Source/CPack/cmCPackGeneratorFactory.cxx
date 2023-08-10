@@ -6,7 +6,7 @@
 #include <utility>
 
 #include "IFW/cmCPackIFWGenerator.h"
-#ifdef HAVE_FREEBSD_PKG
+#if ENABLE_BUILD_FREEBSD_PKG
 #  include "cmCPackFreeBSDGenerator.h"
 #endif
 #include "cmCPackArchiveGenerator.h"
@@ -21,8 +21,6 @@
 #ifdef __APPLE__
 #  include "cmCPackBundleGenerator.h"
 #  include "cmCPackDragNDropGenerator.h"
-#  include "cmCPackOSXX11Generator.h"
-#  include "cmCPackPackageMakerGenerator.h"
 #  include "cmCPackProductBuildGenerator.h"
 #endif
 
@@ -36,7 +34,7 @@
 #  include "cmCPackRPMGenerator.h"
 #endif
 
-#if defined(_WIN32) || (defined(__CYGWIN__) && defined(HAVE_LIBUUID))
+#if ENABLE_BUILD_WIX_GENERATOR
 #  include "WiX/cmCPackWIXGenerator.h"
 #endif
 
@@ -82,7 +80,7 @@ cmCPackGeneratorFactory::cmCPackGeneratorFactory()
                             cmCPackCygwinSourceGenerator::CreateGenerator);
   }
 #endif
-#if defined(_WIN32) || (defined(__CYGWIN__) && defined(HAVE_LIBUUID))
+#if ENABLE_BUILD_WIX_GENERATOR
   if (cmCPackWIXGenerator::CanGenerate()) {
     this->RegisterGenerator("WIX", "MSI file format via WiX tools",
                             cmCPackWIXGenerator::CreateGenerator);
@@ -109,14 +107,6 @@ cmCPackGeneratorFactory::cmCPackGeneratorFactory()
     this->RegisterGenerator("Bundle", "Mac OSX bundle",
                             cmCPackBundleGenerator::CreateGenerator);
   }
-  if (cmCPackPackageMakerGenerator::CanGenerate()) {
-    this->RegisterGenerator("PackageMaker", "Mac OSX Package Maker installer",
-                            cmCPackPackageMakerGenerator::CreateGenerator);
-  }
-  if (cmCPackOSXX11Generator::CanGenerate()) {
-    this->RegisterGenerator("OSXX11", "Mac OSX X11 bundle",
-                            cmCPackOSXX11Generator::CreateGenerator);
-  }
   if (cmCPackProductBuildGenerator::CanGenerate()) {
     this->RegisterGenerator("productbuild", "Mac OSX pkg",
                             cmCPackProductBuildGenerator::CreateGenerator);
@@ -129,7 +119,7 @@ cmCPackGeneratorFactory::cmCPackGeneratorFactory()
                             cmCPackRPMGenerator::CreateGenerator);
   }
 #endif
-#ifdef HAVE_FREEBSD_PKG
+#if ENABLE_BUILD_FREEBSD_PKG
   if (cmCPackFreeBSDGenerator::CanGenerate()) {
     this->RegisterGenerator("FREEBSD", "FreeBSD pkg(8) packages",
                             cmCPackFreeBSDGenerator::CreateGenerator);

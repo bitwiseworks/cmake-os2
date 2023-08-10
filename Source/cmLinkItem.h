@@ -7,6 +7,7 @@
 #include <map>
 #include <ostream>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 #include <cmext/algorithm>
@@ -39,8 +40,8 @@ class cmLinkImplItem : public cmLinkItem
 {
 public:
   cmLinkImplItem();
-  cmLinkImplItem(cmLinkItem item, bool fromGenex);
-  bool FromGenex = false;
+  cmLinkImplItem(cmLinkItem item, bool checkCMP0027);
+  bool CheckCMP0027 = false;
 };
 
 /** The link implementation specifies the direct library
@@ -49,6 +50,9 @@ struct cmLinkImplementationLibraries
 {
   // Libraries linked directly in this configuration.
   std::vector<cmLinkImplItem> Libraries;
+
+  // Object files linked directly in this configuration.
+  std::vector<cmLinkItem> Objects;
 
   // Libraries linked directly in other configurations.
   // Needed only for OLD behavior of CMP0003.
@@ -63,6 +67,15 @@ struct cmLinkInterfaceLibraries
   // Libraries listed in the interface.
   std::vector<cmLinkItem> Libraries;
 
+  // Object files listed in the interface.
+  std::vector<cmLinkItem> Objects;
+
+  // Items to be included as if directly linked by the head target.
+  std::vector<cmLinkItem> HeadInclude;
+
+  // Items to be excluded from direct linking by the head target.
+  std::vector<cmLinkItem> HeadExclude;
+
   // Whether the list depends on a genex referencing the head target.
   bool HadHeadSensitiveCondition = false;
 
@@ -74,6 +87,8 @@ struct cmLinkInterface : public cmLinkInterfaceLibraries
 {
   // Languages whose runtime libraries must be linked.
   std::vector<std::string> Languages;
+  std::unordered_map<std::string, std::vector<cmLinkItem>>
+    LanguageRuntimeLibraries;
 
   // Shared library dependencies needed for linking on some platforms.
   std::vector<cmLinkItem> SharedDeps;
@@ -109,6 +124,8 @@ struct cmLinkImplementation : public cmLinkImplementationLibraries
 {
   // Languages whose runtime libraries must be linked.
   std::vector<std::string> Languages;
+  std::unordered_map<std::string, std::vector<cmLinkImplItem>>
+    LanguageRuntimeLibraries;
 
   // Whether the list depends on a link language genex.
   bool HadLinkLanguageSensitiveCondition = false;

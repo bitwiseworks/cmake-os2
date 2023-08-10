@@ -12,6 +12,7 @@
 #include <string>
 #include <vector>
 
+#include "cmBuildOptions.h"
 #include "cmGeneratorTarget.h"
 #include "cmGlobalCommonGenerator.h"
 #include "cmGlobalGeneratorFactory.h"
@@ -163,7 +164,8 @@ public:
   std::vector<GeneratedMakeCommand> GenerateBuildCommand(
     const std::string& makeProgram, const std::string& projectName,
     const std::string& projectDir, std::vector<std::string> const& targetNames,
-    const std::string& config, bool fast, int jobs, bool verbose,
+    const std::string& config, int jobs, bool verbose,
+    const cmBuildOptions& buildOptions = cmBuildOptions(),
     std::vector<std::string> const& makeOptions =
       std::vector<std::string>()) override;
 
@@ -198,13 +200,16 @@ protected:
   void WriteMainCMakefile();
 
   void WriteConvenienceRules2(std::ostream& ruleFileStream,
-                              cmLocalUnixMakefileGenerator3&);
+                              cmLocalUnixMakefileGenerator3& rootLG,
+                              cmLocalUnixMakefileGenerator3& lg);
 
   void WriteDirectoryRule2(std::ostream& ruleFileStream,
+                           cmLocalUnixMakefileGenerator3& rootLG,
                            DirectoryTarget const& dt, const char* pass,
                            bool check_all, bool check_relink,
                            std::vector<std::string> const& commands = {});
   void WriteDirectoryRules2(std::ostream& ruleFileStream,
+                            cmLocalUnixMakefileGenerator3& rootLG,
                             DirectoryTarget const& dt);
 
   void AppendGlobalTargetDepends(std::vector<std::string>& depends,
@@ -228,7 +233,6 @@ protected:
   {
     return "package_source";
   }
-  const char* GetEditCacheTargetName() const override { return "edit_cache"; }
   const char* GetRebuildCacheTargetName() const override
   {
     return "rebuild_cache";
@@ -278,7 +282,6 @@ protected:
 
 private:
   const char* GetBuildIgnoreErrorsFlag() const override { return "-i"; }
-  std::string GetEditCacheCommand() const override;
 
   std::map<cmStateSnapshot, std::set<cmGeneratorTarget const*>,
            cmStateSnapshot::StrictWeakOrder>

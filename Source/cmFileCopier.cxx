@@ -10,12 +10,16 @@
 #include "cmFSPermissions.h"
 #include "cmFileTimes.h"
 #include "cmMakefile.h"
-#include "cmProperty.h"
 #include "cmStringAlgorithms.h"
 #include "cmSystemTools.h"
+#include "cmValue.h"
 
 #ifdef _WIN32
+#  include <winerror.h>
+
 #  include "cmsys/FStream.hxx"
+#else
+#  include <cerrno>
 #endif
 
 #include <cstring>
@@ -27,16 +31,6 @@ cmFileCopier::cmFileCopier(cmExecutionStatus& status, const char* name)
   : Status(status)
   , Makefile(&status.GetMakefile())
   , Name(name)
-  , Always(false)
-  , MatchlessFiles(true)
-  , FilePermissions(0)
-  , DirPermissions(0)
-  , CurrentMatchRule(nullptr)
-  , UseGivenPermissionsFile(false)
-  , UseGivenPermissionsDir(false)
-  , UseSourcePermissions(true)
-  , FollowSymlinkChain(false)
-  , Doing(DoingNone)
 {
 }
 
@@ -72,7 +66,7 @@ bool cmFileCopier::SetPermissions(const std::string& toFile,
                                   mode_t permissions)
 {
   if (permissions) {
-#ifdef WIN32
+#ifdef _WIN32
     if (Makefile->IsOn("CMAKE_CROSSCOMPILING")) {
       // Store the mode in an NTFS alternate stream.
       std::string mode_t_adt_filename = toFile + ":cmake_mode_t";
@@ -172,7 +166,7 @@ void cmFileCopier::DefaultDirectoryPermissions()
 bool cmFileCopier::GetDefaultDirectoryPermissions(mode_t** mode)
 {
   // check if default dir creation permissions were set
-  cmProp default_dir_install_permissions = this->Makefile->GetDefinition(
+  cmValue default_dir_install_permissions = this->Makefile->GetDefinition(
     "CMAKE_INSTALL_DEFAULT_DIRECTORY_PERMISSIONS");
   if (cmNonempty(default_dir_install_permissions)) {
     std::vector<std::string> items =
@@ -514,11 +508,12 @@ bool cmFileCopier::InstallSymlinkChain(std::string& fromFile,
       cmSystemTools::RemoveFile(toFile);
       cmSystemTools::MakeDirectory(toFilePath);
 
-      if (!cmSystemTools::CreateSymlink(symlinkTarget, toFile)) {
-        std::ostringstream e;
-        e << this->Name << " cannot create symlink \"" << toFile
-          << "\": " << cmSystemTools::GetLastSystemError() << ".";
-        this->Status.SetError(e.str());
+      cmsys::Status status =
+        cmSystemTools::CreateSymlinkQuietly(symlinkTarget, toFile);
+      if (!status) {
+        std::string e = cmStrCat(this->Name, " cannot create symlink\n  ",
+                                 toFile, "\nbecause: ", status.GetString());
+        this->Status.SetError(e);
         return false;
       }
     }
@@ -567,12 +562,24 @@ bool cmFileCopier::InstallSymlink(const std::string& fromFile,
     cmSystemTools::MakeDirectory(cmSystemTools::GetFilenamePath(toFile));
 
     // Create the symlink.
-    if (!cmSystemTools::CreateSymlink(symlinkTarget, toFile)) {
-      std::ostringstream e;
-      e << this->Name << " cannot duplicate symlink \"" << fromFile
-        << "\" at \"" << toFile
-        << "\": " << cmSystemTools::GetLastSystemError() << ".";
-      this->Status.SetError(e.str());
+    cmsys::Status status =
+      cmSystemTools::CreateSymlinkQuietly(symlinkTarget, toFile);
+    if (!status) {
+#ifdef _WIN32
+      bool const errorFileExists = status.GetWindows() == ERROR_FILE_EXISTS;
+#else
+      bool const errorFileExists = status.GetPOSIX() == EEXIST;
+#endif
+      std::string reason;
+      if (errorFileExists && cmSystemTools::FileIsDirectory(toFile)) {
+        reason = "A directory already exists at that location";
+      } else {
+        reason = status.GetString();
+      }
+      std::string e =
+        cmStrCat(this->Name, " cannot duplicate symlink\n  ", fromFile,
+                 "\nat\n  ", toFile, "\nbecause: ", reason);
+      this->Status.SetError(e);
       return false;
     }
   }
@@ -640,7 +647,10 @@ bool cmFileCopier::InstallDirectory(const std::string& source,
 {
   // Inform the user about this directory installation.
   this->ReportCopy(destination, TypeDir,
-                   !cmSystemTools::FileIsDirectory(destination));
+                   !( // Report "Up-to-date:" for existing directories,
+                      // but not symlinks to them.
+                     cmSystemTools::FileIsDirectory(destination) &&
+                     !cmSystemTools::FileIsSymlink(destination)));
 
   // check if default dir creation permissions were set
   mode_t default_dir_mode_v = 0;

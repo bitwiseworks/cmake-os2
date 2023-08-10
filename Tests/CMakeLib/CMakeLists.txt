@@ -29,6 +29,7 @@ set(CMakeLib_TESTS
   testUVStreambuf.cxx
   testCMExtMemory.cxx
   testCMExtAlgorithm.cxx
+  testCMExtEnumSet.cxx
   )
 if (CMake_TEST_FILESYSTEM_PATH OR NOT CMake_HAVE_CXX_FILESYSTEM)
   list(APPEND CMakeLib_TESTS testCMFilesystemPath.cxx)
@@ -46,12 +47,10 @@ if(WIN32)
   list(APPEND CMakeLib_TESTS
     testVisualStudioSlnParser.cxx
     )
-  configure_file(${CMAKE_CURRENT_SOURCE_DIR}/testVisualStudioSlnParser.h.in
-                 ${CMAKE_CURRENT_BINARY_DIR}/testVisualStudioSlnParser.h @ONLY)
+  configure_file(testVisualStudioSlnParser.h.in testVisualStudioSlnParser.h @ONLY)
 endif()
 
-configure_file(${CMAKE_CURRENT_SOURCE_DIR}/testXMLParser.h.in
-               ${CMAKE_CURRENT_BINARY_DIR}/testXMLParser.h @ONLY)
+configure_file(testXMLParser.h.in testXMLParser.h @ONLY)
 
 create_test_sourcelist(CMakeLib_TEST_SRCS CMakeLibTests.cxx ${CMakeLib_TESTS})
 add_executable(CMakeLibTests ${CMakeLib_TEST_SRCS})

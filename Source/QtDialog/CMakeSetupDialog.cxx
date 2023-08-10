@@ -50,7 +50,7 @@ void OpenReferenceManual()
 
   if (!cmSystemTools::GetHTMLDoc().empty()) {
     url = QUrl::fromLocalFile(
-      QDir(QString::fromLocal8Bit(cmSystemTools::GetHTMLDoc().data()))
+      QDir(QString::fromStdString(cmSystemTools::GetHTMLDoc()))
         .filePath("index.html"));
   }
 
@@ -178,7 +178,11 @@ CMakeSetupDialog::CMakeSetupDialog()
                    &CMakeSetupDialog::doOutputErrorNext);
   a->setShortcut(QKeySequence(Qt::Key_F8));
   auto* s = new QShortcut(this);
+#if (QT_VERSION < QT_VERSION_CHECK(6, 0, 0))
   s->setKey(QKeySequence(Qt::CTRL + Qt::Key_Period));
+#else
+  s->setKey(QKeySequence(Qt::CTRL | Qt::Key_Period));
+#endif
   QObject::connect(s, &QShortcut::activated, this,
                    &CMakeSetupDialog::doOutputErrorNext); // in Eclipse
 
@@ -222,7 +226,8 @@ CMakeSetupDialog::CMakeSetupDialog()
   this->SourceDirectory->setCompleter(new QCMakeFileCompleter(this, true));
 
   // fixed pitch font in output window
-  QFont outputFont("Courier");
+  QFont outputFont("Courier New");
+  outputFont.setStyleHint(QFont::Monospace);
   this->Output->setFont(outputFont);
   this->ErrorFormat.setForeground(QBrush(Qt::red));
 
@@ -726,12 +731,12 @@ void CMakeSetupDialog::updatePreset(const QString& name)
 }
 
 void CMakeSetupDialog::showPresetLoadError(
-  const QString& dir, cmCMakePresetsFile::ReadFileResult result)
+  const QString& dir, cmCMakePresetsGraph::ReadFileResult result)
 {
   QMessageBox::warning(
     this, "Error Reading CMake Presets",
-    QString::fromLocal8Bit("Could not read presets from %1: %2")
-      .arg(dir, cmCMakePresetsFile::ResultToString(result)));
+    QString("Could not read presets from %1: %2")
+      .arg(dir, cmCMakePresetsGraph::ResultToString(result)));
 }
 
 void CMakeSetupDialog::doBinaryBrowse()

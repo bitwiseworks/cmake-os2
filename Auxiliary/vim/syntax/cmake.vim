@@ -9,7 +9,7 @@
 " Former Maintainer: Karthik Krishnan <karthik.krishnan@kitware.com>
 " Last Change:  2020 oct. 28
 "
-" Licence:      The CMake license applies to this file. See
+" License:      The CMake license applies to this file. See
 "               https://cmake.org/licensing
 "               This implies that distribution with Vim is allowed
 
@@ -92,6 +92,7 @@ syn keyword cmakeProperty contained
             \ AUTOUIC_EXECUTABLE
             \ AUTOUIC_OPTIONS
             \ AUTOUIC_SEARCH_PATHS
+            \ AUTOUIC_SOURCE_GROUP
             \ BINARY_DIR
             \ BUILDSYSTEM_TARGETS
             \ BUILD_RPATH
@@ -151,6 +152,7 @@ syn keyword cmakeProperty contained
             \ DISABLED
             \ DISABLED_FEATURES
             \ DISABLE_PRECOMPILE_HEADERS
+            \ DOTNET_SDK
             \ DOTNET_TARGET_FRAMEWORK
             \ DOTNET_TARGET_FRAMEWORK_VERSION
             \ ECLIPSE_EXTRA_CPROJECT_CONTENTS
@@ -159,6 +161,7 @@ syn keyword cmakeProperty contained
             \ ENABLED_LANGUAGES
             \ ENABLE_EXPORTS
             \ ENVIRONMENT
+            \ ENVIRONMENT_MODIFICATION
             \ EXCLUDE_FROM_ALL
             \ EXCLUDE_FROM_DEFAULT_BUILD
             \ EXPORT_NAME
@@ -367,6 +370,7 @@ syn keyword cmakeProperty contained
             \ VS_DOTNET_DOCUMENTATION_FILE
             \ VS_DOTNET_REFERENCES
             \ VS_DOTNET_REFERENCES_COPY_LOCAL
+            \ VS_DOTNET_STARTUP_OBJECT
             \ VS_DOTNET_TARGET_FRAMEWORK_VERSION
             \ VS_DPI_AWARE
             \ VS_GLOBAL_KEYWORD
@@ -378,6 +382,7 @@ syn keyword cmakeProperty contained
             \ VS_JUST_MY_CODE_DEBUGGING
             \ VS_KEYWORD
             \ VS_MOBILE_EXTENSIONS_VERSION
+            \ VS_NO_COMPILE_BATCHING
             \ VS_NO_SOLUTION_DEPLOY
             \ VS_PACKAGE_REFERENCES
             \ VS_PLATFORM_TOOLSET
@@ -424,12 +429,14 @@ syn keyword cmakeProperty contained
             \ XCODE_SCHEME_ARGUMENTS
             \ XCODE_SCHEME_DEBUG_AS_ROOT
             \ XCODE_SCHEME_DEBUG_DOCUMENT_VERSIONING
+            \ XCODE_SCHEME_ENABLE_GPU_FRAME_CAPTURE_MODE
             \ XCODE_SCHEME_DISABLE_MAIN_THREAD_CHECKER
             \ XCODE_SCHEME_DYNAMIC_LIBRARY_LOADS
             \ XCODE_SCHEME_DYNAMIC_LINKER_API_USAGE
             \ XCODE_SCHEME_ENVIRONMENT
             \ XCODE_SCHEME_EXECUTABLE
             \ XCODE_SCHEME_GUARD_MALLOC
+            \ XCODE_SCHEME_LAUNCH_MODE
             \ XCODE_SCHEME_MAIN_THREAD_CHECKER_STOP
             \ XCODE_SCHEME_MALLOC_GUARD_EDGES
             \ XCODE_SCHEME_MALLOC_SCRIBBLE
@@ -438,6 +445,9 @@ syn keyword cmakeProperty contained
             \ XCODE_SCHEME_THREAD_SANITIZER_STOP
             \ XCODE_SCHEME_UNDEFINED_BEHAVIOUR_SANITIZER
             \ XCODE_SCHEME_UNDEFINED_BEHAVIOUR_SANITIZER_STOP
+            \ XCODE_SCHEME_ENABLE_GPU_API_VALIDATION
+            \ XCODE_SCHEME_ENABLE_GPU_SHADER_VALIDATION
+            \ XCODE_SCHEME_LAUNCH_CONFIGURATION
             \ XCODE_SCHEME_WORKING_DIRECTORY
             \ XCODE_SCHEME_ZOMBIE_OBJECTS
             \ XCTEST
@@ -700,6 +710,7 @@ syn keyword cmakeVariable contained
             \ CMAKE_CODEBLOCKS_COMPILER_ID
             \ CMAKE_CODEBLOCKS_EXCLUDE_EXTERNAL_FILES
             \ CMAKE_CODELITE_USE_TARGETS
+            \ CMAKE_COLOR_DIAGNOSTICS
             \ CMAKE_COLOR_MAKEFILE
             \ CMAKE_COMMAND
             \ CMAKE_COMPILER_2005
@@ -904,6 +915,7 @@ syn keyword cmakeVariable contained
             \ CMAKE_CXX_INCLUDE_WHAT_YOU_USE
             \ CMAKE_CXX_INIT
             \ CMAKE_CXX_LIBRARY_ARCHITECTURE
+            \ CMAKE_CXX_LINKER_LAUNCHER
             \ CMAKE_CXX_LINKER_PREFERENCE
             \ CMAKE_CXX_LINKER_PREFERENCE_PROPAGATES
             \ CMAKE_CXX_LINKER_WRAPPER_FLAG
@@ -969,6 +981,7 @@ syn keyword cmakeVariable contained
             \ CMAKE_C_INCLUDE_WHAT_YOU_USE
             \ CMAKE_C_INIT
             \ CMAKE_C_LIBRARY_ARCHITECTURE
+            \ CMAKE_C_LINKER_LAUNCHER
             \ CMAKE_C_LINKER_PREFERENCE
             \ CMAKE_C_LINKER_PREFERENCE_PROPAGATES
             \ CMAKE_C_LINKER_WRAPPER_FLAG
@@ -996,6 +1009,7 @@ syn keyword cmakeVariable contained
             \ CMAKE_DIRECTORY_LABELS
             \ CMAKE_DISABLE_PRECOMPILE_HEADERS
             \ CMAKE_DL_LIBS
+            \ CMAKE_DOTNET_SDK
             \ CMAKE_DOTNET_TARGET_FRAMEWORK
             \ CMAKE_DOTNET_TARGET_FRAMEWORK_VERSION
             \ CMAKE_ECLIPSE_GENERATE_LINKED_RESOURCES
@@ -1037,6 +1051,7 @@ syn keyword cmakeVariable contained
             \ CMAKE_FIND_ROOT_PATH_MODE_PACKAGE
             \ CMAKE_FIND_ROOT_PATH_MODE_PROGRAM
             \ CMAKE_FIND_USE_CMAKE_ENVIRONMENT_PATH
+            \ CMAKE_FIND_USE_INSTALL_PREFIX
             \ CMAKE_FIND_USE_CMAKE_PATH
             \ CMAKE_FIND_USE_CMAKE_SYSTEM_PATH
             \ CMAKE_FIND_USE_PACKAGE_REGISTRY
@@ -1262,10 +1277,12 @@ syn keyword cmakeVariable contained
             \ CMAKE_NO_SYSTEM_FROM_IMPORTED
             \ CMAKE_OBJCXX_CLANG_TIDY
             \ CMAKE_OBJCXX_EXTENSIONS
+            \ CMAKE_OBJCXX_LINKER_LAUNCHER
             \ CMAKE_OBJCXX_STANDARD
             \ CMAKE_OBJCXX_STANDARD_REQUIRED
             \ CMAKE_OBJC_CLANG_TIDY
             \ CMAKE_OBJC_EXTENSIONS
+            \ CMAKE_OBJC_LINKER_LAUNCHER
             \ CMAKE_OBJC_STANDARD
             \ CMAKE_OBJC_STANDARD_REQUIRED
             \ CMAKE_OBJECT_PATH_MAX
@@ -1518,11 +1535,13 @@ syn keyword cmakeVariable contained
             \ CMAKE_XCODE_SCHEME_ADDRESS_SANITIZER
             \ CMAKE_XCODE_SCHEME_ADDRESS_SANITIZER_USE_AFTER_RETURN
             \ CMAKE_XCODE_SCHEME_DEBUG_DOCUMENT_VERSIONING
+            \ CMAKE_XCODE_SCHEME_ENABLE_GPU_FRAME_CAPTURE_MODE
             \ CMAKE_XCODE_SCHEME_DISABLE_MAIN_THREAD_CHECKER
             \ CMAKE_XCODE_SCHEME_DYNAMIC_LIBRARY_LOADS
             \ CMAKE_XCODE_SCHEME_DYNAMIC_LINKER_API_USAGE
             \ CMAKE_XCODE_SCHEME_ENVIRONMENT
             \ CMAKE_XCODE_SCHEME_GUARD_MALLOC
+            \ CMAKE_XCODE_SCHEME_LAUNCH_MODE
             \ CMAKE_XCODE_SCHEME_MAIN_THREAD_CHECKER_STOP
             \ CMAKE_XCODE_SCHEME_MALLOC_GUARD_EDGES
             \ CMAKE_XCODE_SCHEME_MALLOC_SCRIBBLE
@@ -1531,6 +1550,9 @@ syn keyword cmakeVariable contained
             \ CMAKE_XCODE_SCHEME_THREAD_SANITIZER_STOP
             \ CMAKE_XCODE_SCHEME_UNDEFINED_BEHAVIOUR_SANITIZER
             \ CMAKE_XCODE_SCHEME_UNDEFINED_BEHAVIOUR_SANITIZER_STOP
+            \ CMAKE_XCODE_SCHEME_ENABLE_GPU_API_VALIDATION
+            \ CMAKE_XCODE_SCHEME_ENABLE_GPU_SHADER_VALIDATION
+            \ CMAKE_XCODE_SCHEME_LAUNCH_CONFIGURATION
             \ CMAKE_XCODE_SCHEME_WORKING_DIRECTORY
             \ CMAKE_XCODE_SCHEME_ZOMBIE_OBJECTS
             \ CPACK_ABSOLUTE_DESTINATION_FILES
@@ -1562,6 +1584,7 @@ syn keyword cmakeVariable contained
             \ CTEST_CUSTOM_MAXIMUM_NUMBER_OF_ERRORS
             \ CTEST_CUSTOM_MAXIMUM_NUMBER_OF_WARNINGS
             \ CTEST_CUSTOM_MAXIMUM_PASSED_TEST_OUTPUT_SIZE
+            \ CTEST_CUSTOM_TEST_OUTPUT_TRUNCATION
             \ CTEST_CUSTOM_MEMCHECK_IGNORE
             \ CTEST_CUSTOM_POST_MEMCHECK
             \ CTEST_CUSTOM_POST_TEST
@@ -1602,6 +1625,7 @@ syn keyword cmakeVariable contained
             \ CTEST_SCP_COMMAND
             \ CTEST_SITE
             \ CTEST_SOURCE_DIRECTORY
+            \ CTEST_SUBMIT_INACTIVITY_TIMEOUT
             \ CTEST_SUBMIT_URL
             \ CTEST_SVN_COMMAND
             \ CTEST_SVN_OPTIONS
@@ -1894,7 +1918,7 @@ syn keyword cmakeVariable contained
             \ DOXYGEN_XML_PROGRAMLISTING
             \ ENV
             \ EXECUTABLE_OUTPUT_PATH
-            \ GHS-MULTI
+            \ GHSMULTI
             \ IOS
             \ LIBRARY_OUTPUT_PATH
             \ MINGW
@@ -2045,6 +2069,7 @@ syn keyword cmakeKWExternalProject contained
             \ USES_TERMINAL_CONFIGURE
             \ USES_TERMINAL_DOWNLOAD
             \ USES_TERMINAL_INSTALL
+            \ USES_TERMINAL_PATCH
             \ USES_TERMINAL_TEST
             \ USES_TERMINAL_UPDATE
             \ WORKING_DIRECTORY
@@ -2802,6 +2827,7 @@ syn keyword cmakeKWfind_package contained
             \ ABI
             \ BUNDLE
             \ CMAKE_DISABLE_FIND_PACKAGE_
+            \ CMAKE_REQUIRE_FIND_PACKAGE_
             \ CMAKE_FIND_ROOT_PATH_BOTH
             \ COMPONENTS
             \ CONFIG
@@ -3763,6 +3789,7 @@ syn keyword cmakeGeneratorExpressions contained
             \ STREQUAL
             \ TARGET_BUNDLE_CONTENT_DIR
             \ TARGET_BUNDLE_DIR
+            \ TARGET_BUNDLE_DIR_NAME
             \ TARGET_EXISTS
             \ TARGET_FILE
             \ TARGET_FILE_BASE_NAME
@@ -3811,6 +3838,7 @@ syn keyword cmakeCommand
             \ add_subdirectory
             \ add_test
             \ aux_source_directory
+            \ block
             \ break
             \ build_command
             \ cmake_host_system_information
@@ -3838,6 +3866,7 @@ syn keyword cmakeCommand
             \ define_property
             \ enable_language
             \ enable_testing
+            \ endblock
             \ endfunction
             \ endmacro
             \ execute_process

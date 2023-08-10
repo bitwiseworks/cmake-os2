@@ -18,12 +18,12 @@ in directory:
 endfunction()
 
 function(check_python case)
-  if(RunCMake_TEST_FAILED OR NOT PYTHON_EXECUTABLE)
+  if(RunCMake_TEST_FAILED OR NOT Python_EXECUTABLE)
     return()
   endif()
   file(GLOB index ${RunCMake_TEST_BINARY_DIR}/.cmake/api/v1/reply/index-*.json)
   execute_process(
-    COMMAND ${PYTHON_EXECUTABLE} "${RunCMake_SOURCE_DIR}/${case}-check.py" "${index}" "${CMAKE_CXX_COMPILER_ID}"
+    COMMAND ${Python_EXECUTABLE} "${RunCMake_SOURCE_DIR}/${case}-check.py" "${index}" "${CMAKE_CXX_COMPILER_ID}"
       "${RunCMake_TEST_BINARY_DIR}"
     RESULT_VARIABLE result
     OUTPUT_VARIABLE output
@@ -37,6 +37,10 @@ endfunction()
 
 if(RunCMake_GENERATOR_IS_MULTI_CONFIG)
   set(RunCMake_TEST_OPTIONS "-DCMAKE_CONFIGURATION_TYPES=Debug\\;Release\\;MinSizeRel\\;RelWithDebInfo")
+endif()
+
+if(JsonCpp_VERSION_STRING AND JsonCpp_VERSION_STRING VERSION_LESS 1.7.5)
+  set(ENV{CMake_JSONCPP_PRE_1_7_5} 1)
 endif()
 
 run_cmake(Nothing)

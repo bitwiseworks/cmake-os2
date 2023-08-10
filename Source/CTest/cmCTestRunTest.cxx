@@ -2,6 +2,7 @@
    file Copyright.txt or https://cmake.org/licensing for details.  */
 #include "cmCTestRunTest.h"
 
+#include <algorithm>
 #include <chrono>
 #include <cstddef> // IWYU pragma: keep
 #include <cstdint>
@@ -40,6 +41,38 @@ void cmCTestRunTest::CheckOutput(std::string const& line)
 {
   cmCTestLog(this->CTest, HANDLER_VERBOSE_OUTPUT,
              this->GetIndex() << ": " << line << std::endl);
+
+  // Check for special CTest XML tags in this line of output.
+  // If any are found, this line is excluded from ProcessOutput.
+  if (!line.empty() && line.find("<CTest") != std::string::npos) {
+    bool ctest_tag_found = false;
+    if (this->TestHandler->CustomCompletionStatusRegex.find(line)) {
+      ctest_tag_found = true;
+      this->TestResult.CustomCompletionStatus =
+        this->TestHandler->CustomCompletionStatusRegex.match(1);
+      cmCTestLog(this->CTest, HANDLER_VERBOSE_OUTPUT,
+                 this->GetIndex() << ": "
+                                  << "Test Details changed to '"
+                                  << this->TestResult.CustomCompletionStatus
+                                  << "'" << std::endl);
+    } else if (this->TestHandler->CustomLabelRegex.find(line)) {
+      ctest_tag_found = true;
+      auto label = this->TestHandler->CustomLabelRegex.match(1);
+      auto& labels = this->TestProperties->Labels;
+      if (std::find(labels.begin(), labels.end(), label) == labels.end()) {
+        labels.push_back(label);
+        std::sort(labels.begin(), labels.end());
+        cmCTestLog(this->CTest, HANDLER_VERBOSE_OUTPUT,
+                   this->GetIndex()
+                     << ": "
+                     << "Test Label added: '" << label << "'" << std::endl);
+      }
+    }
+    if (ctest_tag_found) {
+      return;
+    }
+  }
+
   this->ProcessOutput += line;
   this->ProcessOutput += "\n";
 
@@ -192,7 +225,8 @@ bool cmCTestRunTest::EndTest(size_t completed, size_t total, bool started)
 
   passed = this->TestResult.Status == cmCTestTestHandler::COMPLETED;
   char buf[1024];
-  sprintf(buf, "%6.2f sec", this->TestProcess->GetTotalTime().count());
+  snprintf(buf, sizeof(buf), "%6.2f sec",
+           this->TestProcess->GetTotalTime().count());
   outputStream << buf << "\n";
 
   bool passedOrSkipped = passed || skipped;
@@ -229,7 +263,7 @@ bool cmCTestRunTest::EndTest(size_t completed, size_t total, bool started)
     *this->TestHandler->LogFile << "Test time = " << buf << std::endl;
   }
 
-  this->DartProcessing();
+  this->ParseOutputForMeasurements();
 
   // if this is doing MemCheck then all the output needs to be put into
   // Output since that is what is parsed by cmCTestMemCheckHandler
@@ -239,7 +273,8 @@ bool cmCTestRunTest::EndTest(size_t completed, size_t total, bool started)
       static_cast<size_t>(
         this->TestResult.Status == cmCTestTestHandler::COMPLETED
           ? this->TestHandler->CustomMaximumPassedTestOutputSize
-          : this->TestHandler->CustomMaximumFailedTestOutputSize));
+          : this->TestHandler->CustomMaximumFailedTestOutputSize),
+      this->TestHandler->TestOutputTruncation);
   }
   this->TestResult.Reason = reason;
   if (this->TestHandler->LogFile) {
@@ -257,9 +292,10 @@ bool cmCTestRunTest::EndTest(size_t completed, size_t total, bool started)
     ttime -= minutes;
     auto seconds = std::chrono::duration_cast<std::chrono::seconds>(ttime);
     char buffer[100];
-    sprintf(buffer, "%02d:%02d:%02d", static_cast<unsigned>(hours.count()),
-            static_cast<unsigned>(minutes.count()),
-            static_cast<unsigned>(seconds.count()));
+    snprintf(buffer, sizeof(buffer), "%02d:%02d:%02d",
+             static_cast<unsigned>(hours.count()),
+             static_cast<unsigned>(minutes.count()),
+             static_cast<unsigned>(seconds.count()));
     *this->TestHandler->LogFile
       << "----------------------------------------------------------"
       << std::endl;
@@ -607,6 +643,7 @@ bool cmCTestRunTest::StartTest(size_t completed, size_t total)
 
   return this->ForkProcess(timeout, this->TestProperties->ExplicitTimeout,
                            &this->TestProperties->Environment,
+                           &this->TestProperties->EnvironmentModification,
                            &this->TestProperties->Affinity);
 }
 
@@ -654,6 +691,14 @@ void cmCTestRunTest::ComputeArguments()
                << " command: " << testCommand << std::endl);
 
   // Print any test-specific env vars in verbose mode
+  if (!this->TestProperties->Directory.empty()) {
+    cmCTestLog(this->CTest, HANDLER_VERBOSE_OUTPUT,
+               this->Index << ": "
+                           << "Working Directory: "
+                           << this->TestProperties->Directory << std::endl);
+  }
+
+  // Print any test-specific env vars in verbose mode
   if (!this->TestProperties->Environment.empty()) {
     cmCTestLog(this->CTest, HANDLER_VERBOSE_OUTPUT,
                this->Index << ": "
@@ -663,28 +708,45 @@ void cmCTestRunTest::ComputeArguments()
     cmCTestLog(this->CTest, HANDLER_VERBOSE_OUTPUT,
                this->Index << ":  " << env << std::endl);
   }
+  if (!this->TestProperties->EnvironmentModification.empty()) {
+    cmCTestLog(this->CTest, HANDLER_VERBOSE_OUTPUT,
+               this->Index << ": "
+                           << "Environment variable modifications: "
+                           << std::endl);
+  }
+  for (std::string const& envmod :
+       this->TestProperties->EnvironmentModification) {
+    cmCTestLog(this->CTest, HANDLER_VERBOSE_OUTPUT,
+               this->Index << ":  " << envmod << std::endl);
+  }
 }
 
-void cmCTestRunTest::DartProcessing()
+void cmCTestRunTest::ParseOutputForMeasurements()
 {
   if (!this->ProcessOutput.empty() &&
-      this->ProcessOutput.find("<DartMeasurement") != std::string::npos) {
-    if (this->TestHandler->DartStuff.find(this->ProcessOutput)) {
-      this->TestResult.DartString = this->TestHandler->DartStuff.match(1);
+      (this->ProcessOutput.find("<DartMeasurement") != std::string::npos ||
+       this->ProcessOutput.find("<CTestMeasurement") != std::string::npos)) {
+    if (this->TestHandler->AllTestMeasurementsRegex.find(
+          this->ProcessOutput)) {
+      this->TestResult.TestMeasurementsOutput =
+        this->TestHandler->AllTestMeasurementsRegex.match(1);
       // keep searching and replacing until none are left
-      while (this->TestHandler->DartStuff1.find(this->ProcessOutput)) {
+      while (this->TestHandler->SingleTestMeasurementRegex.find(
+        this->ProcessOutput)) {
         // replace the exact match for the string
         cmSystemTools::ReplaceString(
-          this->ProcessOutput, this->TestHandler->DartStuff1.match(1).c_str(),
-          "");
+          this->ProcessOutput,
+          this->TestHandler->SingleTestMeasurementRegex.match(1).c_str(), "");
       }
     }
   }
 }
 
-bool cmCTestRunTest::ForkProcess(cmDuration testTimeOut, bool explicitTimeout,
-                                 std::vector<std::string>* environment,
-                                 std::vector<size_t>* affinity)
+bool cmCTestRunTest::ForkProcess(
+  cmDuration testTimeOut, bool explicitTimeout,
+  std::vector<std::string>* environment,
+  std::vector<std::string>* environment_modification,
+  std::vector<size_t>* affinity)
 {
   this->TestProcess->SetId(this->Index);
   this->TestProcess->SetWorkingDirectory(this->TestProperties->Directory);
@@ -721,16 +783,31 @@ bool cmCTestRunTest::ForkProcess(cmDuration testTimeOut, bool explicitTimeout,
 
   this->TestProcess->SetTimeout(timeout);
 
-#ifndef CMAKE_BOOTSTRAP
   cmSystemTools::SaveRestoreEnvironment sre;
-#endif
-
   std::ostringstream envMeasurement;
+
+  // We split processing ENVIRONMENT and ENVIRONMENT_MODIFICATION into two
+  // phases to ensure that MYVAR=reset: in the latter phase resets to the
+  // former phase's settings, rather than to the original environment.
   if (environment && !environment->empty()) {
-    cmSystemTools::AppendEnv(*environment);
-    for (auto const& var : *environment) {
-      envMeasurement << var << std::endl;
+    cmSystemTools::EnvDiff diff;
+    diff.AppendEnv(*environment);
+    diff.ApplyToCurrentEnv(&envMeasurement);
+  }
+
+  if (environment_modification && !environment_modification->empty()) {
+    cmSystemTools::EnvDiff diff;
+    bool env_ok = true;
+
+    for (auto const& envmod : *environment_modification) {
+      env_ok &= diff.ParseOperation(envmod);
     }
+
+    if (!env_ok) {
+      return false;
+    }
+
+    diff.ApplyToCurrentEnv(&envMeasurement);
   }
 
   if (this->UseAllocatedResources) {

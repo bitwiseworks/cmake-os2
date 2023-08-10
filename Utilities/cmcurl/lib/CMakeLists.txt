@@ -5,7 +5,7 @@
 #                            | (__| |_| |  _ <| |___
 #                             \___|\___/|_| \_\_____|
 #
-# Copyright (C) 1998 - 2020, Daniel Stenberg, <daniel@haxx.se>, et al.
+# Copyright (C) 1998 - 2022, Daniel Stenberg, <daniel@haxx.se>, et al.
 #
 # This software is licensed as described in the file COPYING, which
 # you should have received as part of this distribution. The terms
@@ -18,8 +18,12 @@
 # This software is distributed on an "AS IS" basis, WITHOUT WARRANTY OF ANY
 # KIND, either express or implied.
 #
+# SPDX-License-Identifier: curl
+#
 ###########################################################################
 set(LIB_NAME cmcurl)
+set(LIBCURL_OUTPUT_NAME cmcurl)
+add_definitions(-DBUILDING_LIBCURL)
 
 if(BUILD_SHARED_LIBS)
   set(CURL_STATICLIB NO)
@@ -81,7 +85,7 @@ endif()
 # For windows we want to install OPENSSL_LIBRARIES dlls
 # and also copy them into the build tree so that testing
 # can find them.
-if(CMAKE_USE_OPENSSL AND OPENSSL_FOUND AND WIN32)
+if(CURL_USE_OPENSSL AND OPENSSL_FOUND AND WIN32)
   find_file(CMAKE_EAY_DLL NAME libeay32.dll HINTS ${OPENSSL_INCLUDE_DIR}/..)
   find_file(CMAKE_SSL_DLL NAME ssleay32.dll HINTS ${OPENSSL_INCLUDE_DIR}/..)
   mark_as_advanced(CMAKE_EAY_DLL CMAKE_SSL_DLL)
@@ -119,13 +123,10 @@ endif()
 
 target_link_libraries(${LIB_NAME} PRIVATE ${CURL_LIBS})
 
-if(0) # This code not needed for building within CMake.
-if(WIN32)
-  add_definitions(-D_USRDLL)
-endif()
-endif()
-
-set_target_properties(${LIB_NAME} PROPERTIES COMPILE_DEFINITIONS BUILDING_LIBCURL)
+set_target_properties(${LIB_NAME} PROPERTIES
+  COMPILE_DEFINITIONS BUILDING_LIBCURL
+  OUTPUT_NAME ${LIBCURL_OUTPUT_NAME}
+  )
 
 if(0) # This code not needed for building within CMake.
 if(HIDES_CURL_PRIVATE_SYMBOLS)
@@ -145,25 +146,30 @@ endif()
 
 if(WIN32)
   if(BUILD_SHARED_LIBS)
-    # Add "_imp" as a suffix before the extension to avoid conflicting with the statically linked "libcurl.lib"
-    set_target_properties(${LIB_NAME} PROPERTIES IMPORT_SUFFIX "_imp.lib")
+    if(MSVC)
+      # Add "_imp" as a suffix before the extension to avoid conflicting with
+      # the statically linked "libcurl.lib"
+      set_target_properties(${LIB_NAME} PROPERTIES IMPORT_SUFFIX "_imp.lib")
+    endif()
   endif()
 endif()
 
 target_include_directories(${LIB_NAME} INTERFACE
-  $<INSTALL_INTERFACE:include>
+  $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
   $<BUILD_INTERFACE:${CURL_SOURCE_DIR}/include>)
 
-install(TARGETS ${LIB_NAME}
-  EXPORT ${TARGETS_EXPORT_NAME}
-  ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
-  LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
-  RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
-)
+if(CURL_ENABLE_EXPORT_TARGET)
+  install(TARGETS ${LIB_NAME}
+    EXPORT ${TARGETS_EXPORT_NAME}
+    ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+  )
 
-export(TARGETS ${LIB_NAME}
-       APPEND FILE ${PROJECT_BINARY_DIR}/libcurl-target.cmake
-       NAMESPACE ${PROJECT_NAME}::
-)
+  export(TARGETS ${LIB_NAME}
+         FILE ${PROJECT_BINARY_DIR}/libcurl-target.cmake
+         NAMESPACE ${PROJECT_NAME}::
+  )
+endif()
 
 endif()

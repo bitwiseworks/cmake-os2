@@ -1,5 +1,6 @@
 include(RunCTest)
 
+set(LANG NONE)
 set(CASE_CTEST_BUILD_ARGS "")
 set(RunCMake_USE_LAUNCHERS TRUE)
 set(RunCMake_USE_CUSTOM_BUILD_COMMAND FALSE)
@@ -10,6 +11,7 @@ function(run_ctest_build CASE_NAME)
 endfunction()
 
 run_ctest_build(BuildQuiet QUIET)
+run_ctest_build(ParallelLevel PARALLEL_LEVEL 1)
 
 function(run_BuildFailure)
   set(CASE_CMAKELISTS_SUFFIX_CODE [[
@@ -48,6 +50,18 @@ function(run_BuildChangeId)
 endfunction()
 run_BuildChangeId()
 
+function(run_SubdirTarget)
+  set(CASE_CMAKELISTS_SUFFIX_CODE [=[
+file(WRITE ${CMAKE_CURRENT_SOURCE_DIR}/subdir/CMakeLists.txt [[
+add_custom_target(target_in_subdir COMMAND ${CMAKE_COMMAND} -E touch target_in_subdir.out VERBATIM)
+]])
+add_subdirectory(subdir)
+]=])
+  set(CASE_CTEST_BUILD_ARGS TARGET target_in_subdir)
+  run_ctest(SubdirTarget)
+endfunction()
+run_SubdirTarget()
+
 set(RunCMake_USE_CUSTOM_BUILD_COMMAND TRUE)
 set(RunCMake_BUILD_COMMAND "${FAKE_BUILD_COMMAND_EXE}")
 run_ctest(BuildCommandFailure)
@@ -57,3 +71,18 @@ set(RunCMake_USE_LAUNCHERS FALSE)
 set(RunCMake_BUILD_COMMAND "${COLOR_WARNING}")
 run_ctest(IgnoreColor)
 unset(RunCMake_BUILD_COMMAND)
+
+set(RunCMake_USE_CUSTOM_BUILD_COMMAND FALSE)
+if(RunCMake_GENERATOR MATCHES "Ninja")
+  function(run_NinjaLauncherSingleBuildFailure)
+    set(LANG C)
+    set(RunCMake_USE_LAUNCHERS TRUE)
+    set(RunCMake_TEST_SOURCE_DIR "${RunCMake_BINARY_DIR}/NinjaLauncherSingleBuildFailure")
+    configure_file("${RunCMake_SOURCE_DIR}/error.c" "${RunCMake_TEST_SOURCE_DIR}/error.c" COPYONLY)
+    set(CASE_CMAKELISTS_SUFFIX_CODE [=[
+    add_executable(error error.c)
+  ]=])
+    run_ctest(NinjaLauncherSingleBuildFailure)
+  endfunction()
+  run_NinjaLauncherSingleBuildFailure()
+endif()

@@ -31,7 +31,6 @@
 #include "cmGeneratorExpression.h"
 #include "cmMakefile.h"
 #include "cmMessageType.h"
-#include "cmProperty.h"
 #include "cmRange.h"
 #include "cmStringAlgorithms.h"
 #include "cmStringReplaceHelper.h"
@@ -39,6 +38,7 @@
 #include "cmSystemTools.h"
 #include "cmTimestamp.h"
 #include "cmUuid.h"
+#include "cmValue.h"
 
 namespace {
 
@@ -55,7 +55,6 @@ bool joinImpl(std::vector<std::string> const& args, std::string const& glue,
 bool HandleHashCommand(std::vector<std::string> const& args,
                        cmExecutionStatus& status)
 {
-#if !defined(CMAKE_BOOTSTRAP)
   if (args.size() != 3) {
     status.SetError(
       cmStrCat(args[0], " requires an output variable and an input string"));
@@ -69,10 +68,6 @@ bool HandleHashCommand(std::vector<std::string> const& args,
     return true;
   }
   return false;
-#else
-  status.SetError(cmStrCat(args[0], " not available during bootstrap"));
-  return false;
-#endif
 }
 
 bool HandleToUpperLowerCommand(std::vector<std::string> const& args,
@@ -148,7 +143,8 @@ bool HandleHexCommand(std::vector<std::string> const& args,
 
   std::string::size_type hexIndex = 0;
   for (auto const& c : instr) {
-    sprintf(&output[hexIndex], "%.2x", static_cast<unsigned char>(c) & 0xFF);
+    snprintf(&output[hexIndex], 3, "%.2x",
+             static_cast<unsigned char>(c) & 0xFF);
     hexIndex += 2;
   }
 
@@ -241,7 +237,7 @@ bool RegexMatch(std::vector<std::string> const& args,
   status.GetMakefile().ClearMatches();
   // Compile the regular expression.
   cmsys::RegularExpression re;
-  if (!re.compile(regex.c_str())) {
+  if (!re.compile(regex)) {
     std::string e =
       "sub-command REGEX, mode MATCH failed to compile regex \"" + regex +
       "\".";
@@ -283,7 +279,7 @@ bool RegexMatchAll(std::vector<std::string> const& args,
   status.GetMakefile().ClearMatches();
   // Compile the regular expression.
   cmsys::RegularExpression re;
-  if (!re.compile(regex.c_str())) {
+  if (!re.compile(regex)) {
     std::string e =
       "sub-command REGEX, mode MATCHALL failed to compile regex \"" + regex +
       "\".";
@@ -526,7 +522,7 @@ bool HandleLengthCommand(std::vector<std::string> const& args,
 
   size_t length = stringValue.size();
   char buffer[1024];
-  sprintf(buffer, "%d", static_cast<int>(length));
+  snprintf(buffer, sizeof(buffer), "%d", static_cast<int>(length));
 
   status.GetMakefile().AddDefinition(variableName, buffer);
   return true;
@@ -572,7 +568,7 @@ bool HandlePrependCommand(std::vector<std::string> const& args,
   const std::string& variable = args[1];
 
   std::string value = cmJoin(cmMakeRange(args).advance(2), std::string());
-  cmProp oldValue = status.GetMakefile().GetDefinition(variable);
+  cmValue oldValue = status.GetMakefile().GetDefinition(variable);
   if (oldValue) {
     value += *oldValue;
   }
@@ -1018,7 +1014,7 @@ int ParseIndex(
   Json::ArrayIndex index = static_cast<Json::ArrayIndex>(lindex);
   if (index >= max) {
     cmAlphaNum sizeStr{ max };
-    throw json_error({ "expected an index less then "_s, sizeStr.View(),
+    throw json_error({ "expected an index less than "_s, sizeStr.View(),
                        " got '"_s, str, "'"_s },
                      progress);
   }
@@ -1054,7 +1050,7 @@ Json::Value& ResolvePath(Json::Value& json, Args path)
     }
   }
   return *search;
-};
+}
 
 Json::Value ReadJson(const std::string& jsonstr)
 {
@@ -1106,8 +1102,8 @@ bool HandleJSONCommand(std::vector<std::string> const& arguments,
         mode != "EQUAL"_s) {
       throw json_error(
         { "got an invalid mode '"_s, mode,
-          "', expected one of GET, GET_ARRAY, TYPE, MEMBER, MEMBERS,"
-          " LENGTH, REMOVE, SET, EQUAL"_s });
+          "', expected one of GET, TYPE, MEMBER, LENGTH, REMOVE, SET, "
+          " EQUAL"_s });
     }
 
     const auto& jsonstr = args.PopFront("missing json string argument"_s);

@@ -587,24 +587,24 @@ void cmCTestMultiProcessHandler::StartNextTests()
         onlyRunSerialTestsLeft = false;
       }
     }
-    cmCTestLog(this->CTest, HANDLER_OUTPUT, "***** WAITING, ");
+    cmCTestLog(this->CTest, HANDLER_VERBOSE_OUTPUT, "***** WAITING, ");
 
     if (this->SerialTestRunning) {
-      cmCTestLog(this->CTest, HANDLER_OUTPUT,
+      cmCTestLog(this->CTest, HANDLER_VERBOSE_OUTPUT,
                  "Waiting for RUN_SERIAL test to finish.");
     } else if (onlyRunSerialTestsLeft) {
-      cmCTestLog(this->CTest, HANDLER_OUTPUT,
+      cmCTestLog(this->CTest, HANDLER_VERBOSE_OUTPUT,
                  "Only RUN_SERIAL tests remain, awaiting available slot.");
     } else {
       /* clang-format off */
-      cmCTestLog(this->CTest, HANDLER_OUTPUT,
+      cmCTestLog(this->CTest, HANDLER_VERBOSE_OUTPUT,
                  "System Load: " << systemLoad << ", "
                  "Max Allowed Load: " << this->TestLoad << ", "
                  "Smallest test " << testWithMinProcessors <<
                  " requires " << minProcessorsRequired);
       /* clang-format on */
     }
-    cmCTestLog(this->CTest, HANDLER_OUTPUT, "*****" << std::endl);
+    cmCTestLog(this->CTest, HANDLER_VERBOSE_OUTPUT, "*****" << std::endl);
 
     // Wait between 1 and 5 seconds before trying again.
     unsigned int milliseconds = (cmSystemTools::RandomSeed() % 5 + 1) * 1000;
@@ -1026,6 +1026,11 @@ static Json::Value DumpCTestProperties(
     properties.append(DumpCTestProperty(
       "ENVIRONMENT", DumpToJsonArray(testProperties.Environment)));
   }
+  if (!testProperties.EnvironmentModification.empty()) {
+    properties.append(DumpCTestProperty(
+      "ENVIRONMENT_MODIFICATION",
+      DumpToJsonArray(testProperties.EnvironmentModification)));
+  }
   if (!testProperties.ErrorRegularExpressions.empty()) {
     properties.append(DumpCTestProperty(
       "FAIL_REGULAR_EXPRESSION",
@@ -1279,10 +1284,8 @@ void cmCTestMultiProcessHandler::PrintTestList()
   }
 
   this->TestHandler->SetMaxIndex(this->FindMaxIndex());
-  int count = 0;
 
   for (auto& it : this->Properties) {
-    count++;
     cmCTestTestHandler::cmCTestTestProperties& p = *it.second;
 
     // Don't worry if this fails, we are only showing the test list, not

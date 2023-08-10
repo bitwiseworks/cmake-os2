@@ -5,12 +5,14 @@
 #include "cmConfigure.h" // IWYU pragma: keep
 
 #include <map>
+#include <set>
 #include <string>
 #include <vector>
 
+#include "cmValue.h"
+
 class cmGeneratorTarget;
 class cmGlobalCommonGenerator;
-class cmLinkLineComputer;
 class cmLocalCommonGenerator;
 class cmMakefile;
 class cmSourceFile;
@@ -28,24 +30,26 @@ public:
 
 protected:
   // Feature query methods.
-  const char* GetFeature(const std::string& feature,
-                         const std::string& config);
-
-  // Helper to add flag for windows .def file.
-  void AddModuleDefinitionFlag(cmLinkLineComputer* linkLineComputer,
-                               std::string& flags, const std::string& config);
+  cmValue GetFeature(const std::string& feature, const std::string& config);
 
   cmGeneratorTarget* GeneratorTarget;
   cmMakefile* Makefile;
   cmLocalCommonGenerator* LocalCommonGenerator;
   cmGlobalCommonGenerator* GlobalCommonGenerator;
   std::vector<std::string> ConfigNames;
+  bool UseLWYU = false;
 
   void AppendFortranFormatFlags(std::string& flags,
                                 cmSourceFile const& source);
 
-  void AppendFortranPreprocessFlags(std::string& flags,
-                                    cmSourceFile const& source);
+  enum class PreprocessFlagsRequired
+  {
+    YES,
+    NO
+  };
+  void AppendFortranPreprocessFlags(
+    std::string& flags, cmSourceFile const& source,
+    PreprocessFlagsRequired requires_pp = PreprocessFlagsRequired::YES);
 
   virtual void AddIncludeFlags(std::string& flags, std::string const& lang,
                                const std::string& config) = 0;
@@ -63,6 +67,11 @@ protected:
   std::vector<std::string> GetLinkedTargetDirectories(
     const std::string& config) const;
   std::string ComputeTargetCompilePDB(const std::string& config) const;
+
+  std::string GetLinkerLauncher(const std::string& config);
+
+  bool HaveRequiredLanguages(const std::vector<cmSourceFile const*>& sources,
+                             std::set<std::string>& languagesNeeded) const;
 
 private:
   using ByLanguageMap = std::map<std::string, std::string>;
