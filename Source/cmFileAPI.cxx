@@ -417,7 +417,7 @@ const char* cmFileAPI::ObjectKindName(ObjectKind kind)
     "toolchains", //
     "__test"      //
   };
-  return objectKindNames[size_t(kind)];
+  return objectKindNames[static_cast<size_t>(kind)];
 }
 
 std::string cmFileAPI::ObjectName(Object const& o)
@@ -686,7 +686,8 @@ std::string cmFileAPI::NoSupportedVersion(
 
 // The "codemodel" object kind.
 
-static unsigned int const CodeModelV2Minor = 2;
+// Update Help/manual/cmake-file-api.7.rst when updating this constant.
+static unsigned int const CodeModelV2Minor = 4;
 
 void cmFileAPI::BuildClientRequestCodeModel(
   ClientRequest& r, std::vector<RequestVersion> const& versions)

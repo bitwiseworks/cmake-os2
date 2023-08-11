@@ -1,9 +1,10 @@
 # Distributed under the OSI-approved BSD 3-Clause License.  See accompanying
 # file Copyright.txt or https://cmake.org/licensing for details.
 
-include(Compiler/CMakeCommonCompilerMacros)
+include(Compiler/MSVC)
+__compiler_msvc(CXX)
 
-set(CMAKE_CXX_CLANG_TIDY_DRIVER_MODE "cl")
+include(Compiler/CMakeCommonCompilerMacros)
 
 if ((CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL 19.0.24215.1 AND
      CMAKE_CXX_COMPILER_VERSION VERSION_LESS 19.10) OR
@@ -70,12 +71,20 @@ elseif (CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL 16.0)
       cxx_std_14
       cxx_std_17
       cxx_std_20
+      cxx_std_23
+      cxx_std_26
       )
     _record_compiler_features(CXX "" CMAKE_CXX_COMPILE_FEATURES)
   endmacro()
 endif()
 
-# /JMC "Just My Code" is only supported by MSVC 19.05 onward.
-if (CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL 19.05)
-  set(CMAKE_CXX_COMPILE_OPTIONS_JMC "-JMC")
-endif()
+if (CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL "19.34")
+  string(CONCAT CMAKE_EXPERIMENTAL_CXX_SCANDEP_SOURCE
+    "<CMAKE_CXX_COMPILER> <DEFINES> <INCLUDES> <FLAGS> <SOURCE> -nologo -TP"
+    " -showIncludes"
+    " -scanDependencies <DYNDEP_FILE>"
+    " -Fo<OBJECT>")
+  set(CMAKE_EXPERIMENTAL_CXX_SCANDEP_DEPFILE_FORMAT "msvc")
+  set(CMAKE_EXPERIMENTAL_CXX_MODULE_MAP_FORMAT "msvc")
+  set(CMAKE_EXPERIMENTAL_CXX_MODULE_MAP_FLAG "@<MODULE_MAP_FILE>")
+endif ()

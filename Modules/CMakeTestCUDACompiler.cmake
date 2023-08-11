@@ -21,6 +21,52 @@ if(CMAKE_CUDA_ABI_COMPILED)
   # The compiler worked so skip dedicated test below.
   set(CMAKE_CUDA_COMPILER_WORKS TRUE)
   message(STATUS "Check for working CUDA compiler: ${CMAKE_CUDA_COMPILER} - skipped")
+
+  # Run the test binary to detect the native architectures.
+  execute_process(COMMAND "${CMAKE_PLATFORM_INFO_DIR}/CMakeDetermineCompilerABI_CUDA.bin"
+    RESULT_VARIABLE _CUDA_ARCHS_RESULT
+    OUTPUT_VARIABLE _CUDA_ARCHS_OUTPUT
+    ERROR_VARIABLE  _CUDA_ARCHS_OUTPUT
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+    )
+  if(_CUDA_ARCHS_RESULT EQUAL 0)
+    if("$ENV{CMAKE_CUDA_ARCHITECTURES_NATIVE_CLAMP}")
+      # Undocumented hook used by CMake's CI.
+      # Clamp native architecture to version range supported by this CUDA.
+      list(GET CMAKE_CUDA_ARCHITECTURES_ALL 0  _CUDA_ARCH_MIN)
+      list(GET CMAKE_CUDA_ARCHITECTURES_ALL -1 _CUDA_ARCH_MAX)
+      set(CMAKE_CUDA_ARCHITECTURES_NATIVE "")
+      foreach(_CUDA_ARCH IN LISTS _CUDA_ARCHS_OUTPUT)
+        if(_CUDA_ARCH LESS _CUDA_ARCH_MIN)
+          set(_CUDA_ARCH "${_CUDA_ARCH_MIN}")
+        endif()
+        if(_CUDA_ARCH GREATER _CUDA_ARCH_MAX)
+          set(_CUDA_ARCH "${_CUDA_ARCH_MAX}")
+        endif()
+        list(APPEND CMAKE_CUDA_ARCHITECTURES_NATIVE ${_CUDA_ARCH})
+      endforeach()
+      unset(_CUDA_ARCH)
+      unset(_CUDA_ARCH_MIN)
+      unset(_CUDA_ARCH_MAX)
+    else()
+      set(CMAKE_CUDA_ARCHITECTURES_NATIVE "${_CUDA_ARCHS_OUTPUT}")
+    endif()
+    list(REMOVE_DUPLICATES CMAKE_CUDA_ARCHITECTURES_NATIVE)
+    list(TRANSFORM CMAKE_CUDA_ARCHITECTURES_NATIVE APPEND "-real")
+  else()
+    if(NOT _CUDA_ARCHS_RESULT MATCHES "[0-9]+")
+      set(_CUDA_ARCHS_STATUS " (${_CUDA_ARCHS_RESULT})")
+    else()
+      set(_CUDA_ARCHS_STATUS "")
+    endif()
+    string(REPLACE "\n" "\n  " _CUDA_ARCHS_OUTPUT "  ${_CUDA_ARCHS_OUTPUT}")
+    file(APPEND ${CMAKE_BINARY_DIR}${CMAKE_FILES_DIRECTORY}/CMakeError.log
+      "Detecting the CUDA native architecture(s) failed with "
+      "the following output:\n${_CUDA_ARCHS_OUTPUT}\n\n")
+  endif()
+  unset(_CUDA_ARCHS_EXE)
+  unset(_CUDA_ARCHS_RESULT)
+  unset(_CUDA_ARCHS_OUTPUT)
 endif()
 
 # This file is used by EnableLanguage in cmGlobalGenerator to
@@ -30,15 +76,20 @@ endif()
 # any makefiles or projects.
 if(NOT CMAKE_CUDA_COMPILER_WORKS)
   PrintTestCompilerStatus("CUDA")
-  file(WRITE ${CMAKE_BINARY_DIR}${CMAKE_FILES_DIRECTORY}/CMakeTmp/main.cu
+  string(CONCAT __TestCompiler_testCudaCompilerSource
     "#ifndef __CUDACC__\n"
     "# error \"The CMAKE_CUDA_COMPILER is set to an invalid CUDA compiler\"\n"
     "#endif\n"
     "int main(){return 0;}\n")
 
-  try_compile(CMAKE_CUDA_COMPILER_WORKS ${CMAKE_BINARY_DIR}
-    ${CMAKE_BINARY_DIR}${CMAKE_FILES_DIRECTORY}/CMakeTmp/main.cu
+  # Clear result from normal variable.
+  unset(CMAKE_CUDA_COMPILER_WORKS)
+
+  # Puts test result in cache variable.
+  try_compile(CMAKE_CUDA_COMPILER_WORKS
+    SOURCE_FROM_VAR main.cu __TestCompiler_testCudaCompilerSource
     OUTPUT_VARIABLE __CMAKE_CUDA_COMPILER_OUTPUT)
+  unset(__TestCompiler_testCudaCompilerSource)
 
   # Move result from cache to normal variable.
   set(CMAKE_CUDA_COMPILER_WORKS ${CMAKE_CUDA_COMPILER_WORKS})

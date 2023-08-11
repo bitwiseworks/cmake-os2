@@ -77,7 +77,7 @@ bool cmMacroHelperCommand::operator()(
   argVs.reserve(expandedArgs.size());
   char argvName[60];
   for (unsigned int j = 0; j < expandedArgs.size(); ++j) {
-    sprintf(argvName, "${ARGV%u}", j);
+    snprintf(argvName, sizeof(argvName), "${ARGV%u}", j);
     argVs.emplace_back(argvName);
   }
   // Invoke all the functions that were collected in the block.
@@ -116,7 +116,7 @@ bool cmMacroHelperCommand::operator()(
       newLFFArgs.push_back(std::move(arg));
     }
     cmListFileFunction newLFF{ func.OriginalName(), func.Line(),
-                               std::move(newLFFArgs) };
+                               func.LineEnd(), std::move(newLFFArgs) };
     cmExecutionStatus status(makefile);
     if (!makefile.ExecuteCommand(newLFF, status) || status.GetNestedError()) {
       // The error message should have already included the call stack
@@ -126,7 +126,7 @@ bool cmMacroHelperCommand::operator()(
       return false;
     }
     if (status.GetReturnInvoked()) {
-      inStatus.SetReturnInvoked();
+      inStatus.SetReturnInvoked(status.GetReturnVariables());
       return true;
     }
     if (status.GetBreakInvoked()) {

@@ -1,9 +1,19 @@
 include(RunCMake)
 
+function(RunClean)
+  set(RunCMake_TEST_BINARY_DIR ${RunCMake_BINARY_DIR}/Clean-build)
+  run_cmake(Clean -DCMAKE_CONFIGURATION_TYPES=Debug)
+  set(RunCMake_TEST_NO_CLEAN 1)
+  run_cmake_command(Clean-build xcodebuild)
+  run_cmake_command(Clean-clean xcodebuild clean)
+endfunction()
+RunClean()
+
 run_cmake(ExplicitCMakeLists)
 run_cmake(ImplicitCMakeLists)
 run_cmake(InterfaceLibSources)
 run_cmake_with_options(SearchPaths -DCMAKE_CONFIGURATION_TYPES=Debug)
+run_cmake(InheritedParameters)
 
 run_cmake(XcodeFileType)
 run_cmake(XcodeAttributeLocation)
@@ -90,7 +100,12 @@ function(XcodeSchemaGeneration)
   file(MAKE_DIRECTORY "${RunCMake_TEST_BINARY_DIR}")
 
   run_cmake(XcodeSchemaGeneration)
-  run_cmake_command(XcodeSchemaGeneration-build xcodebuild -scheme foo build)
+  if (XCODE_VERSION VERSION_GREATER_EQUAL 13)
+    set(maybe_destination -destination platform=macOS)
+  else()
+    set(maybe_destination "")
+  endif()
+  run_cmake_command(XcodeSchemaGeneration-build xcodebuild -scheme foo ${maybe_destination} build)
 endfunction()
 
 if(NOT XCODE_VERSION VERSION_LESS 7)
@@ -134,6 +149,26 @@ function(XcodeRemoveExcessiveISystem)
 endfunction()
 
 XcodeRemoveExcessiveISystem()
+
+function(XcodeXCConfig)
+  set(RunCMake_TEST_BINARY_DIR ${RunCMake_BINARY_DIR}/XcodeXCConfig-build)
+  run_cmake(XcodeXCConfig)
+  set(RunCMake_TEST_NO_CLEAN 1)
+  run_cmake_command(XcodeXCConfig-build ${CMAKE_COMMAND} --build . --config Debug)
+  run_cmake_command(XcodeXCConfig-build ${CMAKE_COMMAND} --build . --config Release)
+endfunction()
+
+XcodeXCConfig()
+
+function(BundleLinkBundle)
+  set(RunCMake_TEST_BINARY_DIR ${RunCMake_BINARY_DIR}/BundleLinkBundle-build)
+  run_cmake(BundleLinkBundle)
+  set(RunCMake_TEST_NO_CLEAN 1)
+  run_cmake_command(BundleLinkBundle-build ${CMAKE_COMMAND} --build .)
+endfunction()
+
+BundleLinkBundle()
+
 
 # Isolate device tests from host architecture selection.
 unset(ENV{CMAKE_OSX_ARCHITECTURES})
@@ -264,30 +299,33 @@ if(XCODE_VERSION VERSION_GREATER_EQUAL 6)
   unset(RunCMake_TEST_OPTIONS)
 
   # XcodeIOSInstallCombinedPrune
-  set(RunCMake_TEST_BINARY_DIR ${RunCMake_BINARY_DIR}/XcodeIOSInstallCombinedPrune-build)
-  set(RunCMake_TEST_NO_CLEAN 1)
-  set(RunCMake_TEST_OPTIONS
-    "-DCMAKE_SYSTEM_NAME=iOS"
-    "-DCMAKE_IOS_INSTALL_COMBINED=YES"
-    "-DCMAKE_INSTALL_PREFIX:PATH=${RunCMake_TEST_BINARY_DIR}/_install")
+  # FIXME(#24011): Xcode 14 removed support for older architectures the test needs.
+  if(XCODE_VERSION VERSION_LESS 14)
+    set(RunCMake_TEST_BINARY_DIR ${RunCMake_BINARY_DIR}/XcodeIOSInstallCombinedPrune-build)
+    set(RunCMake_TEST_NO_CLEAN 1)
+    set(RunCMake_TEST_OPTIONS
+      "-DCMAKE_SYSTEM_NAME=iOS"
+      "-DCMAKE_IOS_INSTALL_COMBINED=YES"
+      "-DCMAKE_INSTALL_PREFIX:PATH=${RunCMake_TEST_BINARY_DIR}/_install")
 
-  file(REMOVE_RECURSE "${RunCMake_TEST_BINARY_DIR}")
-  file(MAKE_DIRECTORY "${RunCMake_TEST_BINARY_DIR}")
+    file(REMOVE_RECURSE "${RunCMake_TEST_BINARY_DIR}")
+    file(MAKE_DIRECTORY "${RunCMake_TEST_BINARY_DIR}")
 
-  run_cmake(XcodeIOSInstallCombinedPrune)
-  run_cmake_command(XcodeIOSInstallCombinedPrune-build ${CMAKE_COMMAND} --build .)
-  if(XCODE_VERSION VERSION_LESS 12)
-    run_cmake_command(XcodeIOSInstallCombinedPrune-install ${CMAKE_COMMAND} --build . --target install)
+    run_cmake(XcodeIOSInstallCombinedPrune)
+    run_cmake_command(XcodeIOSInstallCombinedPrune-build ${CMAKE_COMMAND} --build .)
+    if(XCODE_VERSION VERSION_LESS 12)
+      run_cmake_command(XcodeIOSInstallCombinedPrune-install ${CMAKE_COMMAND} --build . --target install)
+    endif()
+    # --build defaults to Debug, --install defaults to Release, so we have to
+    # specify the configuration explicitly
+    run_cmake_command(XcodeIOSInstallCombinedPrune-cmakeinstall
+      ${CMAKE_COMMAND} --install . --config Debug
+    )
+
+    unset(RunCMake_TEST_BINARY_DIR)
+    unset(RunCMake_TEST_NO_CLEAN)
+    unset(RunCMake_TEST_OPTIONS)
   endif()
-  # --build defaults to Debug, --install defaults to Release, so we have to
-  # specify the configuration explicitly
-  run_cmake_command(XcodeIOSInstallCombinedPrune-cmakeinstall
-    ${CMAKE_COMMAND} --install . --config Debug
-  )
-
-  unset(RunCMake_TEST_BINARY_DIR)
-  unset(RunCMake_TEST_NO_CLEAN)
-  unset(RunCMake_TEST_OPTIONS)
 
   # XcodeIOSInstallCombinedSingleArch
   set(RunCMake_TEST_BINARY_DIR ${RunCMake_BINARY_DIR}/XcodeIOSInstallCombinedSingleArch-build)
@@ -317,6 +355,7 @@ if(XCODE_VERSION VERSION_GREATER_EQUAL 6)
 endif()
 
 if(NOT XCODE_VERSION VERSION_LESS 5)
+  # XcodeMultiplatform
   set(RunCMake_TEST_BINARY_DIR ${RunCMake_BINARY_DIR}/XcodeMultiplatform-build)
   set(RunCMake_TEST_NO_CLEAN 1)
   set(RunCMake_TEST_OPTIONS "${IOS_DEPLOYMENT_TARGET}")
@@ -332,6 +371,23 @@ if(NOT XCODE_VERSION VERSION_LESS 5)
 
   run_cmake_command(XcodeMultiplatform-macosx-build ${CMAKE_COMMAND} --build . -- -sdk macosx)
   run_cmake_command(XcodeMultiplatform-macosx-install ${CMAKE_COMMAND} --build . --target install -- -sdk macosx DESTDIR=${RunCMake_TEST_BINARY_DIR}/_install_macosx)
+
+  unset(RunCMake_TEST_BINARY_DIR)
+  unset(RunCMake_TEST_NO_CLEAN)
+  unset(RunCMake_TEST_OPTIONS)
+
+  # EffectivePlatformNameOFF
+  set(RunCMake_TEST_BINARY_DIR ${RunCMake_BINARY_DIR}/EffectivePlatformNameOFF-build)
+  set(RunCMake_TEST_NO_CLEAN 1)
+  set(RunCMake_TEST_OPTIONS "-DCMAKE_SYSTEM_NAME=iOS" "-DCMAKE_OSX_SYSROOT=iphonesimulator")
+
+  file(REMOVE_RECURSE "${RunCMake_TEST_BINARY_DIR}")
+  file(MAKE_DIRECTORY "${RunCMake_TEST_BINARY_DIR}")
+
+  run_cmake(EffectivePlatformNameOFF)
+
+  run_cmake_command(EffectivePlatformNameOFF-iphonesimulator-build ${CMAKE_COMMAND} --build .)
+  run_cmake_command(EffectivePlatformNameOFF-iphonesimulator-install ${CMAKE_COMMAND} --build . --target install -- DESTDIR=${RunCMake_TEST_BINARY_DIR}/_install_iphonesimulator)
 
   unset(RunCMake_TEST_BINARY_DIR)
   unset(RunCMake_TEST_NO_CLEAN)
@@ -387,4 +443,35 @@ if(XCODE_VERSION VERSION_GREATER_EQUAL 8)
   XcodeRemoveExcessiveISystemSDK(iphoneos)
   XcodeRemoveExcessiveISystemSDK(iphonesimulator)
 endif()
+
+if (XCODE_VERSION VERSION_GREATER_EQUAL 7.3)
+  function(xctest_add_bundle_test SystemName SDK BuildSystemVersion ExpectedOutputDir)
+    set(RunCMake_TEST_BINARY_DIR
+      ${RunCMake_BINARY_DIR}/DeploymentTarget-${SystemName}-${SDK}-${BuildSystemVersion}-build)
+    set(RunCMake_TEST_OPTIONS
+      "-DCMAKE_SYSTEM_NAME=${SystemName}"
+      "-DCMAKE_OSX_SYSROOT=${SDK}"
+      "-DTEST_EXPECTED_OUTPUT_DIR=${ExpectedOutputDir}")
+    unset(RunCMake_GENERATOR_TOOLSET)
+    if(BuildSystemVersion)
+      set(RunCMake_GENERATOR_TOOLSET "buildsystem=${BuildSystemVersion}")
+    endif()
+    run_cmake(XCTestAddBundle)
+  endfunction()
+
+  if(XCODE_VERSION VERSION_GREATER_EQUAL 12)
+    xctest_add_bundle_test(Darwin macosx "1" "$<TARGET_BUNDLE_CONTENT_DIR:TestedApp>/PlugIns")
+    xctest_add_bundle_test(Darwin macosx "12" "$<TARGET_BUNDLE_CONTENT_DIR:TestedApp>/PlugIns")
+    xctest_add_bundle_test(iOS iphonesimulator "1" "$<TARGET_BUNDLE_CONTENT_DIR:TestedApp>/PlugIns")
+    if (XCODE_VERSION VERSION_LESS 12.5)
+      xctest_add_bundle_test(iOS iphonesimulator "12" "$<TARGET_BUNDLE_CONTENT_DIR:TestedApp>")
+    else()
+      xctest_add_bundle_test(iOS iphonesimulator "12" "$<TARGET_BUNDLE_CONTENT_DIR:TestedApp>/PlugIns")
+    endif()
+  else()
+    xctest_add_bundle_test(Darwin macosx "" "$<TARGET_BUNDLE_CONTENT_DIR:TestedApp>/PlugIns")
+    xctest_add_bundle_test(iOS iphonesimulator "" "$<TARGET_BUNDLE_CONTENT_DIR:TestedApp>/PlugIns")
+  endif()
+endif()
+
 # Please add macOS-only tests above before the device-specific tests.

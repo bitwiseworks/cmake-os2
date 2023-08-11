@@ -32,7 +32,6 @@
 #include "cmNinjaTypes.h"
 #include "cmOSXBundleGenerator.h"
 #include "cmOutputConverter.h"
-#include "cmProperty.h"
 #include "cmRulePlaceholderExpander.h"
 #include "cmSourceFile.h"
 #include "cmState.h"
@@ -41,6 +40,7 @@
 #include "cmStateTypes.h"
 #include "cmStringAlgorithms.h"
 #include "cmSystemTools.h"
+#include "cmValue.h"
 
 cmNinjaNormalTargetGenerator::cmNinjaNormalTargetGenerator(
   cmGeneratorTarget* target)
@@ -126,14 +126,10 @@ void cmNinjaNormalTargetGenerator::WriteLanguagesRules(
   std::set<std::string> languages;
   std::vector<cmSourceFile const*> sourceFiles;
   this->GetGeneratorTarget()->GetObjectSources(sourceFiles, config);
-  for (cmSourceFile const* sf : sourceFiles) {
-    std::string const lang = sf->GetLanguage();
-    if (!lang.empty()) {
-      languages.insert(lang);
+  if (this->HaveRequiredLanguages(sourceFiles, languages)) {
+    for (std::string const& language : languages) {
+      this->WriteLanguageRules(language, config);
     }
-  }
-  for (std::string const& language : languages) {
-    this->WriteLanguageRules(language, config);
   }
 }
 
@@ -267,7 +263,7 @@ void cmNinjaNormalTargetGenerator::WriteNvidiaDeviceLinkRule(
     vars.LanguageCompileFlags = "$LANGUAGE_COMPILE_FLAGS";
 
     std::string launcher;
-    cmProp val = this->GetLocalGenerator()->GetRuleLauncher(
+    cmValue val = this->GetLocalGenerator()->GetRuleLauncher(
       this->GetGeneratorTarget(), "RULE_LAUNCH_LINK");
     if (cmNonempty(val)) {
       launcher = cmStrCat(*val, ' ');
@@ -326,6 +322,7 @@ void cmNinjaNormalTargetGenerator::WriteDeviceLinkRules(
   vars.Object = "$out";
   vars.Fatbinary = "$FATBIN";
   vars.RegisterFile = "$REGISTER";
+  vars.LinkFlags = "$LINK_FLAGS";
 
   std::string flags = this->GetFlags("CUDA", config);
   vars.Flags = flags.c_str();
@@ -368,7 +365,7 @@ void cmNinjaNormalTargetGenerator::WriteLinkRule(bool useResponseFile,
     vars.CMTargetType = cmState::GetTargetTypeName(targetType).c_str();
 
     std::string lang = this->TargetLinkLanguage(config);
-    vars.Language = config.c_str();
+    vars.Language = lang.c_str();
     vars.AIXExports = "$AIX_EXPORTS";
 
     if (this->TargetLinkLanguage(config) == "Swift") {
@@ -390,7 +387,7 @@ void cmNinjaNormalTargetGenerator::WriteLinkRule(bool useResponseFile,
 
     // build response file name
     std::string cmakeLinkVar = cmakeVarLang + "_RESPONSE_FILE_LINK_FLAG";
-    cmProp flag = this->GetMakefile()->GetDefinition(cmakeLinkVar);
+    cmValue flag = this->GetMakefile()->GetDefinition(cmakeLinkVar);
 
     if (flag) {
       responseFlag = *flag;
@@ -456,8 +453,13 @@ void cmNinjaNormalTargetGenerator::WriteLinkRule(bool useResponseFile,
       vars.LanguageCompileFlags = langFlags.c_str();
     }
 
+    std::string linkerLauncher = this->GetLinkerLauncher(config);
+    if (cmNonempty(linkerLauncher)) {
+      vars.Launcher = linkerLauncher.c_str();
+    }
+
     std::string launcher;
-    cmProp val = this->GetLocalGenerator()->GetRuleLauncher(
+    cmValue val = this->GetLocalGenerator()->GetRuleLauncher(
       this->GetGeneratorTarget(), "RULE_LAUNCH_LINK");
     if (cmNonempty(val)) {
       launcher = cmStrCat(*val, ' ');
@@ -535,7 +537,6 @@ std::vector<std::string> cmNinjaNormalTargetGenerator::ComputeDeviceLinkCmd()
   // this target requires separable cuda compilation
   // now build the correct command depending on if the target is
   // an executable or a dynamic library.
-  std::string linkCmd;
   switch (this->GetGeneratorTarget()->GetType()) {
     case cmStateEnums::STATIC_LIBRARY:
     case cmStateEnums::SHARED_LIBRARY:
@@ -564,29 +565,35 @@ std::vector<std::string> cmNinjaNormalTargetGenerator::ComputeLinkCmd(
     // CMAKE_<lang>_CREATE_STATIC_LIBRARY_IPO define instead.
     std::string linkCmdVar = this->GetGeneratorTarget()->GetCreateRuleVariable(
       this->TargetLinkLanguage(config), config);
-    cmProp linkCmd = mf->GetDefinition(linkCmdVar);
+    cmValue linkCmd = mf->GetDefinition(linkCmdVar);
     if (linkCmd) {
       std::string linkCmdStr = *linkCmd;
       if (this->GetGeneratorTarget()->HasImplibGNUtoMS(config)) {
         std::string ruleVar =
           cmStrCat("CMAKE_", this->GeneratorTarget->GetLinkerLanguage(config),
                    "_GNUtoMS_RULE");
-        if (cmProp rule = this->Makefile->GetDefinition(ruleVar)) {
+        if (cmValue rule = this->Makefile->GetDefinition(ruleVar)) {
           linkCmdStr += *rule;
         }
       }
       cmExpandList(linkCmdStr, linkCmds);
-      if (this->GetGeneratorTarget()->GetPropertyAsBool("LINK_WHAT_YOU_USE")) {
-        std::string cmakeCommand = cmStrCat(
-          this->GetLocalGenerator()->ConvertToOutputFormat(
-            cmSystemTools::GetCMakeCommand(), cmLocalGenerator::SHELL),
-          " -E __run_co_compile --lwyu=");
-        cmGeneratorTarget& gt = *this->GetGeneratorTarget();
-        std::string targetOutputReal = this->ConvertToNinjaPath(
-          gt.GetFullPath(config, cmStateEnums::RuntimeBinaryArtifact,
-                         /*realname=*/true));
-        cmakeCommand += targetOutputReal;
-        linkCmds.push_back(std::move(cmakeCommand));
+      if (this->UseLWYU) {
+        cmValue lwyuCheck = mf->GetDefinition("CMAKE_LINK_WHAT_YOU_USE_CHECK");
+        if (lwyuCheck) {
+          std::string cmakeCommand = cmStrCat(
+            this->GetLocalGenerator()->ConvertToOutputFormat(
+              cmSystemTools::GetCMakeCommand(), cmLocalGenerator::SHELL),
+            " -E __run_co_compile --lwyu=");
+          cmakeCommand +=
+            this->GetLocalGenerator()->EscapeForShell(*lwyuCheck);
+
+          std::string targetOutputReal =
+            this->ConvertToNinjaPath(this->GetGeneratorTarget()->GetFullPath(
+              config, cmStateEnums::RuntimeBinaryArtifact,
+              /*realname=*/true));
+          cmakeCommand += cmStrCat(" --source=", targetOutputReal);
+          linkCmds.push_back(std::move(cmakeCommand));
+        }
       }
       return linkCmds;
     }
@@ -733,9 +740,10 @@ void cmNinjaNormalTargetGenerator::WriteDeviceLinkStatements(
     return deps;
   }();
 
+  cmGlobalNinjaGenerator* globalGen{ this->GetGlobalGenerator() };
   const std::string objectDir =
     cmStrCat(this->GeneratorTarget->GetSupportDirectory(),
-             this->GetGlobalGenerator()->ConfigDirectory(config));
+             globalGen->ConfigDirectory(config));
   const std::string ninjaOutputDir = this->ConvertToNinjaPath(objectDir);
 
   cmNinjaBuild fatbinary(this->LanguageLinkerCudaFatbinaryRule(config));
@@ -748,10 +756,6 @@ void cmNinjaNormalTargetGenerator::WriteDeviceLinkStatements(
     const std::string cubin =
       cmStrCat(ninjaOutputDir, "/sm_", architecture, ".cubin");
 
-    fatbinary.Variables["PROFILES"] +=
-      cmStrCat(" -im=profile=sm_", architecture, ",file=", cubin);
-    fatbinary.ExplicitDeps.emplace_back(cubin);
-
     cmNinjaBuild dlink(this->LanguageLinkerCudaDeviceRule(config));
     dlink.ExplicitDeps = explicitDeps;
     dlink.Outputs = { cubin };
@@ -761,31 +765,46 @@ void cmNinjaNormalTargetGenerator::WriteDeviceLinkStatements(
     // the device routines. Because the routines are the same for all
     // architectures the register file will be the same too. Thus generate it
     // only on the first invocation to reduce overhead.
-    if (fatbinary.ExplicitDeps.size() == 1) {
+    if (fatbinary.ExplicitDeps.empty()) {
       dlink.Variables["REGISTER"] = cmStrCat(
         "--register-link-binaries=", ninjaOutputDir, "/cmake_cuda_register.h");
     }
 
-    this->GetGlobalGenerator()->WriteBuild(this->GetCommonFileStream(), dlink);
+    fatbinary.Variables["PROFILES"] +=
+      cmStrCat(" -im=profile=sm_", architecture, ",file=", cubin);
+    fatbinary.ExplicitDeps.emplace_back(cubin);
+
+    globalGen->WriteBuild(this->GetCommonFileStream(), dlink);
   }
 
   // Combine all architectures into a single fatbinary.
   fatbinary.Outputs = { cmStrCat(ninjaOutputDir, "/cmake_cuda_fatbin.h") };
-  this->GetGlobalGenerator()->WriteBuild(this->GetCommonFileStream(),
-                                         fatbinary);
+  globalGen->WriteBuild(this->GetCommonFileStream(), fatbinary);
 
   // Compile the stub that registers the kernels and contains the fatbinaries.
+  cmLocalNinjaGenerator* localGen{ this->GetLocalGenerator() };
   cmNinjaBuild dcompile(this->LanguageLinkerCudaDeviceCompileRule(config));
   dcompile.Outputs = { output };
   dcompile.ExplicitDeps = { cmStrCat(ninjaOutputDir, "/cmake_cuda_fatbin.h") };
-  dcompile.Variables["FATBIN"] =
-    this->GetLocalGenerator()->ConvertToOutputFormat(
-      cmStrCat(objectDir, "/cmake_cuda_fatbin.h"), cmOutputConverter::SHELL);
-  dcompile.Variables["REGISTER"] =
-    this->GetLocalGenerator()->ConvertToOutputFormat(
-      cmStrCat(objectDir, "/cmake_cuda_register.h"), cmOutputConverter::SHELL);
-  this->GetGlobalGenerator()->WriteBuild(this->GetCommonFileStream(),
-                                         dcompile);
+  dcompile.Variables["FATBIN"] = localGen->ConvertToOutputFormat(
+    cmStrCat(objectDir, "/cmake_cuda_fatbin.h"), cmOutputConverter::SHELL);
+  dcompile.Variables["REGISTER"] = localGen->ConvertToOutputFormat(
+    cmStrCat(objectDir, "/cmake_cuda_register.h"), cmOutputConverter::SHELL);
+
+  cmNinjaLinkLineDeviceComputer linkLineComputer(
+    localGen, localGen->GetStateSnapshot().GetDirectory(), globalGen);
+  linkLineComputer.SetUseNinjaMulti(globalGen->IsMultiConfig());
+
+  // Link libraries and paths are only used during the final executable/library
+  // link.
+  std::string frameworkPath;
+  std::string linkPath;
+  std::string linkLibs;
+  localGen->GetDeviceLinkFlags(linkLineComputer, config, linkLibs,
+                               dcompile.Variables["LINK_FLAGS"], frameworkPath,
+                               linkPath, this->GetGeneratorTarget());
+
+  globalGen->WriteBuild(this->GetCommonFileStream(), dcompile);
 }
 
 void cmNinjaNormalTargetGenerator::WriteNvidiaDeviceLinkStatement(
@@ -839,24 +858,19 @@ void cmNinjaNormalTargetGenerator::WriteNvidiaDeviceLinkStatement(
 
   std::string createRule =
     genTarget->GetCreateRuleVariable(this->TargetLinkLanguage(config), config);
-  const bool useWatcomQuote =
-    this->GetMakefile()->IsOn(createRule + "_USE_WATCOM_QUOTE");
   cmLocalNinjaGenerator& localGen = *this->GetLocalGenerator();
 
   vars["TARGET_FILE"] =
     localGen.ConvertToOutputFormat(output, cmOutputConverter::SHELL);
 
-  std::unique_ptr<cmLinkLineComputer> linkLineComputer(
-    new cmNinjaLinkLineDeviceComputer(
-      this->GetLocalGenerator(),
-      this->GetLocalGenerator()->GetStateSnapshot().GetDirectory(),
-      globalGen));
-  linkLineComputer->SetUseWatcomQuote(useWatcomQuote);
-  linkLineComputer->SetUseNinjaMulti(globalGen->IsMultiConfig());
+  cmNinjaLinkLineDeviceComputer linkLineComputer(
+    this->GetLocalGenerator(),
+    this->GetLocalGenerator()->GetStateSnapshot().GetDirectory(), globalGen);
+  linkLineComputer.SetUseNinjaMulti(globalGen->IsMultiConfig());
 
-  localGen.GetDeviceLinkFlags(linkLineComputer.get(), config,
-                              vars["LINK_LIBRARIES"], vars["LINK_FLAGS"],
-                              frameworkPath, linkPath, genTarget);
+  localGen.GetDeviceLinkFlags(linkLineComputer, config, vars["LINK_LIBRARIES"],
+                              vars["LINK_FLAGS"], frameworkPath, linkPath,
+                              genTarget);
 
   this->addPoolNinjaVariable("JOB_POOL_LINK", genTarget, vars);
 
@@ -875,7 +889,8 @@ void cmNinjaNormalTargetGenerator::WriteNvidiaDeviceLinkStatement(
   if (genTarget->HasSOName(config)) {
     vars["SONAME_FLAG"] =
       this->GetMakefile()->GetSONameFlag(this->TargetLinkLanguage(config));
-    vars["SONAME"] = tgtNames.SharedObject;
+    vars["SONAME"] = localGen.ConvertToOutputFormat(tgtNames.SharedObject,
+                                                    cmOutputConverter::SHELL);
     if (genTarget->GetType() == cmStateEnums::SHARED_LIBRARY) {
       std::string install_dir =
         this->GetGeneratorTarget()->GetInstallNameDirForBuildTree(config);
@@ -890,7 +905,7 @@ void cmNinjaNormalTargetGenerator::WriteNvidiaDeviceLinkStatement(
     const std::string impLibPath = localGen.ConvertToOutputFormat(
       targetOutputImplib, cmOutputConverter::SHELL);
     vars["TARGET_IMPLIB"] = impLibPath;
-    this->EnsureParentDirectoryExists(impLibPath);
+    this->EnsureParentDirectoryExists(targetOutputImplib);
   }
 
   const std::string objPath =
@@ -1032,7 +1047,7 @@ void cmNinjaNormalTargetGenerator::WriteLinkStatement(
     }();
 
     vars["SWIFT_MODULE_NAME"] = [gt]() -> std::string {
-      if (cmProp name = gt->GetProperty("Swift_MODULE_NAME")) {
+      if (cmValue name = gt->GetProperty("Swift_MODULE_NAME")) {
         return *name;
       }
       return gt->GetName();
@@ -1041,13 +1056,13 @@ void cmNinjaNormalTargetGenerator::WriteLinkStatement(
     vars["SWIFT_MODULE"] = [this](const std::string& module) -> std::string {
       std::string directory =
         this->GetLocalGenerator()->GetCurrentBinaryDirectory();
-      if (cmProp prop = this->GetGeneratorTarget()->GetProperty(
+      if (cmValue prop = this->GetGeneratorTarget()->GetProperty(
             "Swift_MODULE_DIRECTORY")) {
         directory = *prop;
       }
 
       std::string name = module + ".swiftmodule";
-      if (cmProp prop =
+      if (cmValue prop =
             this->GetGeneratorTarget()->GetProperty("Swift_MODULE")) {
         name = *prop;
       }
@@ -1070,10 +1085,12 @@ void cmNinjaNormalTargetGenerator::WriteLinkStatement(
       this->GetGeneratorTarget()->GetObjectSources(sources, config);
       cmLocalGenerator const* LocalGen = this->GetLocalGenerator();
       for (const auto& source : sources) {
+        const std::string sourcePath = source->GetLanguage() == "Swift"
+          ? this->GetCompiledSourceNinjaPath(source)
+          : this->GetObjectFilePath(source, config);
         oss << " "
-            << LocalGen->ConvertToOutputFormat(
-                 this->ConvertToNinjaPath(this->GetSourceFilePath(source)),
-                 cmOutputConverter::SHELL);
+            << LocalGen->ConvertToOutputFormat(sourcePath,
+                                               cmOutputConverter::SHELL);
       }
       return oss.str();
     }();
@@ -1091,10 +1108,15 @@ void cmNinjaNormalTargetGenerator::WriteLinkStatement(
     std::vector<cmSourceFile const*> sources;
     gt->GetObjectSources(sources, config);
     for (const auto& source : sources) {
-      linkBuild.Outputs.push_back(
-        this->ConvertToNinjaPath(this->GetObjectFilePath(source, config)));
-      linkBuild.ExplicitDeps.push_back(
-        this->ConvertToNinjaPath(this->GetSourceFilePath(source)));
+      if (source->GetLanguage() == "Swift") {
+        linkBuild.Outputs.push_back(
+          this->ConvertToNinjaPath(this->GetObjectFilePath(source, config)));
+        linkBuild.ExplicitDeps.emplace_back(
+          this->GetCompiledSourceNinjaPath(source));
+      } else {
+        linkBuild.ExplicitDeps.emplace_back(
+          this->GetObjectFilePath(source, config));
+      }
     }
     linkBuild.Outputs.push_back(vars["SWIFT_MODULE"]);
   } else {
@@ -1148,18 +1170,16 @@ void cmNinjaNormalTargetGenerator::WriteLinkStatement(
 
   this->addPoolNinjaVariable("JOB_POOL_LINK", gt, vars);
 
-  this->AddModuleDefinitionFlag(linkLineComputer.get(), vars["LINK_FLAGS"],
-                                config);
+  this->UseLWYU = this->GetLocalGenerator()->AppendLWYUFlags(
+    vars["LINK_FLAGS"], this->GetGeneratorTarget(),
+    this->TargetLinkLanguage(config));
+
   vars["LINK_FLAGS"] = globalGen->EncodeLiteral(vars["LINK_FLAGS"]);
 
   vars["MANIFESTS"] = this->GetManifests(config);
   vars["AIX_EXPORTS"] = this->GetAIXExports(config);
 
   vars["LINK_PATH"] = frameworkPath + linkPath;
-  std::string lwyuFlags;
-  if (gt->GetPropertyAsBool("LINK_WHAT_YOU_USE")) {
-    lwyuFlags = " -Wl,--no-as-needed";
-  }
 
   // Compute architecture specific link flags.  Yes, these go into a different
   // variable for executables, probably due to a mistake made when duplicating
@@ -1168,7 +1188,6 @@ void cmNinjaNormalTargetGenerator::WriteLinkStatement(
     std::string t = vars["FLAGS"];
     localGen.AddArchitectureFlags(t, gt, this->TargetLinkLanguage(config),
                                   config);
-    t += lwyuFlags;
     vars["FLAGS"] = t;
   } else {
     std::string t = vars["ARCH_FLAGS"];
@@ -1176,14 +1195,14 @@ void cmNinjaNormalTargetGenerator::WriteLinkStatement(
                                   config);
     vars["ARCH_FLAGS"] = t;
     t.clear();
-    t += lwyuFlags;
     localGen.AddLanguageFlagsForLinking(
       t, gt, this->TargetLinkLanguage(config), config);
     vars["LANGUAGE_COMPILE_FLAGS"] = t;
   }
   if (gt->HasSOName(config)) {
     vars["SONAME_FLAG"] = mf->GetSONameFlag(this->TargetLinkLanguage(config));
-    vars["SONAME"] = tgtNames.SharedObject;
+    vars["SONAME"] = localGen.ConvertToOutputFormat(tgtNames.SharedObject,
+                                                    cmOutputConverter::SHELL);
     if (targetType == cmStateEnums::SHARED_LIBRARY) {
       std::string install_dir = gt->GetInstallNameDirForBuildTree(config);
       if (!install_dir.empty()) {
@@ -1193,15 +1212,16 @@ void cmNinjaNormalTargetGenerator::WriteLinkStatement(
     }
   }
 
-  cmNinjaDeps byproducts;
+  cmGlobalNinjaGenerator::CCOutputs byproducts(this->GetGlobalGenerator());
 
   if (!tgtNames.ImportLibrary.empty()) {
     const std::string impLibPath = localGen.ConvertToOutputFormat(
       targetOutputImplib, cmOutputConverter::SHELL);
     vars["TARGET_IMPLIB"] = impLibPath;
-    this->EnsureParentDirectoryExists(impLibPath);
+    this->EnsureParentDirectoryExists(targetOutputImplib);
     if (gt->HasImportLibrary(config)) {
-      byproducts.push_back(targetOutputImplib);
+      // Some linkers may update a binary without touching its import lib.
+      byproducts.ExplicitOuts.emplace_back(targetOutputImplib);
       if (firstForConfig) {
         globalGen->GetByproductsForCleanTarget(config).push_back(
           targetOutputImplib);
@@ -1218,7 +1238,7 @@ void cmNinjaNormalTargetGenerator::WriteLinkStatement(
     gt->GetFullNameComponents(prefix, base, suffix, config);
     std::string dbg_suffix = ".dbg";
     // TODO: Where to document?
-    if (cmProp d = mf->GetDefinition("CMAKE_DEBUG_SYMBOL_SUFFIX")) {
+    if (cmValue d = mf->GetDefinition("CMAKE_DEBUG_SYMBOL_SUFFIX")) {
       dbg_suffix = *d;
     }
     vars["TARGET_PDB"] = base + suffix + dbg_suffix;
@@ -1259,8 +1279,7 @@ void cmNinjaNormalTargetGenerator::WriteLinkStatement(
                                      true, config);
         localGen.AppendCustomCommandLines(ccg, *cmdLineLists[i]);
         std::vector<std::string> const& ccByproducts = ccg.GetByproducts();
-        std::transform(ccByproducts.begin(), ccByproducts.end(),
-                       std::back_inserter(byproducts), this->MapToNinjaPath());
+        byproducts.Add(ccByproducts);
         std::transform(
           ccByproducts.begin(), ccByproducts.end(),
           std::back_inserter(globalGen->GetByproductsForCleanTarget()),
@@ -1285,7 +1304,7 @@ void cmNinjaNormalTargetGenerator::WriteLinkStatement(
     cmd += this->GetLocalGenerator()->ConvertToOutputFormat(
       obj_list_file, cmOutputConverter::SHELL);
 
-    cmProp nm_executable = this->GetMakefile()->GetDefinition("CMAKE_NM");
+    cmValue nm_executable = this->GetMakefile()->GetDefinition("CMAKE_NM");
     if (cmNonempty(nm_executable)) {
       cmd += " --nm=";
       cmd += this->LocalCommonGenerator->ConvertToOutputFormat(
@@ -1339,7 +1358,7 @@ void cmNinjaNormalTargetGenerator::WriteLinkStatement(
   // build response file name
   std::string cmakeLinkVar = cmakeVarLang + "_RESPONSE_FILE_LINK_FLAG";
 
-  cmProp flag = this->GetMakefile()->GetDefinition(cmakeLinkVar);
+  cmValue flag = this->GetMakefile()->GetDefinition(cmakeLinkVar);
 
   bool const lang_supports_response =
     !(this->TargetLinkLanguage(config) == "RC" ||
@@ -1380,12 +1399,13 @@ void cmNinjaNormalTargetGenerator::WriteLinkStatement(
   }
 
   // Ninja should restat after linking if and only if there are byproducts.
-  vars["RESTAT"] = byproducts.empty() ? "" : "1";
+  vars["RESTAT"] = byproducts.ExplicitOuts.empty() ? "" : "1";
 
-  for (std::string const& o : byproducts) {
-    globalGen->SeenCustomCommandOutput(o);
-    linkBuild.Outputs.push_back(o);
-  }
+  linkBuild.Outputs.reserve(linkBuild.Outputs.size() +
+                            byproducts.ExplicitOuts.size());
+  std::move(byproducts.ExplicitOuts.begin(), byproducts.ExplicitOuts.end(),
+            std::back_inserter(linkBuild.Outputs));
+  linkBuild.WorkDirOuts = std::move(byproducts.WorkDirOuts);
 
   // Write the build statement for this target.
   bool usedResponseFile = false;

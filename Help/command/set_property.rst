@@ -9,8 +9,8 @@ Set a named property in a given scope.
                 DIRECTORY [<dir>]           |
                 TARGET    [<target1> ...]   |
                 SOURCE    [<src1> ...]
-                          [DIRECTORY <dirs> ...] |
-                          [TARGET_DIRECTORY <targets> ...]
+                          [DIRECTORY <dirs> ...]
+                          [TARGET_DIRECTORY <targets> ...] |
                 INSTALL   [<file1> ...]     |
                 TEST      [<test1> ...]     |
                 CACHE     [<entry1> ...]    >
@@ -84,6 +84,10 @@ It must be one of the following:
 ``TEST``
   Scope may name zero or more existing tests.
   See also the :command:`set_tests_properties` command.
+
+  Test property values may be specified using
+  :manual:`generator expressions <cmake-generator-expressions(7)>`
+  for tests created by the :command:`add_test(NAME)` signature.
 
 ``CACHE``
   Scope must name zero or more cache existing entries.

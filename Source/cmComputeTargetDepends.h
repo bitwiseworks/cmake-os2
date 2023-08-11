@@ -10,12 +10,13 @@
 #include <vector>
 
 #include "cmGraphAdjacencyList.h"
-#include "cmListFileCache.h"
 
 class cmComputeComponentGraph;
 class cmGeneratorTarget;
 class cmGlobalGenerator;
 class cmLinkItem;
+class cmListFileBacktrace;
+class cmSourceFile;
 class cmTargetDependSet;
 
 /** \class cmComputeTargetDepends
@@ -71,6 +72,8 @@ private:
                            cmListFileBacktrace const& dependee_backtrace,
                            const std::string& config,
                            std::set<cmLinkItem>& emitted);
+  void AddObjectDepends(int depender_index, cmSourceFile const* o,
+                        std::set<cmLinkItem>& emitted);
   cmGlobalGenerator* GlobalGenerator;
   bool DebugMode;
   bool NoCycles;

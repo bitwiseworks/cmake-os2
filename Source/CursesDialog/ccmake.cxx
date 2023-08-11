@@ -9,8 +9,6 @@
 #include <string>
 #include <vector>
 
-#include <unistd.h>
-
 #include "cmsys/Encoding.hxx"
 
 #include "cmCursesColor.h"
@@ -19,6 +17,7 @@
 #include "cmCursesStandardIncludes.h"
 #include "cmDocumentation.h"
 #include "cmDocumentationEntry.h" // IWYU pragma: keep
+#include "cmMessageMetadata.h"
 #include "cmState.h"
 #include "cmStringAlgorithms.h"
 #include "cmSystemTools.h"
@@ -52,31 +51,18 @@ static const char* cmDocumentationOptions[][2] = {
 
 cmCursesForm* cmCursesForm::CurrentForm = nullptr;
 
+#ifndef _WIN32
 extern "C" {
 
-void onsig(int /*unused*/)
+static void onsig(int /*unused*/)
 {
   if (cmCursesForm::CurrentForm) {
-    endwin();
-    if (initscr() == nullptr) {
-      static const char errmsg[] = "Error: ncurses initialization failed\n";
-      auto r = write(STDERR_FILENO, errmsg, sizeof(errmsg) - 1);
-      static_cast<void>(r);
-      exit(1);
-    }
-    noecho();             /* Echo off */
-    cbreak();             /* nl- or cr not needed */
-    keypad(stdscr, true); /* Use key symbols as KEY_DOWN */
-    refresh();
-    int x;
-    int y;
-    getmaxyx(stdscr, y, x);
-    cmCursesForm::CurrentForm->Render(1, 1, x, y);
-    cmCursesForm::CurrentForm->UpdateStatusBar();
+    cmCursesForm::CurrentForm->HandleResize();
   }
   signal(SIGWINCH, onsig);
 }
 }
+#endif // _WIN32
 
 int main(int argc, char const* const* argv)
 {
@@ -142,7 +128,9 @@ int main(int argc, char const* const* argv)
   keypad(stdscr, true); /* Use key symbols as KEY_DOWN */
   cmCursesColor::InitColors();
 
+#ifndef _WIN32
   signal(SIGWINCH, onsig);
+#endif // _WIN32
 
   int x;
   int y;
@@ -181,8 +169,8 @@ int main(int argc, char const* const* argv)
     return msg;
   };
   cmSystemTools::SetMessageCallback(
-    [&](const std::string& message, const char* title) {
-      myform->AddError(cleanMessage(message), title);
+    [&](const std::string& message, const cmMessageMetadata& md) {
+      myform->AddError(cleanMessage(message), md.title);
     });
   cmSystemTools::SetStderrCallback([&](const std::string& message) {
     myform->AddError(cleanMessage(message), "");

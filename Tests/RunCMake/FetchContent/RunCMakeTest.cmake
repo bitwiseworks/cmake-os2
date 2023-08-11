@@ -8,12 +8,15 @@ run_cmake(FirstDetailsWin)
 run_cmake(DownloadTwice)
 run_cmake(DownloadFile)
 run_cmake(SameGenerator)
+run_cmake(System)
 run_cmake(VarDefinitions)
+run_cmake(VarPassthroughs)
 run_cmake(GetProperties)
 run_cmake(UsesTerminalOverride)
 run_cmake(MakeAvailable)
 run_cmake(MakeAvailableTwice)
 run_cmake(MakeAvailableUndeclared)
+run_cmake(VerifyHeaderSet)
 
 run_cmake_with_options(ManualSourceDirectory
   -D "FETCHCONTENT_SOURCE_DIR_WITHPROJECT=${CMAKE_CURRENT_LIST_DIR}/WithProject"

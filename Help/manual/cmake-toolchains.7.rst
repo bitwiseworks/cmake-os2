@@ -17,6 +17,9 @@ determines the toolchain for host builds based on system introspection and
 defaults. In cross-compiling scenarios, a toolchain file may be specified
 with information about compiler and utility paths.
 
+.. versionadded:: 3.19
+  One may use :manual:`cmake-presets(7)` to specify toolchain files.
+
 Languages
 =========
 
@@ -58,20 +61,24 @@ Variables and Properties
 ========================
 
 Several variables relate to the language components of a toolchain which are
-enabled. :variable:`CMAKE_<LANG>_COMPILER` is the full path to the compiler used
-for ``<LANG>``. :variable:`CMAKE_<LANG>_COMPILER_ID` is the identifier used
-by CMake for the compiler and :variable:`CMAKE_<LANG>_COMPILER_VERSION` is the
-version of the compiler.
+enabled:
 
-The :variable:`CMAKE_<LANG>_FLAGS` variables and the configuration-specific
-equivalents contain flags that will be added to the compile command when
-compiling a file of a particular language.
+:variable:`CMAKE_<LANG>_COMPILER`
+  The full path to the compiler used for ``<LANG>``
+:variable:`CMAKE_<LANG>_COMPILER_ID`
+  The compiler identifier used by CMake
+:variable:`CMAKE_<LANG>_COMPILER_VERSION`
+  The version of the compiler.
+:variable:`CMAKE_<LANG>_FLAGS`
+  The variables and the configuration-specific equivalents contain flags that
+  will be added to the compile command when compiling a file of a particular
+  language.
 
-As the linker is invoked by the compiler driver, CMake needs a way to determine
-which compiler to use to invoke the linker. This is calculated by the
-:prop_sf:`LANGUAGE` of source files in the target, and in the case of static
-libraries, the language of the dependent libraries. The choice CMake makes may
-be overridden with the :prop_tgt:`LINKER_LANGUAGE` target property.
+CMake needs a way to determine which compiler to use to invoke the linker.
+This is determined by the :prop_sf:`LANGUAGE` property of source files of the
+:manual:`target <cmake-buildsystem(7)>`, and in the case of static libraries,
+the ``LANGUAGE`` of the dependent libraries. The choice CMake makes may be overridden
+with the :prop_tgt:`LINKER_LANGUAGE` target property.
 
 Toolchain Features
 ==================
@@ -96,8 +103,9 @@ Cross Compiling
 ===============
 
 If :manual:`cmake(1)` is invoked with the command line parameter
-``-DCMAKE_TOOLCHAIN_FILE=path/to/file``, the file will be loaded early to set
-values for the compilers.
+:option:`--toolchain path/to/file <cmake --toolchain>` or
+:option:`-DCMAKE_TOOLCHAIN_FILE=path/to/file <cmake -D>`, the
+file will be loaded early to set values for the compilers.
 The :variable:`CMAKE_CROSSCOMPILING` variable is set to true when CMake is
 cross-compiling.
 
@@ -132,24 +140,24 @@ as:
   set(CMAKE_FIND_ROOT_PATH_MODE_INCLUDE ONLY)
   set(CMAKE_FIND_ROOT_PATH_MODE_PACKAGE ONLY)
 
-The :variable:`CMAKE_SYSTEM_NAME` is the CMake-identifier of the target platform
-to build for.
+Where:
 
-The :variable:`CMAKE_SYSTEM_PROCESSOR` is the CMake-identifier of the target architecture
-to build for.
-
-The :variable:`CMAKE_SYSROOT` is optional, and may be specified if a sysroot
-is available.
-
-The :variable:`CMAKE_STAGING_PREFIX` is also optional. It may be used to specify
-a path on the host to install to. The :variable:`CMAKE_INSTALL_PREFIX` is always
-the runtime installation location, even when cross-compiling.
-
-The :variable:`CMAKE_<LANG>_COMPILER` variables may be set to full paths, or to
-names of compilers to search for in standard locations.   For toolchains that
-do not support linking binaries without custom flags or scripts one may set
-the :variable:`CMAKE_TRY_COMPILE_TARGET_TYPE` variable to ``STATIC_LIBRARY``
-to tell CMake not to try to link executables during its checks.
+:variable:`CMAKE_SYSTEM_NAME`
+  is the CMake-identifier of the target platform to build for.
+:variable:`CMAKE_SYSTEM_PROCESSOR`
+  is the CMake-identifier of the target architecture.
+:variable:`CMAKE_SYSROOT`
+  is optional, and may be specified if a sysroot is available.
+:variable:`CMAKE_STAGING_PREFIX`
+  is also optional. It may be used to specify a path on the host to install to.
+  The :variable:`CMAKE_INSTALL_PREFIX` is always the runtime installation
+  location, even when cross-compiling.
+:variable:`CMAKE_<LANG>_COMPILER`
+  variable may be set to full paths, or to names of compilers to search for
+  in standard locations.  For toolchains that do not support linking binaries
+  without custom flags or scripts one may set the
+  :variable:`CMAKE_TRY_COMPILE_TARGET_TYPE` variable to ``STATIC_LIBRARY`` to
+  tell CMake not to try to link executables during its checks.
 
 CMake ``find_*`` commands will look in the sysroot, and the :variable:`CMAKE_FIND_ROOT_PATH`
 entries by default in all cases, as well as looking in the host system root prefix.
@@ -300,6 +308,28 @@ Windows Store may look like this:
 
   set(CMAKE_SYSTEM_NAME WindowsStore)
   set(CMAKE_SYSTEM_VERSION 8.1)
+
+.. _`Cross Compiling for ADSP SHARC/Blackfin`:
+
+Cross Compiling for ADSP SHARC/Blackfin
+---------------------------------------
+
+Cross-compiling for ADSP SHARC or Blackfin can be configured
+by setting the :variable:`CMAKE_SYSTEM_NAME` variable to ``ADSP``
+and the :variable:`CMAKE_SYSTEM_PROCESSOR` variable
+to the "part number", excluding the ``ADSP-`` prefix,
+for example, ``21594``, ``SC589``, etc.
+This value is case insensitive.
+
+CMake will automatically search for CCES or VDSP++ installs
+in their default install locations
+and select the most recent version found.
+CCES will be selected over VDSP++ if both are installed.
+Custom install paths can be set via the :variable:`CMAKE_ADSP_ROOT` variable
+or the :envvar:`ADSP_ROOT` environment variable.
+
+The compiler (``cc21k`` vs. ``ccblkfn``) is selected automatically
+based on the :variable:`CMAKE_SYSTEM_PROCESSOR` value provided.
 
 .. _`Cross Compiling for Android`:
 

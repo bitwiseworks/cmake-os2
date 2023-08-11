@@ -2,7 +2,7 @@ project(libuv C)
 
 # Disable warnings to avoid changing 3rd party code.
 if(CMAKE_C_COMPILER_ID MATCHES
-    "^(GNU|Clang|AppleClang|XLClang|XL|VisualAge|SunPro|HP|Intel|IntelLLVM)$")
+    "^(GNU|LCC|Clang|AppleClang|IBMClang|XLClang|XL|VisualAge|SunPro|HP|Intel|IntelLLVM|NVHPC)$")
   set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -w")
 elseif(CMAKE_C_COMPILER_ID STREQUAL "PathScale")
   set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -woffall")
@@ -27,6 +27,8 @@ set(uv_sources
   src/queue.h
   src/strscpy.c
   src/strscpy.h
+  src/strtok.c
+  src/strtok.h
   src/threadpool.c
   src/timer.c
   src/uv-common.c
@@ -169,7 +171,7 @@ if(CMAKE_SYSTEM_NAME STREQUAL "OS400")
     )
 endif()
 
-if(CMAKE_SYSTEM_NAME MATCHES "CYGWIN")
+if(CMAKE_SYSTEM_NAME MATCHES "CYGWIN" OR CMAKE_SYSTEM_NAME MATCHES "MSYS")
   list(APPEND uv_libraries
     )
   list(APPEND uv_headers
@@ -215,6 +217,7 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     )
   list(APPEND uv_defines _GNU_SOURCE)
   list(APPEND uv_sources
+    src/unix/epoll.c
     src/unix/linux-core.c
     src/unix/linux-inotify.c
     src/unix/linux-syscalls.c

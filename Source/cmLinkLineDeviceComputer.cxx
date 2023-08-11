@@ -16,11 +16,11 @@
 #include "cmListFileCache.h"
 #include "cmLocalGenerator.h"
 #include "cmMakefile.h"
-#include "cmProperty.h"
 #include "cmStateDirectory.h"
 #include "cmStateSnapshot.h"
 #include "cmStateTypes.h"
 #include "cmStringAlgorithms.h"
+#include "cmValue.h"
 
 class cmOutputConverter;
 
@@ -57,7 +57,6 @@ bool cmLinkLineDeviceComputer::ComputeRequiresDeviceLinking(
   // For this we only consider targets
   using ItemVector = cmComputeLinkInformation::ItemVector;
   ItemVector const& items = cli.GetItems();
-  std::string config = cli.GetConfig();
   return std::any_of(
     items.begin(), items.end(),
     [](cmComputeLinkInformation::Item const& item) -> bool {
@@ -66,6 +65,26 @@ bool cmLinkLineDeviceComputer::ComputeRequiresDeviceLinking(
         // this dependency requires us to device link it
         !item.Target->GetPropertyAsBool("CUDA_RESOLVE_DEVICE_SYMBOLS") &&
         item.Target->GetPropertyAsBool("CUDA_SEPARABLE_COMPILATION");
+    });
+}
+
+bool cmLinkLineDeviceComputer::ComputeRequiresDeviceLinkingIPOFlag(
+  cmComputeLinkInformation& cli)
+{
+  // Determine if this item might requires device linking.
+  // For this we only consider targets
+  using ItemVector = cmComputeLinkInformation::ItemVector;
+  ItemVector const& items = cli.GetItems();
+  std::string config = cli.GetConfig();
+  return std::any_of(
+    items.begin(), items.end(),
+    [config](cmComputeLinkInformation::Item const& item) -> bool {
+      return item.Target &&
+        item.Target->GetType() == cmStateEnums::STATIC_LIBRARY &&
+        // this dependency requires us to device link it
+        !item.Target->GetPropertyAsBool("CUDA_RESOLVE_DEVICE_SYMBOLS") &&
+        item.Target->GetPropertyAsBool("CUDA_SEPARABLE_COMPILATION") &&
+        item.Target->IsIPOEnabled("CUDA", config);
     });
 }
 
@@ -111,15 +130,17 @@ void cmLinkLineDeviceComputer::ComputeLinkLibraries(
     }
 
     BT<std::string> linkLib;
-    if (item.IsPath) {
+    if (item.IsPath == cmComputeLinkInformation::ItemIsPath::Yes) {
       // nvcc understands absolute paths to libraries ending in '.a' or '.lib'.
       // These should be passed to nvlink.  Other extensions need to be left
       // out because nvlink may not understand or need them.  Even though it
       // can tolerate '.so' or '.dylib' it cannot tolerate '.so.1'.
       if (cmHasLiteralSuffix(item.Value.Value, ".a") ||
           cmHasLiteralSuffix(item.Value.Value, ".lib")) {
-        linkLib.Value += this->ConvertToOutputFormat(
-          this->ConvertToLinkReference(item.Value.Value));
+        linkLib.Value = item
+                          .GetFormattedItem(this->ConvertToOutputFormat(
+                            this->ConvertToLinkReference(item.Value.Value)))
+                          .Value;
       }
     } else if (item.Value == "-framework") {
       // This is the first part of '-framework Name' where the framework
@@ -127,14 +148,15 @@ void cmLinkLineDeviceComputer::ComputeLinkLibraries(
       skipItemAfterFramework = true;
       continue;
     } else if (cmLinkItemValidForDevice(item.Value.Value)) {
-      linkLib.Value += item.Value.Value;
+      linkLib.Value = item.Value.Value;
     }
 
     if (emitted.insert(linkLib.Value).second) {
       linkLib.Value += " ";
 
       const cmLinkImplementation* linkImpl =
-        cli.GetTarget()->GetLinkImplementation(cli.GetConfig());
+        cli.GetTarget()->GetLinkImplementation(
+          cli.GetConfig(), cmGeneratorTarget::LinkInterfaceFor::Link);
 
       for (const cmLinkImplItem& iter : linkImpl->Libraries) {
         if (iter.Target != nullptr &&
@@ -177,7 +199,7 @@ bool requireDeviceLinking(cmGeneratorTarget& target, cmLocalGenerator& lg,
     return false;
   }
 
-  if (cmProp resolveDeviceSymbols =
+  if (cmValue resolveDeviceSymbols =
         target.GetProperty("CUDA_RESOLVE_DEVICE_SYMBOLS")) {
     // If CUDA_RESOLVE_DEVICE_SYMBOLS has been explicitly set we need
     // to honor the value no matter what it is.

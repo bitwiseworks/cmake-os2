@@ -9,8 +9,9 @@ generator using the name "Visual Studio 12" without the year component.
 Project Types
 ^^^^^^^^^^^^^
 
-Only Visual C++ and C# projects may be generated.  Other types of
-projects (JavaScript, Powershell, Python, etc.) are not supported.
+Only Visual C++ and C# projects may be generated (and Fortran with
+Intel compiler integration).  Other types of projects (JavaScript,
+Powershell, Python, etc.) are not supported.
 
 Platform Selection
 ^^^^^^^^^^^^^^^^^^
@@ -19,7 +20,7 @@ The default target platform name (architecture) is ``Win32``.
 
 .. versionadded:: 3.1
   The :variable:`CMAKE_GENERATOR_PLATFORM` variable may be set, perhaps
-  via the :manual:`cmake(1)` ``-A`` option, to specify a target platform
+  via the :option:`cmake -A` option, to specify a target platform
   name (architecture).  For example:
 
   * ``cmake -G "Visual Studio 12 2013" -A Win32``
@@ -41,9 +42,9 @@ Toolset Selection
 
 The ``v120`` toolset that comes with Visual Studio 12 2013 is selected by
 default.  The :variable:`CMAKE_GENERATOR_TOOLSET` option may be set, perhaps
-via the :manual:`cmake(1)` ``-T`` option, to specify another toolset.
+via the :option:`cmake -T` option, to specify another toolset.
 
 .. |VS_TOOLSET_HOST_ARCH_DEFAULT| replace::
    By default this generator uses the 32-bit variant even on a 64-bit host.
 
-.. include:: VS_TOOLSET_HOST_ARCH.txt
+.. include:: VS_TOOLSET_HOST_ARCH_LEGACY.txt

@@ -9,11 +9,13 @@ Synopsis
 .. parsed-literal::
 
   install(`TARGETS`_ <target>... [...])
+  install(`IMPORTED_RUNTIME_ARTIFACTS`_ <target>... [...])
   install({`FILES`_ | `PROGRAMS`_} <file>... [...])
   install(`DIRECTORY`_ <dir>... [...])
   install(`SCRIPT`_ <file> [...])
   install(`CODE`_ <code> [...])
   install(`EXPORT`_ <export-name> [...])
+  install(`RUNTIME_DEPENDENCY_SET`_ <set-name> [...])
 
 Introduction
 ^^^^^^^^^^^^
@@ -27,6 +29,10 @@ are executed in order during installation.
   added by calls to the :command:`add_subdirectory` command are interleaved
   with those in the parent directory to run in the order declared (see
   policy :policy:`CMP0082`).
+
+.. versionchanged:: 3.22
+  The environment variable :envvar:`CMAKE_INSTALL_MODE` can override the
+  default copying behavior of :command:`install()`.
 
 There are multiple signatures for this command.  Some of them define
 installation options for files and targets.  Options common to
@@ -79,7 +85,7 @@ signatures that specify them.  The common options are:
 
 ``COMPONENT``
   Specify an installation component name with which the install rule
-  is associated, such as "runtime" or "development".  During
+  is associated, such as ``Runtime`` or ``Development``.  During
   component-specific installation only install rules associated with
   the given component name will be executed.  During a full installation
   all components are installed unless marked with ``EXCLUDE_FROM_ALL``.
@@ -124,8 +130,9 @@ Installing Targets
 .. code-block:: cmake
 
   install(TARGETS targets... [EXPORT <export-name>]
+          [RUNTIME_DEPENDENCIES args...|RUNTIME_DEPENDENCY_SET <set-name>]
           [[ARCHIVE|LIBRARY|RUNTIME|OBJECTS|FRAMEWORK|BUNDLE|
-            PRIVATE_HEADER|PUBLIC_HEADER|RESOURCE]
+            PRIVATE_HEADER|PUBLIC_HEADER|RESOURCE|FILE_SET <set-name>|CXX_MODULES_BMI]
            [DESTINATION <dir>]
            [PERMISSIONS permissions...]
            [CONFIGURATIONS [Debug|Release|...]]
@@ -197,40 +204,71 @@ that may be installed:
   Similar to ``PUBLIC_HEADER`` and ``PRIVATE_HEADER``, but for
   ``RESOURCE`` files. See :prop_tgt:`RESOURCE` for details.
 
+``FILE_SET <set>``
+  .. versionadded:: 3.23
+
+  File sets are defined by the :command:`target_sources(FILE_SET)` command.
+  If the file set ``<set>`` exists and is ``PUBLIC`` or ``INTERFACE``, any
+  files in the set are installed under the destination (see below).
+  The directory structure relative to the file set's base directories is
+  preserved. For example, a file added to the file set as
+  ``/blah/include/myproj/here.h`` with a base directory ``/blah/include``
+  would be installed to ``myproj/here.h`` below the destination.
+
+``CXX_MODULES_BMI``
+
+  .. note ::
+
+    Experimental. Gated by ``CMAKE_EXPERIMENTAL_CXX_MODULE_CMAKE_API``
+
+  Any module files from C++ modules from ``PUBLIC`` sources in a file set of
+  type ``CXX_MODULES`` will be installed to the given ``DESTINATION``. All
+  modules are placed directly in the destination as no directory structure is
+  derived from the names of the modules. An empty ``DESTINATION`` may be used
+  to suppress installing these files (for use in generic code).
+
 For each of these arguments given, the arguments following them only apply
 to the target or file type specified in the argument. If none is given, the
-installation properties apply to all target types. If only one is given then
-only targets of that type will be installed (which can be used to install
-just a DLL or just an import library.)
+installation properties apply to all target types.
 
 For regular executables, static libraries and shared libraries, the
 ``DESTINATION`` argument is not required.  For these target types, when
 ``DESTINATION`` is omitted, a default destination will be taken from the
 appropriate variable from :module:`GNUInstallDirs`, or set to a built-in
-default value if that variable is not defined.  The same is true for the
-public and private headers associated with the installed targets through the
-:prop_tgt:`PUBLIC_HEADER` and :prop_tgt:`PRIVATE_HEADER` target properties.
-A destination must always be provided for module libraries, Apple bundles and
-frameworks.  A destination can be omitted for interface and object libraries,
-but they are handled differently (see the discussion of this topic toward the
-end of this section).
+default value if that variable is not defined.  The same is true for file
+sets, and the public and private headers associated with the installed
+targets through the :prop_tgt:`PUBLIC_HEADER` and :prop_tgt:`PRIVATE_HEADER`
+target properties. A destination must always be provided for module libraries,
+Apple bundles and frameworks.  A destination can be omitted for interface and
+object libraries, but they are handled differently (see the discussion of this
+topic toward the end of this section).
+
+For shared libraries on DLL platforms, if neither ``RUNTIME`` nor ``ARCHIVE``
+destinations are specified, both the ``RUNTIME`` and ``ARCHIVE`` components are
+installed to their default destinations. If either a ``RUNTIME`` or ``ARCHIVE``
+destination is specified, the component is installed to that destination, and
+the other component is not installed. If both ``RUNTIME`` and ``ARCHIVE``
+destinations are specified, then both components are installed to their
+respective destinations.
 
 The following table shows the target types with their associated variables and
 built-in defaults that apply when no destination is given:
 
-================== =============================== ======================
-   Target Type         GNUInstallDirs Variable        Built-In Default
-================== =============================== ======================
-``RUNTIME``        ``${CMAKE_INSTALL_BINDIR}``     ``bin``
-``LIBRARY``        ``${CMAKE_INSTALL_LIBDIR}``     ``lib``
-``ARCHIVE``        ``${CMAKE_INSTALL_LIBDIR}``     ``lib``
-``PRIVATE_HEADER`` ``${CMAKE_INSTALL_INCLUDEDIR}`` ``include``
-``PUBLIC_HEADER``  ``${CMAKE_INSTALL_INCLUDEDIR}`` ``include``
-================== =============================== ======================
+=============================== =============================== ======================
+   Target Type                      GNUInstallDirs Variable        Built-In Default
+=============================== =============================== ======================
+``RUNTIME``                     ``${CMAKE_INSTALL_BINDIR}``     ``bin``
+``LIBRARY``                     ``${CMAKE_INSTALL_LIBDIR}``     ``lib``
+``ARCHIVE``                     ``${CMAKE_INSTALL_LIBDIR}``     ``lib``
+``PRIVATE_HEADER``              ``${CMAKE_INSTALL_INCLUDEDIR}`` ``include``
+``PUBLIC_HEADER``               ``${CMAKE_INSTALL_INCLUDEDIR}`` ``include``
+``FILE_SET`` (type ``HEADERS``) ``${CMAKE_INSTALL_INCLUDEDIR}`` ``include``
+=============================== =============================== ======================
 
 Projects wishing to follow the common practice of installing headers into a
-project-specific subdirectory will need to provide a destination rather than
-rely on the above.
+project-specific subdirectory may prefer using file sets with appropriate
+paths and base directories. Otherwise, they must provide a ``DESTINATION``
+instead of being able to rely on the above (see next example below).
 
 To make packages compliant with distribution filesystem layout policies, if
 projects must specify a ``DESTINATION``, it is recommended that they use a
@@ -239,7 +277,7 @@ This allows package maintainers to control the install destination by setting
 the appropriate cache variables.  The following example shows a static library
 being installed to the default destination provided by
 :module:`GNUInstallDirs`, but with its headers installed to a project-specific
-subdirectory that follows the above recommendation:
+subdirectory without using file sets:
 
 .. code-block:: cmake
 
@@ -331,12 +369,60 @@ top level:
   See documentation of the :prop_tgt:`EXPORT_NAME` target property to change
   the name of the exported target.
 
+  If ``EXPORT`` is used and the targets include ``PUBLIC`` or ``INTERFACE``
+  file sets, all of them must be specified with ``FILE_SET`` arguments. All
+  ``PUBLIC`` or ``INTERFACE`` file sets associated with a target are included
+  in the export.
+
 ``INCLUDES DESTINATION``
   This option specifies a list of directories which will be added to the
   :prop_tgt:`INTERFACE_INCLUDE_DIRECTORIES` target property of the
   ``<targets>`` when exported by the `install(EXPORT)`_ command. If a
   relative path is specified, it is treated as relative to the
   ``$<INSTALL_PREFIX>``.
+
+``RUNTIME_DEPENDENCY_SET``
+  .. versionadded:: 3.21
+
+  This option causes all runtime dependencies of installed executable, shared
+  library, and module targets to be added to the specified runtime dependency
+  set. This set can then be installed with an
+  `install(RUNTIME_DEPENDENCY_SET)`_ command.
+
+  This keyword and the ``RUNTIME_DEPENDENCIES`` keyword are mutually
+  exclusive.
+
+``RUNTIME_DEPENDENCIES``
+  .. versionadded:: 3.21
+
+  This option causes all runtime dependencies of installed executable, shared
+  library, and module targets to be installed along with the targets
+  themselves. The ``RUNTIME``, ``LIBRARY``, ``FRAMEWORK``, and generic
+  arguments are used to determine the properties (``DESTINATION``,
+  ``COMPONENT``, etc.) of the installation of these dependencies.
+
+  ``RUNTIME_DEPENDENCIES`` is semantically equivalent to the following pair
+  of calls:
+
+  .. code-block:: cmake
+
+    install(TARGETS ... RUNTIME_DEPENDENCY_SET <set-name>)
+    install(RUNTIME_DEPENDENCY_SET <set-name> args...)
+
+  where ``<set-name>`` will be a randomly generated set name.
+  The ``args...`` may include any of the following keywords supported by
+  the `install(RUNTIME_DEPENDENCY_SET)`_ command:
+
+  * ``DIRECTORIES``
+  * ``PRE_INCLUDE_REGEXES``
+  * ``PRE_EXCLUDE_REGEXES``
+  * ``POST_INCLUDE_REGEXES``
+  * ``POST_EXCLUDE_REGEXES``
+  * ``POST_INCLUDE_FILES``
+  * ``POST_EXCLUDE_FILES``
+
+  The ``RUNTIME_DEPENDENCIES`` and ``RUNTIME_DEPENDENCY_SET`` keywords are
+  mutually exclusive.
 
 One or more groups of properties may be specified in a single call to
 the ``TARGETS`` form of this command.  A target may be installed more than
@@ -382,6 +468,44 @@ set to ``TRUE`` has undefined behavior.
   to ensure that such out-of-directory targets are built before the
   subdirectory-specific install rules are run.
 
+Installing Imported Runtime Artifacts
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+.. _`install(IMPORTED_RUNTIME_ARTIFACTS)`:
+.. _IMPORTED_RUNTIME_ARTIFACTS:
+
+.. versionadded:: 3.21
+
+.. code-block:: cmake
+
+  install(IMPORTED_RUNTIME_ARTIFACTS targets...
+          [RUNTIME_DEPENDENCY_SET <set-name>]
+          [[LIBRARY|RUNTIME|FRAMEWORK|BUNDLE]
+           [DESTINATION <dir>]
+           [PERMISSIONS permissions...]
+           [CONFIGURATIONS [Debug|Release|...]]
+           [COMPONENT <component>]
+           [OPTIONAL] [EXCLUDE_FROM_ALL]
+          ] [...]
+          )
+
+The ``IMPORTED_RUNTIME_ARTIFACTS`` form specifies rules for installing the
+runtime artifacts of imported targets. Projects may do this if they want to
+bundle outside executables or modules inside their installation. The
+``LIBRARY``, ``RUNTIME``, ``FRAMEWORK``, and ``BUNDLE`` arguments have the
+same semantics that they do in the `TARGETS`_ mode. Only the runtime artifacts
+of imported targets are installed (except in the case of :prop_tgt:`FRAMEWORK`
+libraries, :prop_tgt:`MACOSX_BUNDLE` executables, and :prop_tgt:`BUNDLE`
+CFBundles.) For example, headers and import libraries associated with DLLs are
+not installed. In the case of :prop_tgt:`FRAMEWORK` libraries,
+:prop_tgt:`MACOSX_BUNDLE` executables, and :prop_tgt:`BUNDLE` CFBundles, the
+entire directory is installed.
+
+The ``RUNTIME_DEPENDENCY_SET`` option causes the runtime artifacts of the
+imported executable, shared library, and module library ``targets`` to be
+added to the ``<set-name>`` runtime dependency set. This set can then be
+installed with an `install(RUNTIME_DEPENDENCY_SET)`_ command.
+
 Installing Files
 ^^^^^^^^^^^^^^^^
 
@@ -389,6 +513,12 @@ Installing Files
 .. _`install(PROGRAMS)`:
 .. _FILES:
 .. _PROGRAMS:
+
+.. note::
+
+  If installing header files, consider using file sets defined by
+  :command:`target_sources(FILE_SET)` instead. File sets associate
+  headers with a target and they install as part of the target.
 
 .. code-block:: cmake
 
@@ -446,7 +576,8 @@ file type if they wish to explicitly define the install destination.
 
 Projects wishing to follow the common practice of installing headers into a
 project-specific subdirectory will need to provide a destination rather than
-rely on the above.
+rely on the above. Using file sets for headers instead of ``install(FILES)``
+would be even better (see :command:`target_sources(FILE_SET)`).
 
 Note that some of the types' built-in defaults use the ``DATAROOT`` directory as
 a prefix. The ``DATAROOT`` prefix is calculated similarly to the types, with
@@ -459,13 +590,14 @@ projects must specify a ``DESTINATION``, it is recommended that they use a
 path that begins with the appropriate :module:`GNUInstallDirs` variable.
 This allows package maintainers to control the install destination by setting
 the appropriate cache variables.  The following example shows how to follow
-this advice while installing headers to a project-specific subdirectory:
+this advice while installing an image to a project-specific documentation
+subdirectory:
 
 .. code-block:: cmake
 
   include(GNUInstallDirs)
-  install(FILES mylib.h
-          DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/myproj
+  install(FILES logo.png
+          DESTINATION ${CMAKE_INSTALL_DOCDIR}/myproj
   )
 
 .. versionadded:: 3.4
@@ -483,6 +615,13 @@ Installing Directories
 
 .. _`install(DIRECTORY)`:
 .. _DIRECTORY:
+
+.. note::
+
+  To install a directory sub-tree of headers, consider using file sets
+  defined by :command:`target_sources(FILE_SET)` instead. File sets not only
+  preserve directory structure, they also associate headers with a target
+  and install as part of the target.
 
 .. code-block:: cmake
 
@@ -535,12 +674,13 @@ any expression.  For example, the code
 
 .. code-block:: cmake
 
-  install(DIRECTORY src/ DESTINATION include/myproj
-          FILES_MATCHING PATTERN "*.h")
+  install(DIRECTORY src/ DESTINATION doc/myproj
+          FILES_MATCHING PATTERN "*.png")
 
-will extract and install header files from a source tree.
+will extract and install images from a source tree.
 
-Some options may follow a ``PATTERN`` or ``REGEX`` expression and are applied
+Some options may follow a ``PATTERN`` or ``REGEX`` expression as described
+under :ref:`string(REGEX) <Regex Specification>` and are applied
 only to files or directories matching them.  The ``EXCLUDE`` option will
 skip the matched file or directory.  The ``PERMISSIONS`` option overrides
 the permissions setting for the matched file or directory.  For
@@ -619,7 +759,8 @@ Custom Installation Logic
 .. code-block:: cmake
 
   install([[SCRIPT <file>] [CODE <code>]]
-          [COMPONENT <component>] [EXCLUDE_FROM_ALL] [...])
+          [ALL_COMPONENTS | COMPONENT <component>]
+          [EXCLUDE_FROM_ALL] [...])
 
 The ``SCRIPT`` form will invoke the given CMake script files during
 installation.  If the script file name is a relative path it will be
@@ -633,6 +774,12 @@ example, the code
   install(CODE "MESSAGE(\"Sample install message.\")")
 
 will print a message during installation.
+
+.. versionadded:: 3.21
+  When the ``ALL_COMPONENTS`` option is given, the custom installation
+  script code will be executed for every component of a component-specific
+  installation.  This option is mutually exclusive with the ``COMPONENT``
+  option.
 
 .. versionadded:: 3.14
   ``<file>`` or ``<code>`` may use "generator expressions" with the syntax
@@ -649,9 +796,10 @@ Installing Exports
 .. code-block:: cmake
 
   install(EXPORT <export-name> DESTINATION <dir>
-          [NAMESPACE <namespace>] [[FILE <name>.cmake]|
+          [NAMESPACE <namespace>] [FILE <name>.cmake]
           [PERMISSIONS permissions...]
-          [CONFIGURATIONS [Debug|Release|...]]
+          [CONFIGURATIONS [Debug|Release|...]
+          [CXX_MODULES_DIRECTORY <directory>]
           [EXPORT_LINK_INTERFACE_LIBRARIES]
           [COMPONENT <component>]
           [EXCLUDE_FROM_ALL])
@@ -699,13 +847,25 @@ of the ``Development`` component in the package metadata, ensuring that the
 library is always installed if the headers and CMake export file are present.
 
 .. versionadded:: 3.7
-  In addition to cmake language files, the ``EXPORT_ANDROID_MK`` mode maybe
+  In addition to cmake language files, the ``EXPORT_ANDROID_MK`` mode may be
   used to specify an export to the android ndk build system.  This mode
   accepts the same options as the normal export mode.  The Android
   NDK supports the use of prebuilt libraries, both static and shared. This
   allows cmake to build the libraries of a project and make them available
   to an ndk build system complete with transitive dependencies, include flags
   and defines required to use the libraries.
+
+``CXX_MODULES_DIRECTORY``
+
+  .. note ::
+
+    Experimental. Gated by ``CMAKE_EXPERIMENTAL_CXX_MODULE_CMAKE_API``
+
+  Specify a subdirectory to store C++ module information for targets in the
+  export set. This directory will be populated with files which add the
+  necessary target property information to the relevant targets. Note that
+  without this information, none of the C++ modules which are part of the
+  targets in the export set will support being imported in consuming targets.
 
 The ``EXPORT`` form is useful to help outside projects use targets built
 and installed by the current project.  For example, the code
@@ -724,7 +884,7 @@ executable from the installation tree using the imported target name
 ``mp_myexe`` as if the target were built in its own tree.
 
 .. note::
-  This command supercedes the :command:`install_targets` command and
+  This command supersedes the :command:`install_targets` command and
   the :prop_tgt:`PRE_INSTALL_SCRIPT` and :prop_tgt:`POST_INSTALL_SCRIPT`
   target properties.  It also replaces the ``FILES`` forms of the
   :command:`install_files` and :command:`install_programs` commands.
@@ -733,18 +893,82 @@ executable from the installation tree using the imported target name
   :command:`install_files`, and :command:`install_programs` commands
   is not defined.
 
+Installing Runtime Dependencies
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+.. _`install(RUNTIME_DEPENDENCY_SET)`:
+.. _RUNTIME_DEPENDENCY_SET:
+
+.. versionadded:: 3.21
+
+.. code-block:: cmake
+
+  install(RUNTIME_DEPENDENCY_SET <set-name>
+          [[LIBRARY|RUNTIME|FRAMEWORK]
+           [DESTINATION <dir>]
+           [PERMISSIONS permissions...]
+           [CONFIGURATIONS [Debug|Release|...]]
+           [COMPONENT <component>]
+           [NAMELINK_COMPONENT <component>]
+           [OPTIONAL] [EXCLUDE_FROM_ALL]
+          ] [...]
+          [PRE_INCLUDE_REGEXES regexes...]
+          [PRE_EXCLUDE_REGEXES regexes...]
+          [POST_INCLUDE_REGEXES regexes...]
+          [POST_EXCLUDE_REGEXES regexes...]
+          [POST_INCLUDE_FILES files...]
+          [POST_EXCLUDE_FILES files...]
+          [DIRECTORIES directories...]
+          )
+
+Installs a runtime dependency set previously created by one or more
+`install(TARGETS)`_ or `install(IMPORTED_RUNTIME_ARTIFACTS)`_ commands. The
+dependencies of targets belonging to a runtime dependency set are installed in
+the ``RUNTIME`` destination and component on DLL platforms, and in the
+``LIBRARY`` destination and component on non-DLL platforms. macOS frameworks
+are installed in the ``FRAMEWORK`` destination and component.
+Targets built within the build tree will never be installed as runtime
+dependencies, nor will their own dependencies, unless the targets themselves
+are installed with `install(TARGETS)`_.
+
+The generated install script calls :command:`file(GET_RUNTIME_DEPENDENCIES)`
+on the build-tree files to calculate the runtime dependencies. The build-tree
+executable files are passed as the ``EXECUTABLES`` argument, the build-tree
+shared libraries as the ``LIBRARIES`` argument, and the build-tree modules as
+the ``MODULES`` argument. On macOS, if one of the executables is a
+:prop_tgt:`MACOSX_BUNDLE`, that executable is passed as the
+``BUNDLE_EXECUTABLE`` argument. At most one such bundle executable may be in
+the runtime dependency set on macOS. The :prop_tgt:`MACOSX_BUNDLE` property
+has no effect on other platforms. Note that
+:command:`file(GET_RUNTIME_DEPENDENCIES)` only supports collecting the runtime
+dependencies for Windows, Linux and macOS platforms, so
+``install(RUNTIME_DEPENDENCY_SET)`` has the same limitation.
+
+The following sub-arguments are forwarded through as the corresponding
+arguments to :command:`file(GET_RUNTIME_DEPENDENCIES)` (for those that provide
+a non-empty list of directories, regular expressions or files).  They all
+support :manual:`generator expressions <cmake-generator-expressions(7)>`.
+
+* ``DIRECTORIES <directories>``
+* ``PRE_INCLUDE_REGEXES <regexes>``
+* ``PRE_EXCLUDE_REGEXES <regexes>``
+* ``POST_INCLUDE_REGEXES <regexes>``
+* ``POST_EXCLUDE_REGEXES <regexes>``
+* ``POST_INCLUDE_FILES <files>``
+* ``POST_EXCLUDE_FILES <files>``
+
 Generated Installation Script
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 .. note::
 
   Use of this feature is not recommended. Please consider using the
-  ``--install`` argument of :manual:`cmake(1)` instead.
+  :option:`cmake --install` instead.
 
 The ``install()`` command generates a file, ``cmake_install.cmake``, inside
 the build directory, which is used internally by the generated install target
-and by CPack. You can also invoke this script manually with ``cmake -P``. This
-script accepts several variables:
+and by CPack. You can also invoke this script manually with
+:option:`cmake -P`. This script accepts several variables:
 
 ``COMPONENT``
   Set this variable to install only a single CPack component as opposed to all

@@ -215,6 +215,11 @@ Hints
   * If set to TRUE, search **only** for static libraries.
   * If set to FALSE, search **only** for shared libraries.
 
+  .. note::
+
+    This hint will be ignored on ``Windows`` because static libraries are not
+    available on this platform.
+
 ``Python2_FIND_STRATEGY``
   .. versionadded:: 3.15
 
@@ -297,7 +302,7 @@ Hints
     ``Anaconda`` or ``ActivePython``, rely on this implementation.
   * ``IronPython``: This implementation use the ``CSharp`` language for
     ``.NET Framework`` on top of the `Dynamic Language Runtime` (``DLR``).
-    See `IronPython <http://ironpython.net>`_.
+    See `IronPython <https://ironpython.net>`_.
   * ``PyPy``: This implementation use ``RPython`` language and
     ``RPython translation toolchain`` to produce the python interpreter.
     See `PyPy <https://www.pypy.org>`_.

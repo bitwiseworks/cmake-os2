@@ -2,12 +2,19 @@
    file Copyright.txt or https://cmake.org/licensing for details.  */
 #include "cmGlobalVisualStudio11Generator.h"
 
+#include <cstring>
+#include <sstream>
 #include <utility>
+#include <vector>
 
-#include "cmAlgorithms.h"
 #include "cmDocumentationEntry.h"
-#include "cmLocalVisualStudio10Generator.h"
+#include "cmGlobalGenerator.h"
+#include "cmGlobalGeneratorFactory.h"
+#include "cmGlobalVisualStudioGenerator.h"
 #include "cmMakefile.h"
+#include "cmMessageType.h"
+#include "cmStringAlgorithms.h"
+#include "cmSystemTools.h"
 
 static const char vs11generatorName[] = "Visual Studio 11 2012";
 
@@ -70,7 +77,7 @@ public:
   void GetDocumentation(cmDocumentationEntry& entry) const override
   {
     entry.Name = std::string(vs11generatorName) + " [arch]";
-    entry.Brief = "Generates Visual Studio 2012 project files.  "
+    entry.Brief = "Deprecated.  Generates Visual Studio 2012 project files.  "
                   "Optional [arch] can be \"Win64\" or \"ARM\".";
   }
 
@@ -141,7 +148,7 @@ cmGlobalVisualStudio11Generator::cmGlobalVisualStudio11Generator(
   this->DefaultLinkFlagTableName = "v11";
   this->DefaultMasmFlagTableName = "v11";
   this->DefaultRCFlagTableName = "v11";
-  this->Version = VS11;
+  this->Version = VSVersion::VS11;
 }
 
 bool cmGlobalVisualStudio11Generator::MatchesGeneratorName(

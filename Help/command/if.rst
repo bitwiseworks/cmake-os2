@@ -38,30 +38,50 @@ The following syntax applies to the ``condition`` argument of
 the ``if``, ``elseif`` and :command:`while` clauses.
 
 Compound conditions are evaluated in the following order of precedence:
-Innermost parentheses are evaluated first. Next come unary tests such
-as `EXISTS`_, `COMMAND`_, and `DEFINED`_.  Then binary tests such as
-`EQUAL`_, `LESS`_, `LESS_EQUAL`_, `GREATER`_, `GREATER_EQUAL`_,
-`STREQUAL`_, `STRLESS`_, `STRLESS_EQUAL`_, `STRGREATER`_,
-`STRGREATER_EQUAL`_, `VERSION_EQUAL`_, `VERSION_LESS`_,
-`VERSION_LESS_EQUAL`_, `VERSION_GREATER`_, `VERSION_GREATER_EQUAL`_,
-and `MATCHES`_.  Then the boolean operators in the order `NOT`_,  `AND`_,
-and finally `OR`_.
+
+1. Parentheses.
+
+2. Unary tests such as `EXISTS`_, `COMMAND`_, and `DEFINED`_.
+
+3. Binary tests such as `EQUAL`_, `LESS`_, `LESS_EQUAL`_, `GREATER`_,
+   `GREATER_EQUAL`_, `STREQUAL`_, `STRLESS`_, `STRLESS_EQUAL`_,
+   `STRGREATER`_, `STRGREATER_EQUAL`_, `VERSION_EQUAL`_, `VERSION_LESS`_,
+   `VERSION_LESS_EQUAL`_, `VERSION_GREATER`_, `VERSION_GREATER_EQUAL`_,
+   `PATH_EQUAL`_, and `MATCHES`_.
+
+4. Unary logical operator `NOT`_.
+
+5. Binary logical operators `AND`_ and `OR`_, from left to right,
+   without any short-circuit.
 
 Basic Expressions
 """""""""""""""""
 
 ``if(<constant>)``
  True if the constant is ``1``, ``ON``, ``YES``, ``TRUE``, ``Y``,
- or a non-zero number.  False if the constant is ``0``, ``OFF``,
+ or a non-zero number (including floating point numbers).
+ False if the constant is ``0``, ``OFF``,
  ``NO``, ``FALSE``, ``N``, ``IGNORE``, ``NOTFOUND``, the empty string,
  or ends in the suffix ``-NOTFOUND``.  Named boolean constants are
  case-insensitive.  If the argument is not one of these specific
- constants, it is treated as a variable or string and the following
- signature is used.
+ constants, it is treated as a variable or string (see `Variable Expansion`_
+ further below) and one of the following two forms applies.
 
-``if(<variable|string>)``
+``if(<variable>)``
  True if given a variable that is defined to a value that is not a false
- constant.  False otherwise.  (Note macro arguments are not variables.)
+ constant.  False otherwise, including if the variable is undefined.
+ Note that macro arguments are not variables.
+ :ref:`Environment Variables <CMake Language Environment Variables>` also
+ cannot be tested this way, e.g. ``if(ENV{some_var})`` will always evaluate
+ to false.
+
+``if(<string>)``
+ A quoted string always evaluates to false unless:
+
+ * The string's value is one of the true constants, or
+ * Policy :policy:`CMP0054` is not set to ``NEW`` and the string's value
+   happens to be a variable name that is affected by :policy:`CMP0054`'s
+   behavior.
 
 Logic Operators
 """""""""""""""
@@ -115,7 +135,16 @@ Existence Checks
 ``if(DEFINED <name>|CACHE{<name>}|ENV{<name>})``
  True if a variable, cache variable or environment variable
  with given ``<name>`` is defined. The value of the variable
- does not matter. Note that macro arguments are not variables.
+ does not matter. Note the following caveats:
+
+ * Macro arguments are not variables.
+ * It is not possible to test directly whether a `<name>` is a non-cache
+   variable.  The expression ``if(DEFINED someName)`` will evaluate to true
+   if either a cache or non-cache variable ``someName`` exists.  In
+   comparison, the expression ``if(DEFINED CACHE{someName})`` will only
+   evaluate to true if a cache variable ``someName`` exists.  Both expressions
+   need to be tested if you need to know whether a non-cache variable exists:
+   ``if(DEFINED someName AND NOT DEFINED CACHE{someName})``.
 
  .. versionadded:: 3.14
   Added support for ``CACHE{<name>}`` variables.
@@ -171,7 +200,7 @@ Comparisons
 
 ``if(<variable|string> MATCHES regex)``
  True if the given string or variable's value matches the given regular
- condition.  See :ref:`Regex Specification` for regex format.
+ expression.  See :ref:`Regex Specification` for regex format.
 
  .. versionadded:: 3.9
   ``()`` groups are captured in :variable:`CMAKE_MATCH_<n>` variables.
@@ -285,6 +314,39 @@ Version Comparisons
   Any non-integer version component or non-integer trailing part of a version
   component effectively truncates the string at that point.
 
+Path Comparisons
+""""""""""""""""
+
+.. _PATH_EQUAL:
+
+``if(<variable|string> PATH_EQUAL <variable|string>)``
+  .. versionadded:: 3.24
+
+  Compares the two paths component-by-component.  Only if every component of
+  both paths match will the two paths compare equal.  Multiple path separators
+  are effectively collapsed into a single separator, but note that backslashes
+  are not converted to forward slashes.  No other
+  :ref:`path normalization <Normalization>` is performed.
+
+  Component-wise comparison is superior to string-based comparison due to the
+  handling of multiple path separators.  In the following example, the
+  expression evaluates to true using ``PATH_EQUAL``, but false with
+  ``STREQUAL``:
+
+  .. code-block:: cmake
+
+    # comparison is TRUE
+    if ("/a//b/c" PATH_EQUAL "/a/b/c")
+       ...
+    endif()
+
+    # comparison is FALSE
+    if ("/a//b/c" STREQUAL "/a/b/c")
+       ...
+    endif()
+
+  See :ref:`cmake_path(COMPARE) <Path COMPARE>` for more details.
+
 Variable Expansion
 ^^^^^^^^^^^^^^^^^^
 
@@ -362,3 +424,10 @@ There is no automatic evaluation for environment or cache
 :ref:`Variable References`.  Their values must be referenced as
 ``$ENV{<name>}`` or ``$CACHE{<name>}`` wherever the above-documented
 condition syntax accepts ``<variable|string>``.
+
+See also
+^^^^^^^^
+
+  * :command:`else`
+  * :command:`elseif`
+  * :command:`endif`

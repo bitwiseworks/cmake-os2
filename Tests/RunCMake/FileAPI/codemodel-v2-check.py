@@ -12,7 +12,7 @@ def read_codemodel_json_data(filename):
 def check_objects(o, g):
     assert is_list(o)
     assert len(o) == 1
-    check_index_object(o[0], "codemodel", 2, 2, check_object_codemodel(g))
+    check_index_object(o[0], "codemodel", 2, 4, check_object_codemodel(g))
 
 def check_backtrace(t, b, backtrace):
     btg = t["backtraceGraph"]
@@ -55,7 +55,7 @@ def check_backtraces(t, actual, expected):
 def check_directory(c):
     def _check(actual, expected):
         assert is_dict(actual)
-        expected_keys = ["build", "source", "projectIndex"]
+        expected_keys = ["build", "jsonFile", "source", "projectIndex"]
         assert matches(actual["build"], expected["build"])
 
         assert is_int(actual["projectIndex"])
@@ -92,10 +92,146 @@ def check_directory(c):
 
         assert sorted(actual.keys()) == sorted(expected_keys)
 
+        assert is_string(actual["jsonFile"])
+        filepath = os.path.join(reply_dir, actual["jsonFile"])
+        with open(filepath) as f:
+            d = json.load(f)
+
+        assert is_dict(d)
+        assert sorted(d.keys()) == ["backtraceGraph", "installers", "paths"]
+
+        assert is_string(d["paths"]["source"], actual["source"])
+        assert is_string(d["paths"]["build"], actual["build"])
+
+        check_backtrace_graph(d["backtraceGraph"])
+
+        assert is_list(d["installers"])
+        assert len(d["installers"]) == len(expected["installers"])
+        for a, e in zip(d["installers"], expected["installers"]):
+            assert is_dict(a)
+            expected_keys = ["component", "type"]
+
+            assert is_string(a["component"], e["component"])
+            assert is_string(a["type"], e["type"])
+
+            if e["destination"] is not None:
+                expected_keys.append("destination")
+                assert is_string(a["destination"], e["destination"])
+
+            if e["paths"] is not None:
+                expected_keys.append("paths")
+                assert is_list(a["paths"])
+                assert len(a["paths"]) == len(e["paths"])
+
+                for ap, ep in zip(a["paths"], e["paths"]):
+                    if is_string(ep):
+                        assert matches(ap, ep)
+                    else:
+                        assert is_dict(ap)
+                        assert sorted(ap.keys()) == ["from", "to"]
+                        assert matches(ap["from"], ep["from"])
+                        assert matches(ap["to"], ep["to"])
+
+            if e["isExcludeFromAll"] is not None:
+                expected_keys.append("isExcludeFromAll")
+                assert is_bool(a["isExcludeFromAll"], e["isExcludeFromAll"])
+
+            if e["isForAllComponents"] is not None:
+                expected_keys.append("isForAllComponents")
+                assert is_bool(a["isForAllComponents"], e["isForAllComponents"])
+
+            if e["isOptional"] is not None:
+                expected_keys.append("isOptional")
+                assert is_bool(a["isOptional"], e["isOptional"])
+
+            if e["targetId"] is not None:
+                expected_keys.append("targetId")
+                assert matches(a["targetId"], e["targetId"])
+
+            if e["targetIndex"] is not None:
+                expected_keys.append("targetIndex")
+                assert is_int(a["targetIndex"])
+                assert c["targets"][a["targetIndex"]]["name"] == e["targetIndex"]
+
+            if e["targetIsImportLibrary"] is not None:
+                expected_keys.append("targetIsImportLibrary")
+                assert is_bool(a["targetIsImportLibrary"], e["targetIsImportLibrary"])
+
+            if e["targetInstallNamelink"] is not None:
+                expected_keys.append("targetInstallNamelink")
+                assert is_string(a["targetInstallNamelink"], e["targetInstallNamelink"])
+
+            if e["exportName"] is not None:
+                expected_keys.append("exportName")
+                assert is_string(a["exportName"], e["exportName"])
+
+            if e["exportTargets"] is not None:
+                expected_keys.append("exportTargets")
+                assert is_list(a["exportTargets"])
+                assert len(a["exportTargets"]) == len(e["exportTargets"])
+                for at, et in zip(a["exportTargets"], e["exportTargets"]):
+                    assert is_dict(at)
+                    assert sorted(at.keys()) == ["id", "index"]
+                    assert matches(at["id"], et["id"])
+                    assert is_int(at["index"])
+                    assert c["targets"][at["index"]]["name"] == et["index"]
+
+            if e["scriptFile"] is not None:
+                expected_keys.append("scriptFile")
+                assert is_string(a["scriptFile"], e["scriptFile"])
+
+            if e.get("runtimeDependencySetName", None) is not None:
+                expected_keys.append("runtimeDependencySetName")
+                assert is_string(a["runtimeDependencySetName"], e["runtimeDependencySetName"])
+
+            if e.get("runtimeDependencySetType", None) is not None:
+                expected_keys.append("runtimeDependencySetType")
+                assert is_string(a["runtimeDependencySetType"], e["runtimeDependencySetType"])
+
+            if e.get("fileSetName", None) is not None:
+                expected_keys.append("fileSetName")
+                assert is_string(a["fileSetName"], e["fileSetName"])
+
+            if e.get("fileSetType", None) is not None:
+                expected_keys.append("fileSetType")
+                assert is_string(a["fileSetType"], e["fileSetType"])
+
+            if e.get("fileSetDirectories", None) is not None:
+                expected_keys.append("fileSetDirectories")
+                assert is_list(a["fileSetDirectories"])
+                assert len(a["fileSetDirectories"]) == len(e["fileSetDirectories"])
+                for ad, ed in zip(a["fileSetDirectories"], e["fileSetDirectories"]):
+                    assert matches(ad, ed)
+
+            if e.get("fileSetTarget", None) is not None:
+                expected_keys.append("fileSetTarget")
+                et = e["fileSetTarget"]
+                at = a["fileSetTarget"]
+                assert is_dict(at)
+                assert sorted(at.keys()) == ["id", "index"]
+                assert matches(at["id"], et["id"])
+                assert is_int(at["index"])
+                assert c["targets"][at["index"]]["name"] == et["index"]
+
+            if e.get("cxxModuleBmiTarget", None) is not None:
+                expected_keys.append("cxxModuleBmiTarget")
+                et = e["cxxModuleBmiTarget"]
+                at = a["cxxModuleBmiTarget"]
+                assert is_dict(at)
+                assert sorted(at.keys()) == ["id", "index"]
+                assert matches(at["id"], et["id"])
+                assert is_int(at["index"])
+                assert c["targets"][at["index"]]["name"] == et["index"]
+
+            if e["backtrace"] is not None:
+                expected_keys.append("backtrace")
+                check_backtrace(d, a["backtrace"], e["backtrace"])
+
+            assert sorted(a.keys()) == sorted(expected_keys)
+
     return _check
 
-def check_target_backtrace_graph(t):
-    btg = t["backtraceGraph"]
+def check_backtrace_graph(btg):
     assert is_dict(btg)
     assert sorted(btg.keys()) == ["commands", "files", "nodes"]
     assert is_list(btg["commands"])
@@ -148,7 +284,7 @@ def check_target(c):
         assert is_string(obj["name"], expected["name"])
         assert matches(obj["id"], expected["id"])
         assert is_string(obj["type"], expected["type"])
-        check_target_backtrace_graph(obj)
+        check_backtrace_graph(obj["backtraceGraph"])
 
         assert is_dict(obj["paths"])
         assert sorted(obj["paths"].keys()) == ["build", "source"]
@@ -527,6 +663,8 @@ def gen_check_directories(c, g):
         read_codemodel_json_data("directories/dir.json"),
         read_codemodel_json_data("directories/dir_dir.json"),
         read_codemodel_json_data("directories/external.json"),
+        read_codemodel_json_data("directories/fileset.json"),
+        read_codemodel_json_data("directories/subdir.json"),
     ]
 
     if matches(g["name"], "^Visual Studio "):
@@ -542,6 +680,28 @@ def gen_check_directories(c, g):
     else:
         for e in expected:
             e["targetIds"] = filter_list(lambda t: not matches(t, "^\\^(ALL_BUILD|ZERO_CHECK)"), e["targetIds"])
+
+    if sys.platform in ("win32", "cygwin", "msys") or "aix" in sys.platform:
+        for e in expected:
+            e["installers"] = list(filter(lambda i: i["targetInstallNamelink"] is None or i["targetInstallNamelink"] == "skip", e["installers"]))
+            for i in e["installers"]:
+                i["targetInstallNamelink"] = None
+
+    if sys.platform not in ("win32", "cygwin", "msys"):
+        for e in expected:
+            e["installers"] = list(filter(lambda i: not i.get("_dllExtra", False), e["installers"]))
+            if "aix" not in sys.platform:
+                for i in e["installers"]:
+                    if "pathsNamelink" in i:
+                        i["paths"] = i["pathsNamelink"]
+
+    if sys.platform not in ("win32", "darwin") and "linux" not in sys.platform:
+        for e in expected:
+            e["installers"] = list(filter(lambda i: i["type"] != "runtimeDependencySet", e["installers"]))
+
+    if sys.platform != "darwin":
+        for e in expected:
+            e["installers"] = list(filter(lambda i: i.get("runtimeDependencySetType", None) != "framework", e["installers"]))
 
     return expected
 
@@ -563,6 +723,7 @@ def gen_check_targets(c, g, inSource):
         read_codemodel_json_data("targets/c_shared_exe.json"),
         read_codemodel_json_data("targets/c_static_lib.json"),
         read_codemodel_json_data("targets/c_static_exe.json"),
+        read_codemodel_json_data("targets/c_subdir.json"),
 
         read_codemodel_json_data("targets/all_build_cxx.json"),
         read_codemodel_json_data("targets/zero_check_cxx.json"),
@@ -606,9 +767,12 @@ def gen_check_targets(c, g, inSource):
         read_codemodel_json_data("targets/all_build_external.json"),
         read_codemodel_json_data("targets/zero_check_external.json"),
         read_codemodel_json_data("targets/generated_exe.json"),
+
+        read_codemodel_json_data("targets/c_headers_1.json"),
+        read_codemodel_json_data("targets/c_headers_2.json"),
     ]
 
-    if cxx_compiler_id in ['Clang', 'AppleClang', 'GNU', 'Intel', 'IntelLLVM', 'MSVC', 'Embarcadero'] and g["name"] != "Xcode":
+    if cxx_compiler_id in ['Clang', 'AppleClang', 'LCC', 'GNU', 'Intel', 'IntelLLVM', 'MSVC', 'Embarcadero', 'IBMClang'] and g["name"] != "Xcode":
         for e in expected:
             if e["name"] == "cxx_exe":
                 if matches(g["name"], "^(Visual Studio |Ninja Multi-Config)"):
@@ -705,6 +869,13 @@ def gen_check_targets(c, g, inSource):
     if sys.platform not in ("win32", "cygwin", "msys"):
         for e in expected:
             e["artifacts"] = filter_list(lambda a: not a["_dllExtra"], e["artifacts"])
+            if e["install"] is not None:
+                e["install"]["destinations"] = filter_list(lambda d: "_dllExtra" not in d or not d["_dllExtra"], e["install"]["destinations"])
+
+    else:
+        for e in expected:
+            if e["install"] is not None:
+                e["install"]["destinations"] = filter_list(lambda d: "_namelink" not in d or not d["_namelink"], e["install"]["destinations"])
 
     if "aix" not in sys.platform:
         for e in expected:

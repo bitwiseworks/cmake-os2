@@ -2,18 +2,19 @@
    file Copyright.txt or https://cmake.org/licensing for details.  */
 #include "cmFindPathCommand.h"
 
+#include <utility>
+
 #include "cmsys/Glob.hxx"
 
-#include "cmMakefile.h"
-#include "cmMessageType.h"
 #include "cmStateTypes.h"
 #include "cmStringAlgorithms.h"
 #include "cmSystemTools.h"
 
 class cmExecutionStatus;
 
-cmFindPathCommand::cmFindPathCommand(cmExecutionStatus& status)
-  : cmFindBase(status)
+cmFindPathCommand::cmFindPathCommand(std::string findCommandName,
+                                     cmExecutionStatus& status)
+  : cmFindBase(std::move(findCommandName), status)
 {
 #ifdef __OS2__
   this->EnvironmentPath = "C_INCLUDE_PATH";
@@ -21,55 +22,38 @@ cmFindPathCommand::cmFindPathCommand(cmExecutionStatus& status)
   this->EnvironmentPath = "INCLUDE";
 #endif
   this->IncludeFileInPath = false;
+  this->VariableDocumentation = "Path to a file.";
+  this->VariableType = cmStateEnums::PATH;
+}
+cmFindPathCommand::cmFindPathCommand(cmExecutionStatus& status)
+  : cmFindPathCommand("find_path", status)
+{
 }
 
 // cmFindPathCommand
 bool cmFindPathCommand::InitialPass(std::vector<std::string> const& argsIn)
 {
-  this->DebugMode = this->ComputeIfDebugModeWanted();
-  this->VariableDocumentation = "Path to a file.";
   this->CMakePathName = "INCLUDE";
+
   if (!this->ParseArguments(argsIn)) {
     return false;
   }
-  if (this->AlreadyInCache) {
-    // If the user specifies the entry on the command line without a
-    // type we should add the type and docstring but keep the original
-    // value.
-    if (this->AlreadyInCacheWithoutMetaInfo) {
-      this->Makefile->AddCacheDefinition(
-        this->VariableName, "", this->VariableDocumentation.c_str(),
-        (this->IncludeFileInPath ? cmStateEnums::FILEPATH
-                                 : cmStateEnums::PATH));
-    }
+
+  this->DebugMode = this->ComputeIfDebugModeWanted(this->VariableName);
+
+  if (this->AlreadyDefined) {
+    this->NormalizeFindResult();
     return true;
   }
 
   std::string result = this->FindHeader();
-  if (!result.empty()) {
-    this->Makefile->AddCacheDefinition(
-      this->VariableName, result, this->VariableDocumentation.c_str(),
-      (this->IncludeFileInPath) ? cmStateEnums::FILEPATH : cmStateEnums::PATH);
-    return true;
-  }
-  this->Makefile->AddCacheDefinition(
-    this->VariableName, this->VariableName + "-NOTFOUND",
-    this->VariableDocumentation.c_str(),
-    (this->IncludeFileInPath) ? cmStateEnums::FILEPATH : cmStateEnums::PATH);
-  if (this->Required) {
-    this->Makefile->IssueMessage(
-      MessageType::FATAL_ERROR,
-      "Could not find " + this->VariableName +
-        " using the following files: " + cmJoin(this->Names, ", "));
-    cmSystemTools::SetFatalErrorOccured();
-  }
+  this->StoreFindResult(result);
   return true;
 }
 
 std::string cmFindPathCommand::FindHeader()
 {
-  std::string debug_name = this->IncludeFileInPath ? "find_file" : "find_path";
-  cmFindBaseDebugState debug(debug_name, this);
+  cmFindBaseDebugState debug(this->FindCommandName, this);
   std::string header;
   if (this->SearchFrameworkFirst || this->SearchFrameworkOnly) {
     header = this->FindFrameworkHeader(debug);
@@ -85,7 +69,8 @@ std::string cmFindPathCommand::FindHeader()
 }
 
 std::string cmFindPathCommand::FindHeaderInFramework(
-  std::string const& file, std::string const& dir) const
+  std::string const& file, std::string const& dir,
+  cmFindBaseDebugState& debug) const
 {
   std::string fileName = file;
   std::string frameWorkName;
@@ -107,12 +92,15 @@ std::string cmFindPathCommand::FindHeaderInFramework(
     if (!frameWorkName.empty()) {
       std::string fpath = cmStrCat(dir, frameWorkName, ".framework");
       std::string intPath = cmStrCat(fpath, "/Headers/", fileName);
-      if (cmSystemTools::FileExists(intPath)) {
+      if (cmSystemTools::FileExists(intPath) &&
+          this->Validate(this->IncludeFileInPath ? intPath : fpath)) {
+        debug.FoundAt(intPath);
         if (this->IncludeFileInPath) {
           return intPath;
         }
         return fpath;
       }
+      debug.FailedAt(intPath);
     }
   }
   // if it is not found yet or not a framework header, then do a glob search
@@ -123,12 +111,15 @@ std::string cmFindPathCommand::FindHeaderInFramework(
   std::vector<std::string> files = globIt.GetFiles();
   if (!files.empty()) {
     std::string fheader = cmSystemTools::CollapseFullPath(files[0]);
+    debug.FoundAt(fheader);
     if (this->IncludeFileInPath) {
       return fheader;
     }
     fheader.resize(fheader.size() - file.size());
     return fheader;
   }
+
+  // No frameworks matched the glob, so nothing more to add to debug.FailedAt()
   return "";
 }
 
@@ -138,7 +129,8 @@ std::string cmFindPathCommand::FindNormalHeader(cmFindBaseDebugState& debug)
   for (std::string const& n : this->Names) {
     for (std::string const& sp : this->SearchPaths) {
       tryPath = cmStrCat(sp, n);
-      if (cmSystemTools::FileExists(tryPath)) {
+      if (cmSystemTools::FileExists(tryPath) &&
+          this->Validate(this->IncludeFileInPath ? tryPath : sp)) {
         debug.FoundAt(tryPath);
         if (this->IncludeFileInPath) {
           return tryPath;
@@ -155,8 +147,7 @@ std::string cmFindPathCommand::FindFrameworkHeader(cmFindBaseDebugState& debug)
 {
   for (std::string const& n : this->Names) {
     for (std::string const& sp : this->SearchPaths) {
-      std::string fwPath = this->FindHeaderInFramework(n, sp);
-      fwPath.empty() ? debug.FailedAt(fwPath) : debug.FoundAt(fwPath);
+      std::string fwPath = this->FindHeaderInFramework(n, sp, debug);
       if (!fwPath.empty()) {
         return fwPath;
       }

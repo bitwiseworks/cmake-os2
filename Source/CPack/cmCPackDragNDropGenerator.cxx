@@ -14,15 +14,17 @@
 #include "cmsys/FStream.hxx"
 #include "cmsys/RegularExpression.hxx"
 
+#include "cmCPackConfigure.h"
 #include "cmCPackGenerator.h"
 #include "cmCPackLog.h"
 #include "cmDuration.h"
 #include "cmGeneratedFileStream.h"
 #include "cmStringAlgorithms.h"
 #include "cmSystemTools.h"
+#include "cmValue.h"
 #include "cmXMLWriter.h"
 
-#ifdef HAVE_CoreServices
+#if HAVE_CoreServices
 // For the old LocaleStringToLangAndRegionCodes() function, to convert
 // to the old Script Manager RegionCode values needed for the 'LPic' data
 // structure used for generating multi-lingual SLAs.
@@ -76,7 +78,7 @@ int cmCPackDragNDropGenerator::InitializeInternal()
                   "Cannot locate hdiutil command" << std::endl);
     return 0;
   }
-  this->SetOptionIfNotSet("CPACK_COMMAND_HDIUTIL", hdiutil_path.c_str());
+  this->SetOptionIfNotSet("CPACK_COMMAND_HDIUTIL", hdiutil_path);
 
   const std::string setfile_path =
     cmSystemTools::FindProgram("SetFile", paths, false);
@@ -85,7 +87,7 @@ int cmCPackDragNDropGenerator::InitializeInternal()
                   "Cannot locate SetFile command" << std::endl);
     return 0;
   }
-  this->SetOptionIfNotSet("CPACK_COMMAND_SETFILE", setfile_path.c_str());
+  this->SetOptionIfNotSet("CPACK_COMMAND_SETFILE", setfile_path);
 
   const std::string rez_path = cmSystemTools::FindProgram("Rez", paths, false);
   if (rez_path.empty()) {
@@ -93,11 +95,13 @@ int cmCPackDragNDropGenerator::InitializeInternal()
                   "Cannot locate Rez command" << std::endl);
     return 0;
   }
-  this->SetOptionIfNotSet("CPACK_COMMAND_REZ", rez_path.c_str());
+  this->SetOptionIfNotSet("CPACK_COMMAND_REZ", rez_path);
 
   if (this->IsSet("CPACK_DMG_SLA_DIR")) {
     slaDirectory = this->GetOption("CPACK_DMG_SLA_DIR");
-    if (!slaDirectory.empty() && this->IsSet("CPACK_RESOURCE_FILE_LICENSE")) {
+    if (!slaDirectory.empty() &&
+        this->IsOn("CPACK_DMG_SLA_USE_RESOURCE_FILE_LICENSE") &&
+        this->IsSet("CPACK_RESOURCE_FILE_LICENSE")) {
       std::string license_file =
         this->GetOption("CPACK_RESOURCE_FILE_LICENSE");
       if (!license_file.empty() &&
@@ -260,43 +264,37 @@ int cmCPackDragNDropGenerator::CreateDMG(const std::string& src_dir,
                                          const std::string& output_file)
 {
   // Get optional arguments ...
-  const std::string cpack_package_icon = this->GetOption("CPACK_PACKAGE_ICON")
-    ? this->GetOption("CPACK_PACKAGE_ICON")
-    : "";
+  cmValue cpack_package_icon = this->GetOption("CPACK_PACKAGE_ICON");
 
   const std::string cpack_dmg_volume_name =
     this->GetOption("CPACK_DMG_VOLUME_NAME")
-    ? this->GetOption("CPACK_DMG_VOLUME_NAME")
-    : this->GetOption("CPACK_PACKAGE_FILE_NAME");
+    ? *this->GetOption("CPACK_DMG_VOLUME_NAME")
+    : *this->GetOption("CPACK_PACKAGE_FILE_NAME");
 
   const std::string cpack_dmg_format = this->GetOption("CPACK_DMG_FORMAT")
-    ? this->GetOption("CPACK_DMG_FORMAT")
+    ? *this->GetOption("CPACK_DMG_FORMAT")
     : "UDZO";
 
+  const std::string cpack_dmg_filesystem =
+    this->GetOption("CPACK_DMG_FILESYSTEM")
+    ? *this->GetOption("CPACK_DMG_FILESYSTEM")
+    : "HFS+";
+
   // Get optional arguments ...
-  std::string cpack_license_file =
-    this->GetOption("CPACK_RESOURCE_FILE_LICENSE")
-    ? this->GetOption("CPACK_RESOURCE_FILE_LICENSE")
-    : "";
+  std::string cpack_license_file;
+  if (this->IsOn("CPACK_DMG_SLA_USE_RESOURCE_FILE_LICENSE")) {
+    cpack_license_file = *this->GetOption("CPACK_RESOURCE_FILE_LICENSE");
+  }
 
-  const std::string cpack_dmg_background_image =
-    this->GetOption("CPACK_DMG_BACKGROUND_IMAGE")
-    ? this->GetOption("CPACK_DMG_BACKGROUND_IMAGE")
-    : "";
+  cmValue cpack_dmg_background_image =
+    this->GetOption("CPACK_DMG_BACKGROUND_IMAGE");
 
-  const std::string cpack_dmg_ds_store = this->GetOption("CPACK_DMG_DS_STORE")
-    ? this->GetOption("CPACK_DMG_DS_STORE")
-    : "";
+  cmValue cpack_dmg_ds_store = this->GetOption("CPACK_DMG_DS_STORE");
 
-  const std::string cpack_dmg_languages =
-    this->GetOption("CPACK_DMG_SLA_LANGUAGES")
-    ? this->GetOption("CPACK_DMG_SLA_LANGUAGES")
-    : "";
+  cmValue cpack_dmg_languages = this->GetOption("CPACK_DMG_SLA_LANGUAGES");
 
-  const std::string cpack_dmg_ds_store_setup_script =
-    this->GetOption("CPACK_DMG_DS_STORE_SETUP_SCRIPT")
-    ? this->GetOption("CPACK_DMG_DS_STORE_SETUP_SCRIPT")
-    : "";
+  cmValue cpack_dmg_ds_store_setup_script =
+    this->GetOption("CPACK_DMG_DS_STORE_SETUP_SCRIPT");
 
   const bool cpack_dmg_disable_applications_symlink =
     this->IsOn("CPACK_DMG_DISABLE_APPLICATIONS_SYMLINK");
@@ -319,7 +317,7 @@ int cmCPackDragNDropGenerator::CreateDMG(const std::string& src_dir,
   staging << src_dir;
 
   // Add a symlink to /Applications so users can drag-and-drop the bundle
-  // into it unless this behaviour was disabled
+  // into it unless this behavior was disabled
   if (!cpack_dmg_disable_applications_symlink) {
     std::ostringstream application_link;
     application_link << staging.str() << "/Applications";
@@ -327,7 +325,7 @@ int cmCPackDragNDropGenerator::CreateDMG(const std::string& src_dir,
   }
 
   // Optionally add a custom volume icon ...
-  if (!cpack_package_icon.empty()) {
+  if (!cpack_package_icon->empty()) {
     std::ostringstream package_icon_source;
     package_icon_source << cpack_package_icon;
 
@@ -346,7 +344,7 @@ int cmCPackDragNDropGenerator::CreateDMG(const std::string& src_dir,
 
   // Optionally add a custom .DS_Store file
   // (e.g. for setting background/layout) ...
-  if (!cpack_dmg_ds_store.empty()) {
+  if (!cpack_dmg_ds_store->empty()) {
     std::ostringstream package_settings_source;
     package_settings_source << cpack_dmg_ds_store;
 
@@ -367,7 +365,7 @@ int cmCPackDragNDropGenerator::CreateDMG(const std::string& src_dir,
   // Optionally add a custom background image ...
   // Make sure the background file type is the same as the custom image
   // and that the file is hidden so it doesn't show up.
-  if (!cpack_dmg_background_image.empty()) {
+  if (!cpack_dmg_background_image->empty()) {
     const std::string extension =
       cmSystemTools::GetFilenameLastExtension(cpack_dmg_background_image);
     std::ostringstream package_background_source;
@@ -389,7 +387,7 @@ int cmCPackDragNDropGenerator::CreateDMG(const std::string& src_dir,
   }
 
   bool remount_image =
-    !cpack_package_icon.empty() || !cpack_dmg_ds_store_setup_script.empty();
+    !cpack_package_icon->empty() || !cpack_dmg_ds_store_setup_script->empty();
 
   std::string temp_image_format = "UDZO";
 
@@ -418,7 +416,7 @@ int cmCPackDragNDropGenerator::CreateDMG(const std::string& src_dir,
   temp_image_command << " -ov";
   temp_image_command << " -srcfolder \"" << staging.str() << "\"";
   temp_image_command << " -volname \"" << cpack_dmg_volume_name << "\"";
-  temp_image_command << " -fs HFS+";
+  temp_image_command << " -fs \"" << cpack_dmg_filesystem << "\"";
   temp_image_command << " -format " << temp_image_format;
   temp_image_command << " \"" << temp_image << "\"";
 
@@ -466,7 +464,7 @@ int cmCPackDragNDropGenerator::CreateDMG(const std::string& src_dir,
     }
 
     // Optionally set the custom icon flag for the image ...
-    if (!had_error && !cpack_package_icon.empty()) {
+    if (!had_error && !cpack_package_icon->empty()) {
       std::string error;
       std::ostringstream setfile_command;
       setfile_command << this->GetOption("CPACK_COMMAND_SETFILE");
@@ -485,7 +483,7 @@ int cmCPackDragNDropGenerator::CreateDMG(const std::string& src_dir,
 
     // Optionally we can execute a custom apple script to generate
     // the .DS_Store for the volume folder ...
-    if (!had_error && !cpack_dmg_ds_store_setup_script.empty()) {
+    if (!had_error && !cpack_dmg_ds_store_setup_script->empty()) {
       std::ostringstream setup_script_command;
       setup_script_command << "osascript"
                            << " \"" << cpack_dmg_ds_store_setup_script << "\""
@@ -593,7 +591,7 @@ int cmCPackDragNDropGenerator::CreateDMG(const std::string& src_dir,
                            kCFStringEncodingMacRoman);
         LangCode lang = 0;
         RegionCode region = 0;
-#ifdef HAVE_CoreServices
+#if HAVE_CoreServices
         OSStatus err =
           LocaleStringToLangAndRegionCodes(iso_language_cstr, &lang, &region);
         if (err != noErr)
@@ -604,7 +602,7 @@ int cmCPackDragNDropGenerator::CreateDMG(const std::string& src_dir,
                           << iso_language_cstr << std::endl);
           return 0;
         }
-#ifdef HAVE_CoreServices
+#if HAVE_CoreServices
         header_data.push_back(region);
         header_data.push_back(i);
         header_data.push_back(0);
@@ -713,7 +711,7 @@ std::string cmCPackDragNDropGenerator::GetComponentInstallDirNameSuffix(
     // the current COMPONENT belongs to.
     std::string groupVar =
       "CPACK_COMPONENT_" + cmSystemTools::UpperCase(componentName) + "_GROUP";
-    const char* _groupName = GetOption(groupVar);
+    cmValue _groupName = this->GetOption(groupVar);
     if (_groupName) {
       std::string groupName = _groupName;
 

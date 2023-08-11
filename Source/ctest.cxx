@@ -44,19 +44,24 @@ static const char* cmDocumentationOptions[][2] = {
   { "--test-output-size-failed <size>",
     "Limit the output for failed tests "
     "to <size> bytes" },
+  { "--test-output-truncation <mode>",
+    "Truncate 'tail' (default), 'middle' or 'head' of test output once "
+    "maximum output size is reached" },
   { "-F", "Enable failover." },
   { "-j <jobs>, --parallel <jobs>",
     "Run the tests in parallel using the "
     "given number of jobs." },
   { "-Q,--quiet", "Make ctest quiet." },
   { "-O <file>, --output-log <file>", "Output to log file" },
+  { "--output-junit <file>", "Output test results to JUnit XML file." },
   { "-N,--show-only[=format]",
     "Disable actual execution of tests. The optional 'format' defines the "
     "format of the test information and can be 'human' for the current text "
     "format or 'json-v1' for json format. Defaults to 'human'." },
   { "-L <regex>, --label-regex <regex>",
-    "Run tests with labels matching "
-    "regular expression." },
+    "Run tests with labels matching regular expression. "
+    "With multiple -L, run tests where each "
+    "regular expression matches at least one label." },
   { "-R <regex>, --tests-regex <regex>",
     "Run tests matching regular "
     "expression." },
@@ -64,8 +69,9 @@ static const char* cmDocumentationOptions[][2] = {
     "Exclude tests matching regular "
     "expression." },
   { "-LE <regex>, --label-exclude <regex>",
-    "Exclude tests with labels "
-    "matching regular expression." },
+    "Exclude tests with labels matching regular expression. "
+    "With multiple -LE, exclude tests where each "
+    "regular expression matches at least one label." },
   { "-FA <regex>, --fixture-exclude-any <regex>",
     "Do not automatically "
     "add any tests for "

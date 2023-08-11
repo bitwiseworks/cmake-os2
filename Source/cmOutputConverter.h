@@ -17,6 +17,21 @@ class cmOutputConverter
 public:
   cmOutputConverter(cmStateSnapshot const& snapshot);
 
+  /**
+   * Convert the given remote path to a relative path with respect to
+   * one of our common work directories.  The path must use forward
+   * slashes and not already be escaped or quoted.
+   * The conversion is skipped if the paths are not both in the source
+   * or both in the binary tree.
+   */
+  std::string MaybeRelativeToTopBinDir(std::string const& path) const;
+  std::string MaybeRelativeToCurBinDir(std::string const& path) const;
+
+  std::string const& GetRelativePathTopSource() const;
+  std::string const& GetRelativePathTopBinary() const;
+  void SetRelativePathTop(std::string const& topSource,
+                          std::string const& topBinary);
+
   enum OutputFormat
   {
     SHELL,
@@ -73,13 +88,22 @@ public:
     Shell_Flag_IsUnix = (1 << 8),
 
     Shell_Flag_UnescapeNinjaConfiguration = (1 << 9),
+
+    Shell_Flag_IsResponse = (1 << 10)
   };
 
   std::string EscapeForShell(cm::string_view str, bool makeVars = false,
                              bool forEcho = false, bool useWatcomQuote = false,
-                             bool unescapeNinjaConfiguration = false) const;
+                             bool unescapeNinjaConfiguration = false,
+                             bool forResponse = false) const;
 
-  static std::string EscapeForCMake(cm::string_view str);
+  enum class WrapQuotes
+  {
+    Wrap,
+    NoWrap,
+  };
+  static std::string EscapeForCMake(cm::string_view str,
+                                    WrapQuotes wrapQuotes = WrapQuotes::Wrap);
 
   /** Compute an escaped version of the given argument for use in a
       windows shell.  */
@@ -102,6 +126,9 @@ public:
   };
   static FortranPreprocess GetFortranPreprocess(cm::string_view value);
 
+protected:
+  cmStateSnapshot StateSnapshot;
+
 private:
   cmState* GetState() const;
 
@@ -111,7 +138,26 @@ private:
   static bool Shell_ArgumentNeedsQuotes(cm::string_view in, int flags);
   static std::string Shell_GetArgument(cm::string_view in, int flags);
 
-  cmStateSnapshot StateSnapshot;
+  bool LinkScriptShell = false;
 
-  bool LinkScriptShell;
+  // The top-most directories for relative path conversion.  Both the
+  // source and destination location of a relative path conversion
+  // must be underneath one of these directories (both under source or
+  // both under binary) in order for the relative path to be evaluated
+  // safely by the build tools.
+  std::string RelativePathTopSource;
+  std::string RelativePathTopBinary;
+  enum class TopRelation
+  {
+    Separate,
+    BinInSrc,
+    SrcInBin,
+    InSource,
+  };
+  TopRelation RelativePathTopRelation = TopRelation::Separate;
+  void ComputeRelativePathTopSource();
+  void ComputeRelativePathTopBinary();
+  void ComputeRelativePathTopRelation();
+  std::string MaybeRelativeTo(std::string const& local_path,
+                              std::string const& remote_path) const;
 };

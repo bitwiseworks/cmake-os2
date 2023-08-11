@@ -6,6 +6,7 @@
 
 #include "cmGeneratorExpression.h"
 #include "cmInstallType.h"
+#include "cmListFileCache.h"
 #include "cmLocalGenerator.h"
 #include "cmMakefile.h"
 #include "cmStringAlgorithms.h"
@@ -18,8 +19,7 @@ cmInstallDirectoryGenerator::cmInstallDirectoryGenerator(
   MessageLevel message, bool exclude_from_all, std::string literal_args,
   bool optional, cmListFileBacktrace backtrace)
   : cmInstallGenerator(dest, configurations, component, message,
-                       exclude_from_all, std::move(backtrace))
-  , LocalGenerator(nullptr)
+                       exclude_from_all, false, std::move(backtrace))
   , Directories(dirs)
   , FilePermissions(std::move(file_permissions))
   , DirPermissions(std::move(dir_permissions))

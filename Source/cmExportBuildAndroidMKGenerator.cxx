@@ -4,6 +4,7 @@
 
 #include <sstream>
 #include <utility>
+#include <vector>
 
 #include <cmext/algorithm>
 
@@ -60,7 +61,7 @@ void cmExportBuildAndroidMKGenerator::GenerateImportPropertyCode(
 }
 
 void cmExportBuildAndroidMKGenerator::GenerateMissingTargetsCheckCode(
-  std::ostream&, const std::vector<std::string>&)
+  std::ostream&)
 {
 }
 
@@ -106,7 +107,8 @@ void cmExportBuildAndroidMKGenerator::GenerateInterfaceProperties(
         std::string sharedLibs;
         std::string ldlibs;
         cmLinkInterfaceLibraries const* linkIFace =
-          target->GetLinkInterfaceLibraries(config, target, false);
+          target->GetLinkInterfaceLibraries(
+            config, target, cmGeneratorTarget::LinkInterfaceFor::Link);
         for (cmLinkItem const& item : linkIFace->Libraries) {
           cmGeneratorTarget const* gt = item.Target;
           std::string const& lib = item.AsStr();
@@ -167,7 +169,8 @@ void cmExportBuildAndroidMKGenerator::GenerateInterfaceProperties(
 
   // Tell the NDK build system if prebuilt static libraries use C++.
   if (target->GetType() == cmStateEnums::STATIC_LIBRARY) {
-    cmLinkImplementation const* li = target->GetLinkImplementation(config);
+    cmLinkImplementation const* li = target->GetLinkImplementation(
+      config, cmGeneratorTarget::LinkInterfaceFor::Link);
     if (cm::contains(li->Languages, "CXX")) {
       os << "LOCAL_HAS_CPP := true\n";
     }

@@ -9,6 +9,7 @@
 
 #include "cmsys/Process.h"
 
+#include "cmBuildOptions.h"
 #include "cmCTest.h"
 #include "cmCTestTestHandler.h"
 #include "cmGlobalGenerator.h"
@@ -18,6 +19,8 @@
 #include "cmSystemTools.h"
 #include "cmWorkingDirectory.h"
 #include "cmake.h"
+
+struct cmMessageMetadata;
 
 cmCTestBuildAndTestHandler::cmCTestBuildAndTestHandler()
 {
@@ -41,9 +44,9 @@ int cmCTestBuildAndTestHandler::ProcessHandler()
 {
   this->Output.clear();
   std::string output;
-  cmSystemTools::ResetErrorOccuredFlag();
+  cmSystemTools::ResetErrorOccurredFlag();
   int retv = this->RunCMakeAndTest(&this->Output);
-  cmSystemTools::ResetErrorOccuredFlag();
+  cmSystemTools::ResetErrorOccurredFlag();
   return retv;
 }
 
@@ -125,7 +128,7 @@ public:
     : CM(cm)
   {
     cmSystemTools::SetMessageCallback(
-      [&s](const std::string& msg, const char* /*unused*/) {
+      [&s](const std::string& msg, const cmMessageMetadata& /* unused */) {
         s += msg;
         s += "\n";
       });
@@ -261,10 +264,13 @@ int cmCTestBuildAndTestHandler::RunCMakeAndTest(std::string* outstring)
     if (!config) {
       config = "Debug";
     }
+
+    cmBuildOptions buildOptions(!this->BuildNoClean, false,
+                                PackageResolveMode::Disable);
     int retVal = cm.GetGlobalGenerator()->Build(
       cmake::NO_BUILD_PARALLEL_LEVEL, this->SourceDir, this->BinaryDir,
       this->BuildProject, { tar }, output, this->BuildMakeProgram, config,
-      !this->BuildNoClean, false, false, remainingTime);
+      buildOptions, false, remainingTime);
     out << output;
     // if the build failed then return
     if (retVal) {

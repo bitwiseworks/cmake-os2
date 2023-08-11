@@ -46,6 +46,8 @@
 #                               Set to empty string to use no default value.
 #  KWSYS_CXX_COMPILE_FEATURES = target_compile_features arguments for KWSys.
 #
+#  KWSYS_NO_EXECINFO          = Do not use execinfo.
+#
 # Optional settings to setup install rules are as follows:
 #
 #  KWSYS_INSTALL_BIN_DIR     = The installation target directories into
@@ -86,17 +88,17 @@
 # any outside mailing list and no documentation of the change will be
 # written.
 
-cmake_minimum_required(VERSION 3.1 FATAL_ERROR)
-foreach(p
-    CMP0056 # CMake 3.2, Honor link flags in try_compile() source-file signature.
-    CMP0063 # CMake 3.3, Honor visibility properties for all target types.
-    CMP0067 # CMake 3.8, Honor language standard in try_compile source-file signature.
-    CMP0069 # CMake 3.9, INTERPROCEDURAL_OPTIMIZATION is enforced when enabled.
-    )
-  if(POLICY ${p})
-    cmake_policy(SET ${p} NEW)
-  endif()
-endforeach()
+cmake_minimum_required(VERSION 3.9...3.22 FATAL_ERROR)
+
+# Some configure checks depend upon the deployment target. Clear checks when
+# the deployment target changes.
+if (APPLE)
+  if (NOT CMAKE_OSX_DEPLOYMENT_TARGET STREQUAL KWSYS_LAST_OSX_DEPLOYMENT_TARGET)
+    unset(KWSYS_CXX_HAS_UTIMENSAT CACHE)
+  endif ()
+  set(KWSYS_LAST_OSX_DEPLOYMENT_TARGET "${CMAKE_OSX_DEPLOYMENT_TARGET}"
+    CACHE INTERNAL "remember the last deployment target to trigger configure rechecks")
+endif ()
 
 #-----------------------------------------------------------------------------
 # If a namespace is not specified, use "kwsys" and enable testing.
@@ -142,6 +144,7 @@ if(KWSYS_STANDALONE OR CMake_SOURCE_DIR)
   set(KWSYS_USE_MD5 1)
   set(KWSYS_USE_Process 1)
   set(KWSYS_USE_RegularExpression 1)
+  set(KWSYS_USE_Status 1)
   set(KWSYS_USE_System 1)
   set(KWSYS_USE_SystemTools 1)
   set(KWSYS_USE_CommandLineArguments 1)
@@ -157,6 +160,7 @@ if(KWSYS_USE_SystemTools)
   set(KWSYS_USE_Directory 1)
   set(KWSYS_USE_FStream 1)
   set(KWSYS_USE_Encoding 1)
+  set(KWSYS_USE_Status 1)
 endif()
 if(KWSYS_USE_Glob)
   set(KWSYS_USE_Directory 1)
@@ -177,6 +181,8 @@ if(KWSYS_USE_System)
 endif()
 if(KWSYS_USE_Directory)
   set(KWSYS_USE_Encoding 1)
+  set(KWSYS_USE_Status 1)
+  set(KWSYS_USE_SystemTools 1)
 endif()
 if(KWSYS_USE_DynamicLoader)
   set(KWSYS_USE_Encoding 1)
@@ -513,7 +519,7 @@ if(KWSYS_USE_SystemInformation)
     set_property(SOURCE SystemInformation.cxx APPEND PROPERTY
       COMPILE_DEFINITIONS KWSYS_CXX_HAS_RLIMIT64=1)
   endif()
-  if(UNIX)
+  if(UNIX AND NOT KWSYS_NO_EXECINFO)
     include(CheckIncludeFileCXX)
     # check for simple stack trace
     # usually it's in libc but on FreeBSD
@@ -630,7 +636,7 @@ set(KWSYS_HXX_FILES Configure String)
 # Add selected C++ classes.
 set(cppclasses
   Directory DynamicLoader Encoding Glob RegularExpression SystemTools
-  CommandLineArguments FStream SystemInformation ConsoleBuf
+  CommandLineArguments FStream SystemInformation ConsoleBuf Status
   )
 foreach(cpp ${cppclasses})
   if(KWSYS_USE_${cpp})
@@ -963,6 +969,7 @@ if(KWSYS_STANDALONE OR CMake_SOURCE_DIR)
     # C++ tests
     set(KWSYS_CXX_TESTS ${KWSYS_CXX_TESTS}
       testConfigure.cxx
+      testStatus.cxx
       testSystemTools.cxx
       testCommandLineArguments.cxx
       testCommandLineArguments1.cxx
@@ -1094,7 +1101,7 @@ if(KWSYS_STANDALONE OR CMake_SOURCE_DIR)
     # Some Apple compilers produce bad optimizations in this source.
     if(APPLE AND CMAKE_C_COMPILER_ID MATCHES "^(GNU|LLVM)$")
       set(testProcess_COMPILE_FLAGS "${testProcess_COMPILE_FLAGS} -O0")
-    elseif(CMAKE_C_COMPILER_ID STREQUAL "XL")
+    elseif(CMAKE_C_COMPILER_ID MATCHES "^(XL|XLClang)$")
       # Tell IBM XL not to warn about our test infinite loop
       if(CMAKE_SYSTEM MATCHES "Linux.*ppc64le"
          AND CMAKE_C_COMPILER_VERSION VERSION_LESS "16.1.0"

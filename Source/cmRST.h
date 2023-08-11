@@ -69,11 +69,11 @@ private:
 
   std::ostream& OS;
   std::string DocRoot;
-  int IncludeDepth;
-  bool OutputLinePending;
-  bool LastLineEndedInColonColon;
-  MarkupType Markup;
-  DirectiveType Directive;
+  int IncludeDepth = 0;
+  bool OutputLinePending = false;
+  bool LastLineEndedInColonColon = false;
+  MarkupType Markup = MarkupNone;
+  DirectiveType Directive = DirectiveNone;
   cmsys::RegularExpression CMakeDirective;
   cmsys::RegularExpression CMakeModuleDirective;
   cmsys::RegularExpression ParsedLiteralDirective;
@@ -83,6 +83,7 @@ private:
   cmsys::RegularExpression TocTreeDirective;
   cmsys::RegularExpression ProductionListDirective;
   cmsys::RegularExpression NoteDirective;
+  cmsys::RegularExpression VersionDirective;
   cmsys::RegularExpression ModuleRST;
   cmsys::RegularExpression CMakeRole;
   cmsys::RegularExpression InlineLink;

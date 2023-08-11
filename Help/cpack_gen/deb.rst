@@ -57,7 +57,7 @@ List of CPack DEB generator specific variables:
  .. versionadded:: 3.5
   Per-component ``CPACK_DEBIAN_<COMPONENT>_PACKAGE_NAME`` variables.
 
- See https://www.debian.org/doc/debian-policy/ch-controlfields.html#s-f-Source
+ See https://www.debian.org/doc/debian-policy/ch-controlfields.html#s-f-source
 
 .. variable:: CPACK_DEBIAN_FILE_NAME
               CPACK_DEBIAN_<COMPONENT>_FILE_NAME
@@ -274,10 +274,23 @@ List of CPack DEB generator specific variables:
 
  Possible values are:
 
- - lzma
- - xz
- - bzip2
- - gzip
+  ``lzma``
+    Lempel–Ziv–Markov chain algorithm
+
+  ``xz``
+    XZ Utils compression
+
+  ``bzip2``
+    bzip2 Burrows–Wheeler algorithm
+
+  ``gzip``
+    GNU Gzip compression
+
+  ``zstd``
+    .. versionadded:: 3.22
+
+    Zstandard compression
+
 
 .. variable:: CPACK_DEBIAN_PACKAGE_PRIORITY
               CPACK_DEBIAN_<COMPONENT>_PACKAGE_PRIORITY
@@ -289,7 +302,7 @@ List of CPack DEB generator specific variables:
  * Default   : "optional"
 
  .. versionadded:: 3.5
-  Per-component ``CPACK_DEBIAN_<COMPONENT>_PACKAGE_PRIORITY`` varables.
+  Per-component ``CPACK_DEBIAN_<COMPONENT>_PACKAGE_PRIORITY`` variables.
 
  See https://www.debian.org/doc/debian-policy/ch-archive.html#s-priorities
 
@@ -386,7 +399,7 @@ List of CPack DEB generator specific variables:
  .. versionadded:: 3.4
   Per-component ``CPACK_DEBIAN_<COMPONENT>_PACKAGE_PREDEPENDS`` variables.
 
- See http://www.debian.org/doc/debian-policy/ch-relationships.html#s-binarydeps
+ See https://www.debian.org/doc/debian-policy/ch-relationships.html#s-binarydeps
 
 .. variable:: CPACK_DEBIAN_PACKAGE_ENHANCES
               CPACK_DEBIAN_<COMPONENT>_PACKAGE_ENHANCES
@@ -406,7 +419,7 @@ List of CPack DEB generator specific variables:
  .. versionadded:: 3.4
   Per-component ``CPACK_DEBIAN_<COMPONENT>_PACKAGE_ENHANCES`` variables.
 
- See http://www.debian.org/doc/debian-policy/ch-relationships.html#s-binarydeps
+ See https://www.debian.org/doc/debian-policy/ch-relationships.html#s-binarydeps
 
 .. variable:: CPACK_DEBIAN_PACKAGE_BREAKS
               CPACK_DEBIAN_<COMPONENT>_PACKAGE_BREAKS
@@ -495,7 +508,7 @@ List of CPack DEB generator specific variables:
  .. versionadded:: 3.4
   Per-component ``CPACK_DEBIAN_<COMPONENT>_PACKAGE_REPLACES`` variables.
 
- See http://www.debian.org/doc/debian-policy/ch-relationships.html#s-binarydeps
+ See https://www.debian.org/doc/debian-policy/ch-relationships.html#s-binarydeps
 
 .. variable:: CPACK_DEBIAN_PACKAGE_RECOMMENDS
               CPACK_DEBIAN_<COMPONENT>_PACKAGE_RECOMMENDS
@@ -514,7 +527,7 @@ List of CPack DEB generator specific variables:
  .. versionadded:: 3.4
   Per-component ``CPACK_DEBIAN_<COMPONENT>_PACKAGE_RECOMMENDS`` variables.
 
- See http://www.debian.org/doc/debian-policy/ch-relationships.html#s-binarydeps
+ See https://www.debian.org/doc/debian-policy/ch-relationships.html#s-binarydeps
 
 .. variable:: CPACK_DEBIAN_PACKAGE_SUGGESTS
               CPACK_DEBIAN_<COMPONENT>_PACKAGE_SUGGESTS
@@ -532,7 +545,7 @@ List of CPack DEB generator specific variables:
  .. versionadded:: 3.4
   Per-component ``CPACK_DEBIAN_<COMPONENT>_PACKAGE_SUGGESTS`` variables.
 
- See http://www.debian.org/doc/debian-policy/ch-relationships.html#s-binarydeps
+ See https://www.debian.org/doc/debian-policy/ch-relationships.html#s-binarydeps
 
 .. variable:: CPACK_DEBIAN_PACKAGE_GENERATE_SHLIBS
 
@@ -626,7 +639,7 @@ List of CPack DEB generator specific variables:
    - :variable:`CPACK_DEBIAN_PACKAGE_SOURCE` for component-based
      installations.
 
- See https://www.debian.org/doc/debian-policy/ch-controlfields.html#s-f-Source
+ See https://www.debian.org/doc/debian-policy/ch-controlfields.html#s-f-source
 
  .. note::
 
@@ -652,8 +665,17 @@ Dbgsym packaging has its own set of variables:
 
 .. note::
 
+ Setting this also strips the ELF files in the generated non-dbgsym package,
+ which results in debuginfo only being available in the dbgsym package.
+
+.. note::
+
  Binaries must contain debug symbols before packaging so use either ``Debug``
  or ``RelWithDebInfo`` for :variable:`CMAKE_BUILD_TYPE` variable value.
+
+ Additionally, if :variable:`CPACK_STRIP_FILES` is set, the files will be stripped before
+ they get to the DEB generator, so will not contain debug symbols and
+ a dbgsym package will not get built. Do not use with :variable:`CPACK_STRIP_FILES`.
 
 Building Debian packages on Windows
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

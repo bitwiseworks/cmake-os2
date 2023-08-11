@@ -49,11 +49,19 @@ Variables specific to CPack Archive generator
 
   Package file name without extension. The extension is determined from the
   archive format (see list above) and automatically appended to the file name.
+  Note that ``<component>`` is all uppercase in the variable name.
+
   The default is ``<CPACK_PACKAGE_FILE_NAME>[-<component>]``, with spaces
   replaced by '-'.
 
   .. versionadded:: 3.9
     Per-component ``CPACK_ARCHIVE_<component>_FILE_NAME`` variables.
+
+.. variable:: CPACK_ARCHIVE_FILE_EXTENSION
+
+  .. versionadded:: 3.25
+
+  Package file extension. Default values are given in the list above.
 
 .. variable:: CPACK_ARCHIVE_COMPONENT_INSTALL
 
@@ -82,7 +90,8 @@ CPack generators which are essentially archives at their core. These include:
 
   See also the :variable:`CPACK_THREADS` variable.
 
-.. note::
+  .. versionadded:: 3.21
 
-    Official CMake binaries available on ``cmake.org`` ship with a ``liblzma``
-    that does not support parallel compression.
+    Official CMake binaries available on ``cmake.org`` now ship
+    with a ``liblzma`` that supports parallel compression.
+    Older versions did not.

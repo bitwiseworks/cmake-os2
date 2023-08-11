@@ -17,6 +17,7 @@
 #include <utility>
 
 #include <cm/memory>
+#include <cm/optional>
 #include <cm/string_view>
 #include <cmext/string_view>
 
@@ -25,10 +26,11 @@
 #include "cmListFileCache.h"
 #include "cmMakefile.h"
 #include "cmMessageType.h"
-#include "cmProperty.h"
+#include "cmPolicies.h"
 #include "cmRange.h"
 #include "cmStringAlgorithms.h"
 #include "cmSystemTools.h"
+#include "cmValue.h"
 
 namespace {
 class cmForEachFunctionBlocker : public cmFunctionBlocker
@@ -113,9 +115,11 @@ bool cmForEachFunctionBlocker::ReplayItems(
 
   // At end of for each execute recorded commands
   // store the old value
-  std::string oldDef;
-  if (cmProp d = mf.GetDefinition(this->Args.front())) {
-    oldDef = *d;
+  cm::optional<std::string> oldDef;
+  if (mf.GetPolicyStatus(cmPolicies::CMP0124) != cmPolicies::NEW) {
+    oldDef = mf.GetSafeDefinition(this->Args.front());
+  } else if (mf.IsNormalDefinitionSet(this->Args.front())) {
+    oldDef = *mf.GetDefinition(this->Args.front());
   }
 
   auto restore = false;
@@ -131,9 +135,14 @@ bool cmForEachFunctionBlocker::ReplayItems(
   }
 
   if (restore) {
-    // restore the variable to its prior value
-    mf.AddDefinition(this->Args.front(), oldDef);
+    if (oldDef) {
+      // restore the variable to its prior value
+      mf.AddDefinition(this->Args.front(), *oldDef);
+    } else {
+      mf.RemoveDefinition(this->Args.front());
+    }
   }
+
   return true;
 }
 
@@ -185,10 +194,15 @@ bool cmForEachFunctionBlocker::ReplayZipLists(
   assert("Sanity check" && iterationVars.size() == values.size());
 
   // Store old values for iteration variables
-  std::map<std::string, std::string> oldDefs;
+  std::map<std::string, cm::optional<std::string>> oldDefs;
   for (auto i = 0u; i < values.size(); ++i) {
-    if (cmProp d = mf.GetDefinition(iterationVars[i])) {
-      oldDefs.emplace(iterationVars[i], *d);
+    const auto& varName = iterationVars[i];
+    if (mf.GetPolicyStatus(cmPolicies::CMP0124) != cmPolicies::NEW) {
+      oldDefs.emplace(varName, mf.GetSafeDefinition(varName));
+    } else if (mf.IsNormalDefinitionSet(varName)) {
+      oldDefs.emplace(varName, *mf.GetDefinition(varName));
+    } else {
+      oldDefs.emplace(varName, cm::nullopt);
     }
   }
 
@@ -226,7 +240,11 @@ bool cmForEachFunctionBlocker::ReplayZipLists(
   // Restore the variables to its prior value
   if (restore) {
     for (auto const& p : oldDefs) {
-      mf.AddDefinition(p.first, p.second);
+      if (p.second) {
+        mf.AddDefinition(p.first, *p.second);
+      } else {
+        mf.RemoveDefinition(p.first);
+      }
     }
   }
   return true;
@@ -242,7 +260,7 @@ auto cmForEachFunctionBlocker::invoke(
     cmExecutionStatus status(mf);
     mf.ExecuteCommand(func, status);
     if (status.GetReturnInvoked()) {
-      inStatus.SetReturnInvoked();
+      inStatus.SetReturnInvoked(status.GetReturnVariables());
       result.Break = true;
       break;
     }
@@ -253,7 +271,7 @@ auto cmForEachFunctionBlocker::invoke(
     if (status.GetContinueInvoked()) {
       break;
     }
-    if (cmSystemTools::GetFatalErrorOccured()) {
+    if (cmSystemTools::GetFatalErrorOccurred()) {
       result.Restore = false;
       result.Break = true;
       break;
@@ -364,13 +382,13 @@ bool TryParseInteger(cmExecutionStatus& status, const std::string& str, int& i)
     std::ostringstream e;
     e << "Invalid integer: '" << str << "'";
     status.SetError(e.str());
-    cmSystemTools::SetFatalErrorOccured();
+    cmSystemTools::SetFatalErrorOccurred();
     return false;
   } catch (std::out_of_range&) {
     std::ostringstream e;
     e << "Integer out of range: '" << str << "'";
     status.SetError(e.str());
-    cmSystemTools::SetFatalErrorOccured();
+    cmSystemTools::SetFatalErrorOccurred();
     return false;
   }
 
@@ -434,7 +452,7 @@ bool cmForEachCommand(std::vector<std::string> const& args,
         status.SetError(
           cmStrCat("called with incorrect range specification: start ", start,
                    ", stop ", stop, ", step ", step));
-        cmSystemTools::SetFatalErrorOccured();
+        cmSystemTools::SetFatalErrorOccurred();
         return false;
       }
 
@@ -442,8 +460,8 @@ bool cmForEachCommand(std::vector<std::string> const& args,
       // in the `fb->Args` vector. The first item is the iteration variable
       // name...
       const std::size_t iter_cnt = 2u +
-        int(start < stop) * (stop - start) / std::abs(step) +
-        int(start > stop) * (start - stop) / std::abs(step);
+        static_cast<int>(start < stop) * (stop - start) / std::abs(step) +
+        static_cast<int>(start > stop) * (start - stop) / std::abs(step);
       fb->Args.resize(iter_cnt);
       fb->Args.front() = args.front();
       auto cc = start;

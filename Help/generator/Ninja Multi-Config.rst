@@ -20,8 +20,8 @@ are intended to be run with ``ninja -f build-<Config>.ninja``. A
 :variable:`CMAKE_CONFIGURATION_TYPES`.
 
 ``cmake --build . --config <Config>`` will always use ``build-<Config>.ninja``
-to build. If no ``--config`` argument is specified, ``cmake --build .`` will
-use ``build.ninja``.
+to build. If no :option:`--config <cmake--build --config>` argument is
+specified, :option:`cmake --build . <cmake --build>` will use ``build.ninja``.
 
 Each ``build-<Config>.ninja`` file contains ``<target>`` targets as well as
 ``<target>:<Config>`` targets, where ``<Config>`` is the same as the
@@ -34,7 +34,9 @@ below for how to enable cross-config mode.
 The ``Ninja Multi-Config`` generator recognizes the following variables:
 
 :variable:`CMAKE_CONFIGURATION_TYPES`
-  Specifies the total set of configurations to build.
+  Specifies the total set of configurations to build. Unlike with other
+  multi-config generators, this variable has a value of
+  ``Debug;Release;RelWithDebInfo`` by default.
 
 :variable:`CMAKE_CROSS_CONFIGS`
   Specifies a :ref:`semicolon-separated list <CMake Language Lists>` of

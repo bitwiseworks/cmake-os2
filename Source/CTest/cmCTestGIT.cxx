@@ -18,12 +18,13 @@
 #include "cmProcessTools.h"
 #include "cmStringAlgorithms.h"
 #include "cmSystemTools.h"
+#include "cmValue.h"
 
 static unsigned int cmCTestGITVersion(unsigned int epic, unsigned int major,
                                       unsigned int minor, unsigned int fix)
 {
   // 1.6.5.0 maps to 10605000
-  return fix + minor * 1000 + major * 100000 + epic * 10000000;
+  return epic * 10000000 + major * 100000 + minor * 1000 + fix;
 }
 
 cmCTestGIT::cmCTestGIT(cmCTest* ct, std::ostream& log)
@@ -175,7 +176,7 @@ bool cmCTestGIT::UpdateByFetchAndReset()
   // Fetch upstream refs.
   OutputLogger fetch_out(this->Log, "fetch-out> ");
   OutputLogger fetch_err(this->Log, "fetch-err> ");
-  if (!this->RunUpdateCommand(&git_fetch[0], &fetch_out, &fetch_err)) {
+  if (!this->RunUpdateCommand(git_fetch.data(), &fetch_out, &fetch_err)) {
     return false;
   }
 
@@ -224,7 +225,7 @@ bool cmCTestGIT::UpdateByCustom(std::string const& custom)
 
   OutputLogger custom_out(this->Log, "custom-out> ");
   OutputLogger custom_err(this->Log, "custom-err> ");
-  return this->RunUpdateCommand(&git_custom[0], &custom_out, &custom_err);
+  return this->RunUpdateCommand(git_custom.data(), &custom_out, &custom_err);
 }
 
 bool cmCTestGIT::UpdateInternal()
@@ -331,7 +332,6 @@ public:
   DiffParser(cmCTestGIT* git, const char* prefix)
     : LineParser('\0', false)
     , GIT(git)
-    , DiffField(DiffFieldNone)
   {
     this->SetLog(&git->Log, prefix);
   }
@@ -348,7 +348,7 @@ protected:
     DiffFieldSrc,
     DiffFieldDst
   };
-  DiffFieldType DiffField;
+  DiffFieldType DiffField = DiffFieldNone;
   Change CurChange;
 
   void DiffReset()
@@ -453,7 +453,6 @@ class cmCTestGIT::CommitParser : public cmCTestGIT::DiffParser
 public:
   CommitParser(cmCTestGIT* git, const char* prefix)
     : DiffParser(git, prefix)
-    , Section(SectionHeader)
   {
     this->Separator = SectionSep[this->Section];
   }
@@ -468,7 +467,7 @@ private:
     SectionCount
   };
   static char const SectionSep[SectionCount];
-  SectionType Section;
+  SectionType Section = SectionHeader;
   Revision Rev;
 
   struct Person
@@ -536,7 +535,8 @@ private:
 
   void NextSection()
   {
-    this->Section = SectionType((this->Section + 1) % SectionCount);
+    this->Section =
+      static_cast<SectionType>((this->Section + 1) % SectionCount);
     this->Separator = SectionSep[this->Section];
     if (this->Section == SectionHeader) {
       this->GIT->DoRevision(this->Rev, this->Changes);
@@ -581,16 +581,17 @@ private:
     time_t seconds = static_cast<time_t>(person.Time);
     struct tm* t = gmtime(&seconds);
     char dt[1024];
-    sprintf(dt, "%04d-%02d-%02d %02d:%02d:%02d", t->tm_year + 1900,
-            t->tm_mon + 1, t->tm_mday, t->tm_hour, t->tm_min, t->tm_sec);
+    snprintf(dt, sizeof(dt), "%04d-%02d-%02d %02d:%02d:%02d",
+             t->tm_year + 1900, t->tm_mon + 1, t->tm_mday, t->tm_hour,
+             t->tm_min, t->tm_sec);
     std::string out = dt;
 
     // Add the time-zone field "+zone" or "-zone".
     char tz[32];
     if (person.TimeZone >= 0) {
-      sprintf(tz, " +%04ld", person.TimeZone);
+      snprintf(tz, sizeof(tz), " +%04ld", person.TimeZone);
     } else {
-      sprintf(tz, " -%04ld", -person.TimeZone);
+      snprintf(tz, sizeof(tz), " -%04ld", -person.TimeZone);
     }
     out += tz;
     return out;

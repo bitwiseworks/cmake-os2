@@ -4,13 +4,14 @@
 
 #include "cmConfigure.h" // IWYU pragma: keep
 
-#include <iosfwd>
 #include <memory>
 #include <set>
 #include <string>
 
+#include <cm/optional>
+
 #include "cmGlobalVisualStudio10Generator.h"
-#include "cmStateTypes.h"
+#include "cmTransformDepfile.h"
 
 class cmGlobalGeneratorFactory;
 class cmMakefile;
@@ -23,6 +24,13 @@ public:
   static std::unique_ptr<cmGlobalGeneratorFactory> NewFactory();
 
   bool MatchesGeneratorName(const std::string& name) const override;
+
+  bool SupportsCustomCommandDepfile() const override { return true; }
+
+  cm::optional<cmDepfileFormat> DepfileFormat() const override
+  {
+    return cmDepfileFormat::MSBuildAdditionalInputs;
+  }
 
 protected:
   cmGlobalVisualStudio11Generator(cmake* cm, const std::string& name,

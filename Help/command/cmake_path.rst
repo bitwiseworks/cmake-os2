@@ -69,8 +69,8 @@ Synopsis
 
   `Native Conversion`_
     cmake_path(`NATIVE_PATH`_ <path-var> [NORMALIZE] <out-var>)
-    cmake_path(`CONVERT`_ <input> `TO_CMAKE_PATH_LIST`_ <out-var>)
-    cmake_path(`CONVERT`_ <input> `TO_NATIVE_PATH_LIST`_ <out-var>)
+    cmake_path(`CONVERT`_ <input> `TO_CMAKE_PATH_LIST`_ <out-var> [NORMALIZE])
+    cmake_path(`CONVERT`_ <input> `TO_NATIVE_PATH_LIST`_ <out-var> [NORMALIZE])
 
   `Hashing`_
     cmake_path(`HASH`_ <path-var> <out-var>)
@@ -95,6 +95,8 @@ The following conventions are used in this command's documentation:
 ``<out-var>``
   The name of a variable into which the result of a command will be written.
 
+
+.. _Path Structure And Terminology:
 
 Path Structure And Terminology
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -215,6 +217,8 @@ normalize a path is as follows:
 7. If the path is empty by this stage, add a ``dot`` (normal form of ``./``
    is ``.``).
 
+
+.. _Path Decomposition:
 
 Decomposition
 ^^^^^^^^^^^^^
@@ -385,6 +389,8 @@ Path traversal examples
   Parent path is "c:/"
 
 
+.. _Path Query:
+
 Query
 ^^^^^
 
@@ -467,6 +473,7 @@ are :ref:`normalized <Normalization>` before the check.
   set(path "/a/b")
   cmake_path(IS_PREFIX path "/a/c/../b" NORMALIZE result)   # result = true
 
+.. _Path COMPARE:
 .. _COMPARE:
 
 ::
@@ -475,8 +482,9 @@ are :ref:`normalized <Normalization>` before the check.
   cmake_path(COMPARE <input1> NOT_EQUAL <input2> <out-var>)
 
 Compares the lexical representations of two paths provided as string literals.
-No normalization is performed on either path.  Equality is determined
-according to the following pseudo-code logic:
+No normalization is performed on either path, except multiple consecutive
+directory separators are effectively collapsed into a single separator.
+Equality is determined according to the following pseudo-code logic:
 
 ::
 
@@ -495,6 +503,8 @@ according to the following pseudo-code logic:
   takes literal strings as input, not the names of variables.
 
 
+.. _Path Modification:
+
 Modification
 ^^^^^^^^^^^^
 
@@ -509,7 +519,7 @@ path, it is converted into a cmake-style path with forward-slashes
 (``/``). On Windows, the long filename marker is taken into account.
 
 When the ``NORMALIZE`` option is specified, the path is :ref:`normalized
-<Normalization>` before the conversion.
+<Normalization>` after the conversion.
 
 For example:
 
@@ -644,6 +654,8 @@ is equivalent to the following:
   cmake_path(APPEND_STRING path "input")
 
 
+.. _Path Generation:
+
 Generation
 ^^^^^^^^^^
 
@@ -688,7 +700,8 @@ When the ``NORMALIZE`` option is specified, the path is :ref:`normalized
 <Normalization>` after the path computation.
 
 Because ``cmake_path()`` does not access the filesystem, symbolic links are
-not resolved.  To compute a real path with symbolic links resolved, use the
+not resolved and any leading tilde is not expanded.  To compute a real path
+with symbolic links resolved and leading tildes expanded, use the
 :command:`file(REAL_PATH)` command instead.
 
 Native Conversion

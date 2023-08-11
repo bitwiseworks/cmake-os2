@@ -5,6 +5,7 @@
 #include "cmConfigure.h" // IWYU pragma: keep
 
 #include <chrono>
+#include <cstddef>
 #include <cstdint>
 #include <iosfwd>
 #include <map>
@@ -13,15 +14,15 @@
 #include <utility>
 #include <vector>
 
-#include <stddef.h>
-
 #include "cmsys/RegularExpression.hxx"
 
 #include "cmCTest.h"
 #include "cmCTestGenericHandler.h"
 #include "cmCTestResourceSpec.h"
+#include "cmCTestTypes.h"
 #include "cmDuration.h"
 #include "cmListFileCache.h"
+#include "cmValue.h"
 
 class cmMakefile;
 class cmXMLWriter;
@@ -32,6 +33,7 @@ class cmXMLWriter;
  */
 class cmCTestTestHandler : public cmCTestGenericHandler
 {
+  friend class cmCTest;
   friend class cmCTestRunTest;
   friend class cmCTestMultiProcessHandler;
 
@@ -65,8 +67,8 @@ public:
   /// them on
   void UseIncludeRegExp();
   void UseExcludeRegExp();
-  void SetIncludeRegExp(const char*);
-  void SetExcludeRegExp(const char*);
+  void SetIncludeRegExp(const std::string&);
+  void SetExcludeRegExp(const std::string&);
 
   void SetMaxIndex(int n) { this->MaxIndex = n; }
   int GetMaxIndex() { return this->MaxIndex; }
@@ -80,8 +82,11 @@ public:
     this->CustomMaximumFailedTestOutputSize = n;
   }
 
+  //! Set test output truncation mode. Return false if unknown mode.
+  bool SetTestOutputTruncation(const std::string& mode);
+
   //! pass the -I argument down
-  void SetTestsToRunInformation(const char*);
+  void SetTestsToRunInformation(cmValue);
 
   cmCTestTestHandler();
 
@@ -151,6 +156,7 @@ public:
     // return code of test which will mark test as "not run"
     int SkipReturnCode;
     std::vector<std::string> Environment;
+    std::vector<std::string> EnvironmentModification;
     std::vector<std::string> Labels;
     std::set<std::string> LockedResources;
     std::set<std::string> FixturesSetup;
@@ -175,8 +181,9 @@ public:
     std::string ExceptionStatus;
     bool CompressOutput;
     std::string CompletionStatus;
+    std::string CustomCompletionStatus;
     std::string Output;
-    std::string DartString;
+    std::string TestMeasurementsOutput;
     int TestCount;
     cmCTestTestProperties* Properties;
   };
@@ -209,6 +216,9 @@ public:
 
   using ListOfTests = std::vector<cmCTestTestProperties>;
 
+  // Support for writing test results in JUnit XML format.
+  void SetJUnitXMLFileName(const std::string& id);
+
 protected:
   using SetOfTests =
     std::set<cmCTestTestHandler::cmCTestTestResult, cmCTestTestResultLess>;
@@ -234,9 +244,12 @@ protected:
                              cmCTestTestResult const& result);
   // Write attached test files into the xml
   void AttachFiles(cmXMLWriter& xml, cmCTestTestResult& result);
+  void AttachFile(cmXMLWriter& xml, std::string const& file,
+                  std::string const& name);
 
-  //! Clean test output to specified length
-  void CleanTestOutput(std::string& output, size_t length);
+  //! Clean test output to specified length and truncation mode
+  void CleanTestOutput(std::string& output, size_t length,
+                       cmCTestTypes::TruncationMode truncate);
 
   cmDuration ElapsedTestingTime;
 
@@ -251,6 +264,7 @@ protected:
   bool MemCheck;
   int CustomMaximumPassedTestOutputSize;
   int CustomMaximumFailedTestOutputSize;
+  cmCTestTypes::TruncationMode TestOutputTruncation;
   int MaxIndex;
 
 public:
@@ -270,9 +284,14 @@ public:
 
 private:
   /**
-   * Generate the Dart compatible output
+   * Write test results in CTest's Test.xml format
    */
-  virtual void GenerateDartOutput(cmXMLWriter& xml);
+  virtual void GenerateCTestXML(cmXMLWriter& xml);
+
+  /**
+   * Write test results in JUnit XML format
+   */
+  bool WriteJUnitXML();
 
   void PrintLabelOrSubprojectSummary(bool isSubProject);
 
@@ -320,20 +339,16 @@ private:
 
   std::vector<int> TestsToRun;
 
-  bool UseIncludeLabelRegExpFlag;
-  bool UseExcludeLabelRegExpFlag;
   bool UseIncludeRegExpFlag;
   bool UseExcludeRegExpFlag;
   bool UseExcludeRegExpFirst;
-  std::string IncludeLabelRegExp;
-  std::string ExcludeLabelRegExp;
   std::string IncludeRegExp;
   std::string ExcludeRegExp;
   std::string ExcludeFixtureRegExp;
   std::string ExcludeFixtureSetupRegExp;
   std::string ExcludeFixtureCleanupRegExp;
-  cmsys::RegularExpression IncludeLabelRegularExpression;
-  cmsys::RegularExpression ExcludeLabelRegularExpression;
+  std::vector<cmsys::RegularExpression> IncludeLabelRegularExpressions;
+  std::vector<cmsys::RegularExpression> ExcludeLabelRegularExpressions;
   cmsys::RegularExpression IncludeTestsRegularExpression;
   cmsys::RegularExpression ExcludeTestsRegularExpression;
 
@@ -341,8 +356,7 @@ private:
   cmCTestResourceSpec ResourceSpec;
   std::string ResourceSpecFile;
 
-  void GenerateRegressionImages(cmXMLWriter& xml, const std::string& dart);
-  cmsys::RegularExpression DartStuff1;
+  void RecordCustomTestMeasurements(cmXMLWriter& xml, std::string content);
   void CheckLabelFilter(cmCTestTestProperties& it);
   void CheckLabelFilterExclude(cmCTestTestProperties& it);
   void CheckLabelFilterInclude(cmCTestTestProperties& it);
@@ -351,11 +365,16 @@ private:
   bool UseUnion;
   ListOfTests TestList;
   size_t TotalNumberOfTests;
-  cmsys::RegularExpression DartStuff;
+  cmsys::RegularExpression AllTestMeasurementsRegex;
+  cmsys::RegularExpression SingleTestMeasurementRegex;
+  cmsys::RegularExpression CustomCompletionStatusRegex;
+  cmsys::RegularExpression CustomLabelRegex;
 
   std::ostream* LogFile;
 
   cmCTest::Repeat RepeatMode = cmCTest::Repeat::Never;
   int RepeatCount = 1;
   bool RerunFailed;
+
+  std::string JUnitXMLFileName;
 };

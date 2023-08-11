@@ -14,12 +14,16 @@
 #include <utility>
 #include <vector>
 
+#include <cm/optional>
+
+#include "cmAlgorithms.h"
 #include "cmLinkItem.h"
 #include "cmListFileCache.h"
 #include "cmPolicies.h"
-#include "cmProperty.h"
 #include "cmStateTypes.h"
+#include "cmValue.h"
 
+enum class cmBuildStep;
 class cmComputeLinkInformation;
 class cmCustomCommand;
 class cmGlobalGenerator;
@@ -50,6 +54,9 @@ public:
   bool CanCompileSources() const;
   const std::string& GetLocation(const std::string& config) const;
 
+  /** Get the full path to the target's main artifact, if known.  */
+  cm::optional<std::string> MaybeGetLocation(std::string const& config) const;
+
   std::vector<cmCustomCommand> const& GetPreBuildCommands() const;
   std::vector<cmCustomCommand> const& GetPreLinkCommands() const;
   std::vector<cmCustomCommand> const& GetPostBuildCommands() const;
@@ -78,13 +85,17 @@ public:
   cmComputeLinkInformation* GetLinkInformation(
     const std::string& config) const;
 
+  // Perform validation checks on memoized link structures.
+  // Call this after generation is complete.
+  void CheckLinkLibraries() const;
+
   cmStateEnums::TargetType GetType() const;
   const std::string& GetName() const;
   std::string GetExportName() const;
 
   std::vector<std::string> GetPropertyKeys() const;
   //! Might return a nullptr if the property is not set or invalid
-  cmProp GetProperty(const std::string& prop) const;
+  cmValue GetProperty(const std::string& prop) const;
   //! Always returns a valid pointer
   std::string const& GetSafeProperty(std::string const& prop) const;
   bool GetPropertyAsBool(const std::string& prop) const;
@@ -158,10 +169,10 @@ public:
   BTs<std::string> const* GetLanguageStandardProperty(
     std::string const& lang, std::string const& config) const;
 
-  cmProp GetLanguageStandard(std::string const& lang,
-                             std::string const& config) const;
+  cmValue GetLanguageStandard(std::string const& lang,
+                              std::string const& config) const;
 
-  cmProp GetLanguageExtensions(std::string const& lang) const;
+  cmValue GetLanguageExtensions(std::string const& lang) const;
 
   bool GetLanguageStandardRequired(std::string const& lang) const;
 
@@ -182,8 +193,8 @@ public:
 
   void ComputeObjectMapping();
 
-  cmProp GetFeature(const std::string& feature,
-                    const std::string& config) const;
+  cmValue GetFeature(const std::string& feature,
+                     const std::string& config) const;
 
   const char* GetLinkPIEProperty(const std::string& config) const;
 
@@ -216,7 +227,7 @@ public:
     {
       this->PreviousState = target.SetDeviceLink(true);
     }
-    ~DeviceLinkSetter() { this->Target.SetDeviceLink(this->PreviousState); };
+    ~DeviceLinkSetter() { this->Target.SetDeviceLink(this->PreviousState); }
 
   private:
     cmGeneratorTarget& Target;
@@ -232,14 +243,20 @@ public:
                             cmOptionalLinkInterface& iface,
                             const cmGeneratorTarget* head) const;
 
+  enum class LinkInterfaceFor
+  {
+    Usage, // Interface for usage requirements excludes $<LINK_ONLY>.
+    Link,  // Interface for linking includes $<LINK_ONLY>.
+  };
+
   cmLinkInterfaceLibraries const* GetLinkInterfaceLibraries(
     const std::string& config, const cmGeneratorTarget* headTarget,
-    bool usage_requirements_only) const;
+    LinkInterfaceFor interfaceFor) const;
 
   void ComputeLinkInterfaceLibraries(const std::string& config,
                                      cmOptionalLinkInterface& iface,
                                      const cmGeneratorTarget* head,
-                                     bool usage_requirements_only) const;
+                                     LinkInterfaceFor interfaceFor) const;
 
   /** Get the library name for an imported interface library.  */
   std::string GetImportedLibName(std::string const& config) const;
@@ -383,17 +400,18 @@ public:
   LinkClosure const* GetLinkClosure(const std::string& config) const;
 
   cmLinkImplementation const* GetLinkImplementation(
-    const std::string& config) const;
+    const std::string& config, LinkInterfaceFor implFor) const;
 
   void ComputeLinkImplementationLanguages(
     const std::string& config, cmOptionalLinkImplementation& impl) const;
 
   cmLinkImplementationLibraries const* GetLinkImplementationLibraries(
-    const std::string& config) const;
+    const std::string& config, LinkInterfaceFor implFor) const;
 
   void ComputeLinkImplementationLibraries(const std::string& config,
                                           cmOptionalLinkImplementation& impl,
-                                          const cmGeneratorTarget* head) const;
+                                          const cmGeneratorTarget* head,
+                                          LinkInterfaceFor implFor) const;
 
   struct TargetOrString
   {
@@ -404,11 +422,12 @@ public:
   TargetOrString ResolveTargetReference(std::string const& name,
                                         cmLocalGenerator const* lg) const;
 
-  cmLinkItem ResolveLinkItem(std::string const& name,
-                             cmListFileBacktrace const& bt) const;
-  cmLinkItem ResolveLinkItem(std::string const& name,
-                             cmListFileBacktrace const& bt,
+  cmLinkItem ResolveLinkItem(BT<std::string> const& name) const;
+  cmLinkItem ResolveLinkItem(BT<std::string> const& name,
                              cmLocalGenerator const* lg) const;
+
+  bool HasPackageReferences() const;
+  std::vector<std::string> GetPackageReferences() const;
 
   // Compute the set of languages compiled by the target.  This is
   // computed every time it is called because the languages can change
@@ -421,6 +440,8 @@ public:
                       std::string const& config) const;
 
   bool IsCSharpOnly() const;
+
+  bool IsDotNetSdkTarget() const;
 
   void GetObjectLibrariesCMP0026(
     std::vector<cmGeneratorTarget*>& objlibs) const;
@@ -451,8 +472,12 @@ public:
   void AddExplicitLanguageFlags(std::string& flags,
                                 cmSourceFile const& sf) const;
 
-  void AddCUDAArchitectureFlags(std::string& flags) const;
+  void AddCUDAArchitectureFlags(cmBuildStep compileOrLink,
+                                const std::string& config,
+                                std::string& flags) const;
   void AddCUDAToolkitFlags(std::string& flags) const;
+
+  void AddHIPArchitectureFlags(std::string& flags) const;
 
   void AddISPCTargetFlags(std::string& flags) const;
 
@@ -490,6 +515,10 @@ public:
                       const std::string& language) const;
   std::vector<BT<std::string>> GetLinkOptions(
     std::string const& config, std::string const& language) const;
+
+  std::vector<BT<std::string>>& ResolveLinkerWrapper(
+    std::vector<BT<std::string>>& result, const std::string& language,
+    bool joinItems = false) const;
 
   void GetStaticLibraryLinkOptions(std::vector<std::string>& result,
                                    const std::string& config,
@@ -643,6 +672,9 @@ public:
    */
   void ClearSourcesCache();
 
+  // Do not use.  This is only for a specific call site with a FIXME comment.
+  void ClearLinkInterfaceCache();
+
   void AddSource(const std::string& src, bool before = false);
   void AddTracedSources(std::vector<std::string> const& srcs);
 
@@ -773,7 +805,7 @@ public:
   std::string EvaluateInterfaceProperty(
     std::string const& prop, cmGeneratorExpressionContext* context,
     cmGeneratorExpressionDAGChecker* dagCheckerParent,
-    bool usage_requirements_only = true) const;
+    LinkInterfaceFor interfaceFor = LinkInterfaceFor::Usage) const;
 
   bool HaveInstallTreeRPATH(const std::string& config) const;
 
@@ -825,8 +857,12 @@ public:
                                     std::string const& config) const;
 
   std::string GetFortranModuleDirectory(std::string const& working_dir) const;
+  bool IsFortranBuildingInstrinsicModules() const;
 
-  const std::string& GetSourcesProperty() const;
+  bool IsLinkLookupScope(std::string const& n,
+                         cmLocalGenerator const*& lg) const;
+
+  cmValue GetSourcesProperty() const;
 
   void AddISPCGeneratedHeader(std::string const& header,
                               std::string const& config);
@@ -838,12 +874,17 @@ public:
   std::vector<std::string> GetGeneratedISPCObjects(
     std::string const& config) const;
 
+  bool AddHeaderSetVerification();
+  std::string GenerateHeaderSetVerificationFile(
+    cmSourceFile& source, const std::string& dir,
+    cm::optional<std::set<std::string>>& languages) const;
+
 private:
   void AddSourceCommon(const std::string& src, bool before = false);
 
   std::string CreateFortranModuleDirectory(
     std::string const& working_dir) const;
-  mutable bool FortranModuleDirectoryCreated;
+  mutable bool FortranModuleDirectoryCreated = false;
   mutable std::string FortranModuleDirectory;
 
   friend class cmTargetTraceDependencies;
@@ -857,25 +898,30 @@ private:
   mutable std::map<cmSourceFile const*, std::string> Objects;
   std::set<cmSourceFile const*> ExplicitObjectName;
 
+  using TargetPtrToBoolMap = std::unordered_map<cmTarget*, bool>;
+  mutable std::unordered_map<std::string, TargetPtrToBoolMap>
+    MacOSXRpathInstallNameDirCache;
+  bool DetermineHasMacOSXRpathInstallNameDir(const std::string& config) const;
+
   // "config/language" is the key
   mutable std::map<std::string, std::vector<std::string>> SystemIncludesCache;
 
   mutable std::string ExportMacro;
 
   void ConstructSourceFileFlags() const;
-  mutable bool SourceFileFlagsConstructed;
+  mutable bool SourceFileFlagsConstructed = false;
   mutable std::map<cmSourceFile const*, SourceFileFlags> SourceFlagsMap;
 
   mutable std::map<std::string, bool> DebugCompatiblePropertiesDone;
 
   bool NeedImportLibraryName(std::string const& config) const;
 
-  cmProp GetFilePrefixInternal(std::string const& config,
-                               cmStateEnums::ArtifactType artifact,
-                               const std::string& language = "") const;
-  cmProp GetFileSuffixInternal(std::string const& config,
-                               cmStateEnums::ArtifactType artifact,
-                               const std::string& language = "") const;
+  cmValue GetFilePrefixInternal(std::string const& config,
+                                cmStateEnums::ArtifactType artifact,
+                                const std::string& language = "") const;
+  cmValue GetFileSuffixInternal(std::string const& config,
+                                cmStateEnums::ArtifactType artifact,
+                                const std::string& language = "") const;
 
   std::string GetFullNameInternal(const std::string& config,
                                   cmStateEnums::ArtifactType artifact) const;
@@ -894,8 +940,7 @@ private:
 
   void ComputeVersionedName(std::string& vName, std::string const& prefix,
                             std::string const& base, std::string const& suffix,
-                            std::string const& name,
-                            const char* version) const;
+                            std::string const& name, cmValue version) const;
 
   struct CompatibleInterfacesBase
   {
@@ -951,7 +996,16 @@ private:
                             const cmGeneratorTarget* head,
                             bool secondPass) const;
   cmLinkImplementation const* GetLinkImplementation(const std::string& config,
+                                                    LinkInterfaceFor implFor,
                                                     bool secondPass) const;
+
+  enum class LinkItemRole
+  {
+    Implementation,
+    Interface,
+  };
+  bool VerifyLinkItemIsTarget(LinkItemRole role, cmLinkItem const& item) const;
+  bool VerifyLinkItemColons(LinkItemRole role, cmLinkItem const& item) const;
 
   // Cache import information from properties for each configuration.
   struct ImportInfo
@@ -964,8 +1018,10 @@ private:
     std::string ImportLibrary;
     std::string LibName;
     std::string Languages;
-    std::string Libraries;
     std::string LibrariesProp;
+    std::vector<BT<std::string>> Libraries;
+    std::vector<BT<std::string>> LibrariesHeadInclude;
+    std::vector<BT<std::string>> LibrariesHeadExclude;
     std::string SharedDeps;
   };
 
@@ -981,7 +1037,7 @@ private:
 
   cmLinkInterface const* GetImportLinkInterface(const std::string& config,
                                                 const cmGeneratorTarget* head,
-                                                bool usage_requirements_only,
+                                                LinkInterfaceFor interfaceFor,
                                                 bool secondPass = false) const;
 
   using KindedSourcesMapType = std::map<std::string, KindedSources>;
@@ -995,7 +1051,7 @@ private:
   mutable std::unordered_map<std::string, bool> MaybeInterfacePropertyExists;
   bool MaybeHaveInterfaceProperty(std::string const& prop,
                                   cmGeneratorExpressionContext* context,
-                                  bool usage_requirements_only) const;
+                                  LinkInterfaceFor interfaceFor) const;
 
   using TargetPropertyEntryVector =
     std::vector<std::unique_ptr<TargetPropertyEntry>>;
@@ -1023,20 +1079,31 @@ private:
   std::unordered_map<std::string, std::vector<std::string>>
     ISPCGeneratedObjects;
 
-  bool IsLinkLookupScope(std::string const& n,
-                         cmLocalGenerator const*& lg) const;
-
-  void ExpandLinkItems(std::string const& prop, std::string const& value,
+  enum class LinkInterfaceField
+  {
+    Libraries,
+    HeadExclude,
+    HeadInclude,
+  };
+  void ExpandLinkItems(std::string const& prop, cmBTStringRange entries,
                        std::string const& config,
                        const cmGeneratorTarget* headTarget,
-                       bool usage_requirements_only,
-                       std::vector<cmLinkItem>& items,
-                       bool& hadHeadSensitiveCondition,
-                       bool& hadContextSensitiveCondition,
-                       bool& hadLinkLanguageSensitiveCondition) const;
-  void LookupLinkItems(std::vector<std::string> const& names,
-                       cmListFileBacktrace const& bt,
-                       std::vector<cmLinkItem>& items) const;
+                       LinkInterfaceFor interfaceFor, LinkInterfaceField field,
+                       cmLinkInterface& iface) const;
+
+  struct LookupLinkItemScope
+  {
+    cmLocalGenerator const* LG;
+  };
+  enum class LookupSelf
+  {
+    No,
+    Yes,
+  };
+  cm::optional<cmLinkItem> LookupLinkItem(std::string const& n,
+                                          cmListFileBacktrace const& bt,
+                                          LookupLinkItemScope* scope,
+                                          LookupSelf lookupSelf) const;
 
   std::vector<BT<std::string>> GetSourceFilePaths(
     std::string const& config) const;
@@ -1051,9 +1118,16 @@ private:
   };
   using LinkImplMapType = std::map<std::string, HeadToLinkImplementationMap>;
   mutable LinkImplMapType LinkImplMap;
+  mutable LinkImplMapType LinkImplUsageRequirementsOnlyMap;
+
+  HeadToLinkImplementationMap& GetHeadToLinkImplementationMap(
+    std::string const& config) const;
+  HeadToLinkImplementationMap& GetHeadToLinkImplementationUsageRequirementsMap(
+    std::string const& config) const;
 
   cmLinkImplementationLibraries const* GetLinkImplementationLibrariesInternal(
-    const std::string& config, const cmGeneratorTarget* head) const;
+    const std::string& config, const cmGeneratorTarget* head,
+    LinkInterfaceFor implFor) const;
   bool ComputeOutputDir(const std::string& config,
                         cmStateEnums::ArtifactType artifact,
                         std::string& out) const;
@@ -1072,24 +1146,24 @@ private:
   mutable OutputNameMapType OutputNameMap;
   mutable std::set<cmLinkItem> UtilityItems;
   cmPolicies::PolicyMap PolicyMap;
-  mutable bool PolicyWarnedCMP0022;
-  mutable bool PolicyReportedCMP0069;
-  mutable bool DebugIncludesDone;
-  mutable bool DebugCompileOptionsDone;
-  mutable bool DebugCompileFeaturesDone;
-  mutable bool DebugCompileDefinitionsDone;
-  mutable bool DebugLinkOptionsDone;
-  mutable bool DebugLinkDirectoriesDone;
-  mutable bool DebugPrecompileHeadersDone;
-  mutable bool DebugSourcesDone;
-  mutable bool UtilityItemsDone;
+  mutable bool PolicyWarnedCMP0022 = false;
+  mutable bool PolicyReportedCMP0069 = false;
+  mutable bool DebugIncludesDone = false;
+  mutable bool DebugCompileOptionsDone = false;
+  mutable bool DebugCompileFeaturesDone = false;
+  mutable bool DebugCompileDefinitionsDone = false;
+  mutable bool DebugLinkOptionsDone = false;
+  mutable bool DebugLinkDirectoriesDone = false;
+  mutable bool DebugPrecompileHeadersDone = false;
+  mutable bool DebugSourcesDone = false;
+  mutable bool UtilityItemsDone = false;
   enum class Tribool
   {
     False = 0x0,
     True = 0x1,
     Indeterminate = 0x2
   };
-  mutable Tribool SourcesAreContextDependent;
+  mutable Tribool SourcesAreContextDependent = Tribool::Indeterminate;
 
   bool ComputePDBOutputDir(const std::string& kind, const std::string& config,
                            std::string& out) const;
@@ -1101,8 +1175,14 @@ private:
 
   mutable std::map<std::string, BTs<std::string>> LanguageStandardMap;
 
-  cmProp GetPropertyWithPairedLanguageSupport(std::string const& lang,
-                                              const char* suffix) const;
+  cmValue GetPropertyWithPairedLanguageSupport(std::string const& lang,
+                                               const char* suffix) const;
+
+  void ComputeLinkImplementationRuntimeLibraries(
+    const std::string& config, cmOptionalLinkImplementation& impl) const;
+
+  void ComputeLinkInterfaceRuntimeLibraries(
+    const std::string& config, cmOptionalLinkInterface& iface) const;
 
 public:
   const std::vector<const cmGeneratorTarget*>& GetLinkImplementationClosure(
@@ -1119,4 +1199,34 @@ public:
     bool operator()(cmGeneratorTarget const* t1,
                     cmGeneratorTarget const* t2) const;
   };
+
+  // C++20 module support queries.
+
+  /**
+   * Query whether the target expects C++20 module support.
+   *
+   * This will inspect the target itself to see if C++20 module
+   * support is expected to work based on its sources.
+   */
+  bool HaveCxx20ModuleSources() const;
+
+  enum class Cxx20SupportLevel
+  {
+    // C++ is not available.
+    MissingCxx,
+    // The experimental feature is not available.
+    MissingExperimentalFlag,
+    // The target does not require at least C++20.
+    NoCxx20,
+    // C++20 modules are available and working.
+    Supported,
+  };
+  /**
+   * Query whether the target has C++20 module support available (regardless of
+   * whether it is required or not).
+   */
+  Cxx20SupportLevel HaveCxxModuleSupport(std::string const& config) const;
+
+  // Check C++ module status for the target.
+  void CheckCxxModuleStatus(std::string const& config) const;
 };

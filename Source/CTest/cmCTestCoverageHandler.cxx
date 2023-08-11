@@ -49,9 +49,8 @@ public:
   }
   ~cmCTestRunProcess()
   {
-    if (!(this->PipeState == -1) &&
-        !(this->PipeState == cmsysProcess_Pipe_None) &&
-        !(this->PipeState == cmsysProcess_Pipe_Timeout)) {
+    if (this->PipeState != -1 && this->PipeState != cmsysProcess_Pipe_None &&
+        this->PipeState != cmsysProcess_Pipe_Timeout) {
       this->WaitForExit();
     }
     cmsysProcess_Delete(this->Process);
@@ -148,7 +147,8 @@ bool cmCTestCoverageHandler::StartCoverageLogFile(
   cmGeneratedFileStream& covLogFile, int logFileCount)
 {
   char covLogFilename[1024];
-  sprintf(covLogFilename, "CoverageLog-%d", logFileCount);
+  snprintf(covLogFilename, sizeof(covLogFilename), "CoverageLog-%d",
+           logFileCount);
   cmCTestOptionalLog(this->CTest, HANDLER_VERBOSE_OUTPUT,
                      "Open file: " << covLogFilename << std::endl,
                      this->Quiet);
@@ -165,7 +165,8 @@ void cmCTestCoverageHandler::EndCoverageLogFile(cmGeneratedFileStream& ostr,
                                                 int logFileCount)
 {
   char covLogFilename[1024];
-  sprintf(covLogFilename, "CoverageLog-%d.xml", logFileCount);
+  snprintf(covLogFilename, sizeof(covLogFilename), "CoverageLog-%d.xml",
+           logFileCount);
   cmCTestOptionalLog(this->CTest, HANDLER_VERBOSE_OUTPUT,
                      "Close file: " << covLogFilename << std::endl,
                      this->Quiet);
@@ -289,6 +290,13 @@ int cmCTestCoverageHandler::ProcessHandler()
     this->CTest->GetCTestConfiguration("SourceDirectory");
   std::string binaryDir = this->CTest->GetCTestConfiguration("BuildDirectory");
 
+  if (binaryDir.empty()) {
+    cmCTestLog(this->CTest, ERROR_MESSAGE,
+               "Binary directory is not set.  "
+               "No coverage checking will be performed."
+                 << std::endl);
+    return 0;
+  }
   this->LoadLabels();
 
   cmGeneratedFileStream ofs;
@@ -685,7 +693,7 @@ void cmCTestCoverageHandler::PopulateCustomVectors(cmMakefile* mf)
 #  define fnc_prefix(s, t) cmHasPrefix(s, t)
 #endif
 
-bool IsFileInDir(const std::string& infile, const std::string& indir)
+static bool IsFileInDir(const std::string& infile, const std::string& indir)
 {
   std::string file = cmSystemTools::CollapseFullPath(infile);
   std::string dir = cmSystemTools::CollapseFullPath(indir);
@@ -1210,11 +1218,8 @@ int cmCTestCoverageHandler::HandleGCovCoverage(
           cmCTestLog(this->CTest, ERROR_MESSAGE,
                      "Cannot open file: " << gcovFile << std::endl);
         } else {
-          long cnt = -1;
           std::string nl;
           while (cmSystemTools::GetLineFromStream(ifile, nl)) {
-            cnt++;
-
             // Skip empty lines
             if (nl.empty()) {
               continue;
@@ -1520,7 +1525,6 @@ int cmCTestCoverageHandler::HandleLCovCoverage(
             cmCTestLog(this->CTest, ERROR_MESSAGE,
                        "Cannot open file: " << lcovFile << std::endl);
           } else {
-            long cnt = -1;
             std::string nl;
 
             // Skip the first line
@@ -1529,8 +1533,6 @@ int cmCTestCoverageHandler::HandleLCovCoverage(
                                "File is ready, start reading." << std::endl,
                                this->Quiet);
             while (cmSystemTools::GetLineFromStream(ifile, nl)) {
-              cnt++;
-
               // Skip empty lines
               if (nl.empty()) {
                 continue;
@@ -2208,7 +2210,7 @@ int cmCTestCoverageHandler::GetLabelId(std::string const& label)
 {
   auto i = this->LabelIdMap.find(label);
   if (i == this->LabelIdMap.end()) {
-    int n = int(this->Labels.size());
+    int n = static_cast<int>(this->Labels.size());
     this->Labels.push_back(label);
     LabelIdMapType::value_type entry(label, n);
     i = this->LabelIdMap.insert(entry).first;

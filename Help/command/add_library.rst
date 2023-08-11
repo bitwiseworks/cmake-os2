@@ -151,6 +151,7 @@ itself and is not included as a target in the generated buildsystem.
   ``PUBLIC`` keywords.
 
   If an interface library has source files (i.e. the :prop_tgt:`SOURCES`
+  target property is set), or header sets (i.e. the :prop_tgt:`HEADER_SETS`
   target property is set), it will appear in the generated buildsystem
   as a build target much like a target defined by the
   :command:`add_custom_target` command.  It does not compile any sources,
@@ -165,6 +166,8 @@ itself and is not included as a target in the generated buildsystem.
   to the library type only.  Sources listed after it in the ``add_library``
   call are ``PRIVATE`` to the interface library and do not appear in its
   :prop_tgt:`INTERFACE_SOURCES` target property.
+
+.. _`add_library imported libraries`:
 
 Imported Libraries
 ^^^^^^^^^^^^^^^^^^
@@ -205,7 +208,8 @@ The ``<type>`` must be one of:
     :prop_tgt:`IMPORTED_IMPLIB_<CONFIG>`) specifies the location of the
     DLL import library file (``.lib`` or ``.dll.a``) on disk, and the
     ``IMPORTED_LOCATION`` is the location of the ``.dll`` runtime
-    library (and is optional).
+    library (and is optional, but needed by the :genex:`TARGET_RUNTIME_DLLS`
+    generator expression).
 
   Additional usage requirements may be specified in ``INTERFACE_*`` properties.
 

@@ -128,7 +128,9 @@ Modification
 
   list(APPEND <list> [<element> ...])
 
-Appends elements to the list.
+Appends elements to the list. If no variable named ``<list>`` exists in the
+current scope its value is treated as empty and the elements are appended to
+that empty list.
 
 .. _FILTER:
 
@@ -141,8 +143,8 @@ Appends elements to the list.
 Includes or removes items from the list that match the mode's pattern.
 In ``REGEX`` mode, items will be matched against the given regular expression.
 
-For more information on regular expressions see also the
-:command:`string` command.
+For more information on regular expressions look under
+:ref:`string(REGEX) <Regex Specification>`.
 
 .. _INSERT:
 
@@ -150,7 +152,12 @@ For more information on regular expressions see also the
 
   list(INSERT <list> <element_index> <element> [<element> ...])
 
-Inserts elements to the list to the specified location.
+Inserts elements to the list to the specified index. It is an
+error to specify an out-of-range index. Valid indexes are 0 to `N`
+where `N` is the length of the list, inclusive. An empty list
+has length 0. If no variable named ``<list>`` exists in the
+current scope its value is treated as empty and the elements are
+inserted in that empty list.
 
 .. _POP_BACK:
 
@@ -161,8 +168,9 @@ Inserts elements to the list to the specified location.
 .. versionadded:: 3.15
 
 If no variable name is given, removes exactly one element. Otherwise,
-assign the last element's value to the given variable and removes it,
-up to the last variable name given.
+with `N` variable names provided, assign the last `N` elements' values
+to the given variables and then remove the last `N` values from
+``<list>``.
 
 .. _POP_FRONT:
 
@@ -173,8 +181,9 @@ up to the last variable name given.
 .. versionadded:: 3.15
 
 If no variable name is given, removes exactly one element. Otherwise,
-assign the first element's value to the given variable and removes it,
-up to the last variable name given.
+with `N` variable names provided, assign the first `N` elements' values
+to the given variables and then remove the first `N` values from
+``<list>``.
 
 .. _PREPEND:
 
@@ -184,7 +193,9 @@ up to the last variable name given.
 
 .. versionadded:: 3.15
 
-Insert elements to the 0th position in the list.
+Insert elements to the 0th position in the list. If no variable named
+``<list>`` exists in the current scope its value is treated as empty and
+the elements are prepended to that empty list.
 
 .. _REMOVE_ITEM:
 

@@ -21,7 +21,7 @@ cmCPackIFWCommon::cmCPackIFWCommon()
 {
 }
 
-const char* cmCPackIFWCommon::GetOption(const std::string& op) const
+cmValue cmCPackIFWCommon::GetOption(const std::string& op) const
 {
   return this->Generator ? this->Generator->cmCPackGenerator::GetOption(op)
                          : nullptr;
@@ -29,19 +29,18 @@ const char* cmCPackIFWCommon::GetOption(const std::string& op) const
 
 bool cmCPackIFWCommon::IsOn(const std::string& op) const
 {
-  return this->Generator ? this->Generator->cmCPackGenerator::IsOn(op) : false;
+  return this->Generator && this->Generator->cmCPackGenerator::IsOn(op);
 }
 
 bool cmCPackIFWCommon::IsSetToOff(const std::string& op) const
 {
-  return this->Generator ? this->Generator->cmCPackGenerator::IsSetToOff(op)
-                         : false;
+  return this->Generator && this->Generator->cmCPackGenerator::IsSetToOff(op);
 }
 
 bool cmCPackIFWCommon::IsSetToEmpty(const std::string& op) const
 {
-  return this->Generator ? this->Generator->cmCPackGenerator::IsSetToEmpty(op)
-                         : false;
+  return this->Generator &&
+    this->Generator->cmCPackGenerator::IsSetToEmpty(op);
 }
 
 bool cmCPackIFWCommon::IsVersionLess(const char* version) const
@@ -51,7 +50,7 @@ bool cmCPackIFWCommon::IsVersionLess(const char* version) const
   }
 
   return cmSystemTools::VersionCompare(
-    cmSystemTools::OP_LESS, this->Generator->FrameworkVersion.data(), version);
+    cmSystemTools::OP_LESS, this->Generator->FrameworkVersion, version);
 }
 
 bool cmCPackIFWCommon::IsVersionGreater(const char* version) const
@@ -61,8 +60,7 @@ bool cmCPackIFWCommon::IsVersionGreater(const char* version) const
   }
 
   return cmSystemTools::VersionCompare(
-    cmSystemTools::OP_GREATER, this->Generator->FrameworkVersion.data(),
-    version);
+    cmSystemTools::OP_GREATER, this->Generator->FrameworkVersion, version);
 }
 
 bool cmCPackIFWCommon::IsVersionEqual(const char* version) const
@@ -72,8 +70,7 @@ bool cmCPackIFWCommon::IsVersionEqual(const char* version) const
   }
 
   return cmSystemTools::VersionCompare(
-    cmSystemTools::OP_EQUAL, this->Generator->FrameworkVersion.data(),
-    version);
+    cmSystemTools::OP_EQUAL, this->Generator->FrameworkVersion, version);
 }
 
 void cmCPackIFWCommon::ExpandListArgument(

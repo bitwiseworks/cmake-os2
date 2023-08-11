@@ -47,7 +47,7 @@ bool cmExecuteProcessCommand(std::vector<std::string> const& args,
     return false;
   }
 
-  struct Arguments
+  struct Arguments : public ArgumentParser::ParseResult
   {
     std::vector<std::vector<std::string>> Commands;
     std::string OutputVariable;
@@ -95,14 +95,10 @@ bool cmExecuteProcessCommand(std::vector<std::string> const& args,
       .Bind("COMMAND_ERROR_IS_FATAL"_s, &Arguments::CommandErrorIsFatal);
 
   std::vector<std::string> unparsedArguments;
-  std::vector<std::string> keywordsMissingValue;
-  Arguments const arguments =
-    parser.Parse(args, &unparsedArguments, &keywordsMissingValue);
+  Arguments const arguments = parser.Parse(args, &unparsedArguments);
 
-  if (!keywordsMissingValue.empty()) {
-    status.SetError(" called with no value for " +
-                    keywordsMissingValue.front() + ".");
-    return false;
+  if (arguments.MaybeReportError(status.GetMakefile())) {
+    return true;
   }
   if (!unparsedArguments.empty()) {
     status.SetError(" given unknown argument \"" + unparsedArguments.front() +
@@ -113,7 +109,7 @@ bool cmExecuteProcessCommand(std::vector<std::string> const& args,
   if (!status.GetMakefile().CanIWriteThisFile(arguments.OutputFile)) {
     status.SetError("attempted to output into a file: " +
                     arguments.OutputFile + " into a source directory.");
-    cmSystemTools::SetFatalErrorOccured();
+    cmSystemTools::SetFatalErrorOccurred();
     return false;
   }
 
@@ -318,7 +314,7 @@ bool cmExecuteProcessCommand(std::vector<std::string> const& args,
       case cmsysProcess_State_Exited: {
         int v = cmsysProcess_GetExitValue(cp);
         char buf[16];
-        sprintf(buf, "%d", v);
+        snprintf(buf, sizeof(buf), "%d", v);
         status.GetMakefile().AddDefinition(arguments.ResultVariable, buf);
       } break;
       case cmsysProcess_State_Exception:
@@ -346,7 +342,7 @@ bool cmExecuteProcessCommand(std::vector<std::string> const& args,
               int exitCode =
                 cmsysProcess_GetExitValueByIndex(cp, static_cast<int>(i));
               char buf[16];
-              sprintf(buf, "%d", exitCode);
+              snprintf(buf, sizeof(buf), "%d", exitCode);
               res.emplace_back(buf);
             } break;
             case kwsysProcess_StateByIndex_Exception:
@@ -438,7 +434,7 @@ bool cmExecuteProcessCommand(std::vector<std::string> const& args,
     }
 
     if (!ret) {
-      cmSystemTools::SetFatalErrorOccured();
+      cmSystemTools::SetFatalErrorOccurred();
       return false;
     }
   }
@@ -470,7 +466,7 @@ bool cmExecuteProcessCommand(std::vector<std::string> const& args,
         break;
     }
     if (!ret) {
-      cmSystemTools::SetFatalErrorOccured();
+      cmSystemTools::SetFatalErrorOccurred();
       return false;
     }
   }

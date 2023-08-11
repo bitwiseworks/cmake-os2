@@ -2,23 +2,26 @@
    file Copyright.txt or https://cmake.org/licensing for details.  */
 #include "cmCommonTargetGenerator.h"
 
-#include <set>
+#include <algorithm>
 #include <sstream>
 #include <utility>
 
 #include "cmComputeLinkInformation.h"
 #include "cmGeneratorTarget.h"
 #include "cmGlobalCommonGenerator.h"
-#include "cmLinkLineComputer.h"
+#include "cmGlobalGenerator.h"
 #include "cmLocalCommonGenerator.h"
 #include "cmLocalGenerator.h"
 #include "cmMakefile.h"
+#include "cmMessageType.h"
 #include "cmOutputConverter.h"
-#include "cmProperty.h"
+#include "cmRange.h"
 #include "cmSourceFile.h"
+#include "cmState.h"
 #include "cmStateTypes.h"
 #include "cmStringAlgorithms.h"
 #include "cmTarget.h"
+#include "cmValue.h"
 
 cmCommonTargetGenerator::cmCommonTargetGenerator(cmGeneratorTarget* gt)
   : GeneratorTarget(gt)
@@ -38,37 +41,10 @@ std::vector<std::string> const& cmCommonTargetGenerator::GetConfigNames() const
   return this->ConfigNames;
 }
 
-const char* cmCommonTargetGenerator::GetFeature(const std::string& feature,
-                                                const std::string& config)
+cmValue cmCommonTargetGenerator::GetFeature(const std::string& feature,
+                                            const std::string& config)
 {
-  return this->GeneratorTarget->GetFeature(feature, config)->c_str();
-}
-
-void cmCommonTargetGenerator::AddModuleDefinitionFlag(
-  cmLinkLineComputer* linkLineComputer, std::string& flags,
-  const std::string& config)
-{
-  cmGeneratorTarget::ModuleDefinitionInfo const* mdi =
-    this->GeneratorTarget->GetModuleDefinitionInfo(config);
-  if (!mdi || mdi->DefFile.empty()) {
-    return;
-  }
-
-  // TODO: Create a per-language flag variable.
-  cmProp defFileFlag =
-    this->Makefile->GetDefinition("CMAKE_LINK_DEF_FILE_FLAG");
-  if (!defFileFlag) {
-    return;
-  }
-
-  // Append the flag and value.  Use ConvertToLinkReference to help
-  // vs6's "cl -link" pass it to the linker.
-  std::string flag =
-    cmStrCat(*defFileFlag,
-             this->LocalCommonGenerator->ConvertToOutputFormat(
-               linkLineComputer->ConvertToLinkReference(mdi->DefFile),
-               cmOutputConverter::SHELL));
-  this->LocalCommonGenerator->AppendFlags(flags, flag);
+  return this->GeneratorTarget->GetFeature(feature, config);
 }
 
 void cmCommonTargetGenerator::AppendFortranFormatFlags(
@@ -100,7 +76,8 @@ void cmCommonTargetGenerator::AppendFortranFormatFlags(
 }
 
 void cmCommonTargetGenerator::AppendFortranPreprocessFlags(
-  std::string& flags, cmSourceFile const& source)
+  std::string& flags, cmSourceFile const& source,
+  PreprocessFlagsRequired requires_pp)
 {
   const std::string srcpp = source.GetSafeProperty("Fortran_PREPROCESS");
   cmOutputConverter::FortranPreprocess preprocess =
@@ -113,7 +90,9 @@ void cmCommonTargetGenerator::AppendFortranPreprocessFlags(
   const char* var = nullptr;
   switch (preprocess) {
     case cmOutputConverter::FortranPreprocess::Needed:
-      var = "CMAKE_Fortran_COMPILE_OPTIONS_PREPROCESS_ON";
+      if (requires_pp == PreprocessFlagsRequired::YES) {
+        var = "CMAKE_Fortran_COMPILE_OPTIONS_PREPROCESS_ON";
+      }
       break;
     case cmOutputConverter::FortranPreprocess::NotNeeded:
       var = "CMAKE_Fortran_COMPILE_OPTIONS_PREPROCESS_OFF";
@@ -197,6 +176,9 @@ std::vector<std::string> cmCommonTargetGenerator::GetLinkedTargetDirectories(
         cmLocalGenerator* lg = linkee->GetLocalGenerator();
         std::string di = cmStrCat(lg->GetCurrentBinaryDirectory(), '/',
                                   lg->GetTargetDirectory(linkee));
+        if (lg->GetGlobalGenerator()->IsMultiConfig()) {
+          di = cmStrCat(di, '/', config);
+        }
         dirs.push_back(std::move(di));
       }
     }
@@ -239,12 +221,16 @@ std::string cmCommonTargetGenerator::GetManifests(const std::string& config)
 
   std::vector<std::string> manifests;
   manifests.reserve(manifest_srcs.size());
+
+  std::string lang = this->GeneratorTarget->GetLinkerLanguage(config);
+  std::string const& manifestFlag =
+    this->Makefile->GetDefinition("CMAKE_" + lang + "_LINKER_MANIFEST_FLAG");
   for (cmSourceFile const* manifest_src : manifest_srcs) {
-    manifests.push_back(this->LocalCommonGenerator->ConvertToOutputFormat(
-      this->LocalCommonGenerator->MaybeConvertToRelativePath(
-        this->LocalCommonGenerator->GetWorkingDirectory(),
-        manifest_src->GetFullPath()),
-      cmOutputConverter::SHELL));
+    manifests.push_back(manifestFlag +
+                        this->LocalCommonGenerator->ConvertToOutputFormat(
+                          this->LocalCommonGenerator->MaybeRelativeToWorkDir(
+                            manifest_src->GetFullPath()),
+                          cmOutputConverter::SHELL));
   }
 
   return cmJoin(manifests, " ");
@@ -254,7 +240,7 @@ std::string cmCommonTargetGenerator::GetAIXExports(std::string const&)
 {
   std::string aixExports;
   if (this->GeneratorTarget->Target->IsAIX()) {
-    if (cmProp exportAll =
+    if (cmValue exportAll =
           this->GeneratorTarget->GetProperty("AIX_EXPORT_ALL_SYMBOLS")) {
       if (cmIsOff(*exportAll)) {
         aixExports = "-n";
@@ -270,7 +256,7 @@ void cmCommonTargetGenerator::AppendOSXVerFlag(std::string& flags,
 {
   // Lookup the flag to specify the version.
   std::string fvar = cmStrCat("CMAKE_", lang, "_OSX_", name, "_VERSION_FLAG");
-  cmProp flag = this->Makefile->GetDefinition(fvar);
+  cmValue flag = this->Makefile->GetDefinition(fvar);
 
   // Skip if no such flag.
   if (!flag) {
@@ -291,4 +277,51 @@ void cmCommonTargetGenerator::AppendOSXVerFlag(std::string& flags,
     vflag << *flag << major << "." << minor << "." << patch;
     this->LocalCommonGenerator->AppendFlags(flags, vflag.str());
   }
+}
+
+std::string cmCommonTargetGenerator::GetLinkerLauncher(
+  const std::string& config)
+{
+  std::string lang = this->GeneratorTarget->GetLinkerLanguage(config);
+  cmValue launcherProp =
+    this->GeneratorTarget->GetProperty(lang + "_LINKER_LAUNCHER");
+  if (cmNonempty(launcherProp)) {
+    // Convert ;-delimited list to single string
+    std::vector<std::string> args = cmExpandedList(*launcherProp, true);
+    if (!args.empty()) {
+      args[0] = this->LocalCommonGenerator->ConvertToOutputFormat(
+        args[0], cmOutputConverter::SHELL);
+      for (std::string& i : cmMakeRange(args.begin() + 1, args.end())) {
+        i = this->LocalCommonGenerator->EscapeForShell(i);
+      }
+      return cmJoin(args, " ");
+    }
+  }
+  return std::string();
+}
+
+bool cmCommonTargetGenerator::HaveRequiredLanguages(
+  const std::vector<cmSourceFile const*>& sources,
+  std::set<std::string>& languagesNeeded) const
+{
+  for (cmSourceFile const* sf : sources) {
+    languagesNeeded.insert(sf->GetLanguage());
+  }
+
+  auto* makefile = this->Makefile;
+  auto* state = makefile->GetState();
+  auto unary = [&state, &makefile](const std::string& lang) -> bool {
+    const bool valid = state->GetLanguageEnabled(lang);
+    if (!valid) {
+      makefile->IssueMessage(
+        MessageType::FATAL_ERROR,
+        cmStrCat("The language ", lang,
+                 " was requested for compilation but was not enabled."
+                 " To enable a language it needs to be specified in a"
+                 " 'project' or 'enable_language' command in the root"
+                 " CMakeLists.txt"));
+    }
+    return valid;
+  };
+  return std::all_of(languagesNeeded.cbegin(), languagesNeeded.cend(), unary);
 }

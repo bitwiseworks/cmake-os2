@@ -573,11 +573,15 @@ archive_read_format_tar_read_header(struct archive_read *a,
 			l = wcslen(wp);
 			if (l > 0 && wp[l - 1] == L'/') {
 				archive_entry_set_filetype(entry, AE_IFDIR);
+				tar->entry_bytes_remaining = 0;
+				tar->entry_padding = 0;
 			}
 		} else if ((p = archive_entry_pathname(entry)) != NULL) {
 			l = strlen(p);
 			if (l > 0 && p[l - 1] == '/') {
 				archive_entry_set_filetype(entry, AE_IFDIR);
+				tar->entry_bytes_remaining = 0;
+				tar->entry_padding = 0;
 			}
 		}
 	}
@@ -1396,6 +1400,7 @@ read_mac_metadata_blob(struct archive_read *a, struct tar *tar,
     struct archive_entry *entry, const void *h, size_t *unconsumed)
 {
 	int64_t size;
+	size_t msize;
 	const void *data;
 	const char *p, *name;
 	const wchar_t *wp, *wname;
@@ -1434,6 +1439,11 @@ read_mac_metadata_blob(struct archive_read *a, struct tar *tar,
 
  	/* Read the body as a Mac OS metadata blob. */
 	size = archive_entry_size(entry);
+	msize = (size_t)size;
+	if (size < 0 || (uintmax_t)msize != (uintmax_t)size) {
+		*unconsumed = 0;
+		return (ARCHIVE_FATAL);
+	}
 
 	/*
 	 * TODO: Look beyond the body here to peek at the next header.
@@ -1447,13 +1457,13 @@ read_mac_metadata_blob(struct archive_read *a, struct tar *tar,
 	 * Q: Is the above idea really possible?  Even
 	 * when there are GNU or pax extension entries?
 	 */
-	data = __archive_read_ahead(a, (size_t)size, NULL);
+	data = __archive_read_ahead(a, msize, NULL);
 	if (data == NULL) {
 		*unconsumed = 0;
 		return (ARCHIVE_FATAL);
 	}
-	archive_entry_copy_mac_metadata(entry, data, (size_t)size);
-	*unconsumed = (size_t)((size + 511) & ~ 511);
+	archive_entry_copy_mac_metadata(entry, data, msize);
+	*unconsumed = (msize + 511) & ~ 511;
 	tar_flush_unconsumed(a, unconsumed);
 	return (tar_read_header(a, tar, entry, unconsumed));
 }
@@ -1797,6 +1807,16 @@ pax_attribute_schily_xattr(struct archive_entry *entry,
 }
 
 static int
+pax_attribute_rht_security_selinux(struct archive_entry *entry,
+	const char *value, size_t value_length)
+{
+	archive_entry_xattr_add_entry(entry, "security.selinux",
+            value, value_length);
+
+	return 0;
+}
+
+static int
 pax_attribute_acl(struct archive_read *a, struct tar *tar,
     struct archive_entry *entry, const char *value, int type)
 {
@@ -1896,7 +1916,7 @@ pax_attribute(struct archive_read *a, struct tar *tar,
 		}
 		if (strcmp(key, "GNU.sparse.numbytes") == 0) {
 			tar->sparse_numbytes = tar_atol10(value, strlen(value));
-			if (tar->sparse_numbytes != -1) {
+			if (tar->sparse_offset != -1) {
 				if (gnu_add_sparse_entry(a, tar,
 				    tar->sparse_offset, tar->sparse_numbytes)
 				    != ARCHIVE_OK)
@@ -1965,6 +1985,14 @@ pax_attribute(struct archive_read *a, struct tar *tar,
 		}
 		if (memcmp(key, "LIBARCHIVE.xattr.", 17) == 0)
 			pax_attribute_xattr(entry, key, value);
+		break;
+	case 'R':
+		/* GNU tar uses RHT.security header to store SELinux xattrs
+		 * SCHILY.xattr.security.selinux == RHT.security.selinux */
+		if (strcmp(key, "RHT.security.selinux") == 0) {
+			pax_attribute_rht_security_selinux(entry, value,
+			    value_length);
+			}
 		break;
 	case 'S':
 		/* We support some keys used by the "star" archiver */
@@ -2625,14 +2653,14 @@ tar_atol_base_n(const char *p, size_t char_cnt, int base)
 
 		maxval = INT64_MIN;
 		limit = -(INT64_MIN / base);
-		last_digit_limit = INT64_MIN % base;
+		last_digit_limit = -(INT64_MIN % base);
 	}
 
 	l = 0;
 	if (char_cnt != 0) {
 		digit = *p - '0';
 		while (digit >= 0 && digit < base  && char_cnt != 0) {
-			if (l>limit || (l == limit && digit > last_digit_limit)) {
+			if (l>limit || (l == limit && digit >= last_digit_limit)) {
 				return maxval; /* Truncate on overflow. */
 			}
 			l = (l * base) + digit;

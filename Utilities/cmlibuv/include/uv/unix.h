@@ -36,7 +36,7 @@
 #include <termios.h>
 #include <pwd.h>
 
-#if !defined(__MVS__) && !defined(__OS2__)
+#if !defined(__MVS__)
 #include <semaphore.h>
 #include <sys/param.h> /* MAXHOSTNAMELEN on Linux and the BSDs */
 #endif
@@ -72,19 +72,14 @@
 # include "bsd.h"
 #elif defined(__CYGWIN__) || \
       defined(__MSYS__)   || \
+      defined(__HAIKU__)  || \
+      defined(__QNX__)    || \
       defined(__GNU__)
-# include "posix.h"
-#elif defined(__HAIKU__)
-# include "posix.h"
-#elif defined(__QNX__)
 # include "posix.h"
 #elif defined(__OS2__)
 # include "posix.h"
 #endif
 
-#if defined(__OS2__)
-#include "semaphore.h"
-# define sockaddr_storage sockaddr
 #endif
 
 #ifndef NI_MAXHOST

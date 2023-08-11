@@ -1,4 +1,7 @@
 cmake_minimum_required(VERSION 2.8.12)
+if(POLICY CMP0129)
+  cmake_policy(SET CMP0129 NEW)
+endif()
 project(CheckCXXCompilerFlag)
 
 message(STATUS "CTEST_FULL_OUTPUT (Avoid ctest truncation of output)")
@@ -36,7 +39,7 @@ if(CMAKE_CXX_COMPILER_ID MATCHES Intel)
   string (REGEX REPLACE ".*Version ([0-9]+(\\.[0-9]+)+).*" "\\1" _intel_version "${_intel_version_info}")
 endif()
 
-message("Platform:\n  WIN32: ${WIN32}\n  UNIX: ${UNIX}\n  APPLE: ${APPLE}\n  MINGW: ${MINGW}\n  CYGWIN: ${CYGWIN}\n"
+message("Platform:\n  WIN32: ${WIN32}\n  UNIX: ${UNIX}\n  APPLE: ${APPLE}\n  MINGW: ${MINGW}\n  CYGWIN: ${CYGWIN}\n  MSYS: ${MSYS}\n"
   "  MSVC: ${MSVC}\n  MSVC60: ${MSVC60}\n  MSVC70: ${MSVC70}\n  MSVC71: ${MSVC71}\n  MSVC80: ${MSVC80}\n  MSVC90: ${MSVC90}\n  MSVC10: ${MSVC10}\n"
   "  GCC: ${_gcc_version}\n"
   "  Clang: ${_clang_version}\n"
@@ -57,7 +60,7 @@ else()
   message("Unhandled Platform")
 endif()
 
-if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang" AND NOT "x${CMAKE_CXX_SIMULATE_ID}" STREQUAL "xMSVC")
+if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|LCC|Clang" AND NOT "x${CMAKE_CXX_SIMULATE_ID}" STREQUAL "xMSVC")
   check_cxx_compiler_flag("-x c++" HAVE_X_CXX)
   if(NOT HAVE_X_CXX)
     message(FATAL_ERROR "${CMAKE_CXX_COMPILER_ID} compiler flag '-x c++' check failed")

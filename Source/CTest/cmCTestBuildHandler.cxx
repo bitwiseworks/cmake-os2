@@ -3,7 +3,6 @@
 #include "cmCTestBuildHandler.h"
 
 #include <cstdlib>
-#include <cstring>
 #include <set>
 #include <utility>
 
@@ -20,10 +19,10 @@
 #include "cmGeneratedFileStream.h"
 #include "cmMakefile.h"
 #include "cmProcessOutput.h"
-#include "cmProperty.h"
 #include "cmStringAlgorithms.h"
 #include "cmStringReplaceHelper.h"
 #include "cmSystemTools.h"
+#include "cmValue.h"
 #include "cmXMLWriter.h"
 
 static const char* cmCTestErrorMatches[] = {
@@ -82,6 +81,7 @@ static const char* cmCTestErrorMatches[] = {
   "^The project cannot be built\\.",
   "^\\[ERROR\\]",
   "^Command .* failed with exit code",
+  "lcc: \"([^\"]+)\", (line|строка) ([0-9]+): (error|ошибка)",
   nullptr
 };
 
@@ -123,6 +123,7 @@ static const char* cmCTestWarningMatches[] = {
   "cc-[0-9]* CC: REMARK File = .*, Line = [0-9]*",
   "^CMake Warning.*:",
   "^\\[WARNING\\]",
+  "lcc: \"([^\"]+)\", (line|строка) ([0-9]+): (warning|предупреждение)",
   nullptr
 };
 
@@ -161,6 +162,9 @@ static cmCTestBuildCompileErrorWarningRex cmCTestWarningErrorFileLine[] = {
   { "^([a-zA-Z./0-9_+ ~-]+)\\(([0-9]+)\\)", 1, 2 },
   { "\"([a-zA-Z./0-9_+ ~-]+)\", line ([0-9]+)", 1, 2 },
   { "File = ([a-zA-Z./0-9_+ ~-]+), Line = ([0-9]+)", 1, 2 },
+  { "lcc: \"([^\"]+)\", (line|строка) ([0-9]+): "
+    "(error|ошибка|warning|предупреждение)",
+    1, 3 },
   { nullptr, 0, 0 }
 };
 
@@ -250,11 +254,11 @@ void cmCTestBuildHandler::PopulateCustomVectors(cmMakefile* mf)
   }
 
   // Record the user-specified custom warning rules.
-  if (cmProp customWarningMatchers =
+  if (cmValue customWarningMatchers =
         mf->GetDefinition("CTEST_CUSTOM_WARNING_MATCH")) {
     cmExpandList(*customWarningMatchers, this->ReallyCustomWarningMatches);
   }
-  if (cmProp customWarningExceptions =
+  if (cmValue customWarningExceptions =
         mf->GetDefinition("CTEST_CUSTOM_WARNING_EXCEPTION")) {
     cmExpandList(*customWarningExceptions,
                  this->ReallyCustomWarningExceptions);
@@ -657,14 +661,14 @@ bool cmCTestBuildHandler::IsLaunchedErrorFile(const char* fname)
 {
   // error-{hash}.xml
   return (cmHasLiteralPrefix(fname, "error-") &&
-          strcmp(fname + strlen(fname) - 4, ".xml") == 0);
+          cmHasLiteralSuffix(fname, ".xml"));
 }
 
 bool cmCTestBuildHandler::IsLaunchedWarningFile(const char* fname)
 {
   // warning-{hash}.xml
   return (cmHasLiteralPrefix(fname, "warning-") &&
-          strcmp(fname + strlen(fname) - 4, ".xml") == 0);
+          cmHasLiteralSuffix(fname, ".xml"));
 }
 
 //######################################################################
@@ -889,16 +893,31 @@ int cmCTestBuildHandler::RunMakeCommand(const std::string& command,
         // If there was an error running command, report that on the
         // dashboard.
         if (this->UseCTestLaunch) {
-          cmCTestLaunchReporter reporter;
-          reporter.RealArgs = args;
-          reporter.ComputeFileNames();
-          reporter.ExitCode = *retVal;
-          reporter.Process = cp;
-          // Use temporary BuildLog file to populate this error for CDash.
-          ofs.flush();
-          reporter.LogOut = this->LogFileNames["Build"];
-          reporter.LogOut += ".tmp";
-          reporter.WriteXML();
+          // For launchers, do not record this top-level error if other
+          // more granular build errors have already been captured.
+          bool launcherXMLFound = false;
+          cmsys::Directory launchDir;
+          launchDir.Load(this->CTestLaunchDir);
+          unsigned long n = launchDir.GetNumberOfFiles();
+          for (unsigned long i = 0; i < n; ++i) {
+            const char* fname = launchDir.GetFile(i);
+            if (cmHasLiteralSuffix(fname, ".xml")) {
+              launcherXMLFound = true;
+              break;
+            }
+          }
+          if (!launcherXMLFound) {
+            cmCTestLaunchReporter reporter;
+            reporter.RealArgs = args;
+            reporter.ComputeFileNames();
+            reporter.ExitCode = *retVal;
+            reporter.Process = cp;
+            // Use temporary BuildLog file to populate this error for CDash.
+            ofs.flush();
+            reporter.LogOut = this->LogFileNames["Build"];
+            reporter.LogOut += ".tmp";
+            reporter.WriteXML();
+          }
         } else {
           cmCTestBuildErrorWarning errorwarning;
           errorwarning.LineNumber = 0;
