@@ -1042,13 +1042,15 @@ target_include_directories(
 target_link_libraries(CPackLib PUBLIC CMakeLib)
 
 option(CPACK_ENABLE_FREEBSD_PKG "Add FreeBSD pkg(8) generator to CPack." OFF)
-if(UNIX)
+if(UNIX OR OS2)
   target_sources(
     CPackLib
     PRIVATE
       CPack/cmCPackRPMGenerator.cxx
     )
+endif()
 
+if(UNIX)
   # Optionally, try to use pkg(8)
   if(CPACK_ENABLE_FREEBSD_PKG)
     # On UNIX, you may find FreeBSD's pkg(8) and attendant
@@ -1076,12 +1078,6 @@ if(UNIX)
     set(FREEBSD_PKG_INCLUDE_DIRS NOTFOUND)
     set(FREEBSD_PKG_LIBRARIES NOTFOUND)
   endif()
-endif()
-
-if(OS2)
-  set(CPACK_SRCS ${CPACK_SRCS}
-    CPack/cmCPackRPMGenerator.cxx
-    )
 endif()
 
 if(CYGWIN)
