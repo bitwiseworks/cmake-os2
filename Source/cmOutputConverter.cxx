@@ -423,9 +423,11 @@ bool cmOutputConverter::Shell_CharNeedsQuotes(char c, int flags)
 
   /* Quote hyphens in response files */
   if (flags & Shell_Flag_IsResponse) {
+#ifndef __OS2__
     if (c == '-') {
       return true;
     }
+#endif
   }
 
   if (flags & Shell_Flag_IsUnix) {
