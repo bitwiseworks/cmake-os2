@@ -80,8 +80,6 @@
 # include "posix.h"
 #endif
 
-#endif
-
 #ifndef NI_MAXHOST
 # define NI_MAXHOST 1025
 #endif

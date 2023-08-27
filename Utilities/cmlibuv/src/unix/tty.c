@@ -136,7 +136,6 @@ static int uv__tty_is_slave(const int fd) {
 #endif
   return result;
 }
-#endif
 
 int uv_tty_init(uv_loop_t* loop, uv_tty_t* tty, int fd, int unused) {
   uv_handle_type type;

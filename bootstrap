@@ -1757,6 +1757,9 @@ else
       uv_c_flags="${uv_c_flags} -D_XOPEN_SOURCE=700"
       libs="${libs} -lsocket"
       ;;
+    *OS/2*)
+      libs="${libs} -lcx"
+      ;;
   esac
 fi
 if test "x${bootstrap_system_libuv}" = "x"; then

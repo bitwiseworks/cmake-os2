@@ -32,7 +32,11 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#ifndef __OS2__
 #include <sched.h>  /* sched_yield() */
+#else
+#define sched_yield pthread_yield
+#endif
 
 #ifdef __linux__
 #include <sys/eventfd.h>

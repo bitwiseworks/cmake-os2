@@ -90,7 +90,7 @@ static int maybe_new_socket(uv_tcp_t* handle, int domain, unsigned long flags) {
         return UV__ERR(errno);
 
 #ifdef __OS2__
-      if (saddr.sa_family == AF_INET &&
+      if (saddr.ss_family == AF_INET &&
           ((struct sockaddr_in*) &saddr)->sin_port != 0) {
 #else
       if ((saddr.ss_family == AF_INET6 &&

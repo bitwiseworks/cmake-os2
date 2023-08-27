@@ -19,7 +19,7 @@
 #include "uv/semaphore.h"
 
 #include <dirent.h>
-
+#define scandir scandir_klib
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>

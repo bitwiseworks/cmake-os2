@@ -284,9 +284,11 @@ int uv_ip_name(const struct sockaddr *src, char *dst, size_t size) {
   case AF_INET:
     return uv_inet_ntop(AF_INET, &((struct sockaddr_in *)src)->sin_addr,
                         dst, size);
+#ifndef __OS2__
   case AF_INET6:
     return uv_inet_ntop(AF_INET6, &((struct sockaddr_in6 *)src)->sin6_addr,
                         dst, size);
+#endif
   default:
     return UV_EAFNOSUPPORT;
   }
@@ -448,8 +450,10 @@ int uv__udp_check_before_send(uv_udp_t* handle, const struct sockaddr* addr) {
   if (addr != NULL) {
     if (addr->sa_family == AF_INET)
       addrlen = sizeof(struct sockaddr_in);
+#ifndef __OS2__
     else if (addr->sa_family == AF_INET6)
       addrlen = sizeof(struct sockaddr_in6);
+#endif
 #if defined(AF_UNIX) && !defined(_WIN32)
     else if (addr->sa_family == AF_UNIX)
       addrlen = sizeof(struct sockaddr_un);

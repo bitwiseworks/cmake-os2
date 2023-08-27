@@ -962,7 +962,8 @@ static int uv__udp_set_membership6(uv_udp_t* handle,
     !defined(__ANDROID__) &&                                        \
     !defined(__DragonFly__) &&                                      \
     !defined(__QNX__) &&                                            \
-    !defined(__GNU__)
+    !defined(__GNU__) &&                                            \
+    !defined(__OS2__)
 static int uv__udp_set_source_membership4(uv_udp_t* handle,
                                           const struct sockaddr_in* multicast_addr,
                                           const char* interface_addr,
@@ -1159,7 +1160,8 @@ int uv_udp_set_source_membership(uv_udp_t* handle,
     !defined(__ANDROID__) &&                                        \
     !defined(__DragonFly__) &&                                      \
     !defined(__QNX__) &&                                            \
-    !defined(__GNU__)
+    !defined(__GNU__) &&                                            \
+    !defined(__OS2__)
   int err;
   union uv__sockaddr mcast_addr;
   union uv__sockaddr src_addr;
@@ -1178,7 +1180,6 @@ int uv_udp_set_source_membership(uv_udp_t* handle,
                                           &src_addr.in6,
                                           membership);
   }
-
   err = uv_ip4_addr(source_addr, 0, &src_addr.in);
   if (err)
     return err;
@@ -1356,7 +1357,7 @@ int uv_udp_set_multicast_interface(uv_udp_t* handle, const char* interface_addr)
       addr_st.ss_family = AF_INET;
 #else
     {
-      addr_st.sa_family = AF_INET;
+      addr_st.ss_family = AF_INET;
 #endif
       addr4->sin_addr.s_addr = htonl(INADDR_ANY);
     }
@@ -1370,11 +1371,7 @@ int uv_udp_set_multicast_interface(uv_udp_t* handle, const char* interface_addr)
     return UV_EINVAL;
   }
 
-#ifdef __OS2__
-  if (addr_st.sa_family == AF_INET) {
-#else
   if (addr_st.ss_family == AF_INET) {
-#endif
     if (setsockopt(handle->io_watcher.fd,
                    IPPROTO_IP,
                    IP_MULTICAST_IF,
