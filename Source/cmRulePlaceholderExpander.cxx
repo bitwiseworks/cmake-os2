@@ -223,25 +223,30 @@ std::string cmRulePlaceholderExpander::ExpandVariable(
    // this is needed to have the def files created right
     if (this->ReplaceValues->Target) {
       if (variable == "OS2_DEF_TARGET") {
-        std::string targetName;
-        std::string targetBase;
-        std::string::size_type pos;
-
-        // remove leading path stuff if any
-        targetName = this->ReplaceValues->Target;
-        pos = targetName.find_last_of("/\\");
-        if (pos != targetName.npos) {
-          targetBase = targetName.substr(pos+1);
+        if (this->ReplaceValues->TargetNameOS2 &&
+            strlen(this->ReplaceValues->TargetNameOS2) > 0) {
+          return this->ReplaceValues->TargetNameOS2;
         } else {
-          targetBase = targetName;
-        }
+          std::string targetName;
+          std::string targetBase;
+          std::string::size_type pos;
 
-        // Strip the last extension off the target name.
-        pos = targetBase.rfind('.');
-        if (pos != targetBase.npos) {
-          return targetBase.substr(0, pos);
+          // remove leading path stuff if any
+          targetName = this->ReplaceValues->Target;
+          pos = targetName.find_last_of("/\\");
+          if (pos != targetName.npos) {
+            targetBase = targetName.substr(pos+1);
+          } else {
+            targetBase = targetName;
+          }
+
+          // Strip the last extension off the target name.
+          pos = targetBase.rfind('.');
+          if (pos != targetBase.npos) {
+            return targetBase.substr(0, pos);
+          }
+          return targetBase;
         }
-        return targetBase;
       }
     }
 #endif

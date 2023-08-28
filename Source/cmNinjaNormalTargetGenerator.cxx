@@ -368,6 +368,15 @@ void cmNinjaNormalTargetGenerator::WriteLinkRule(bool useResponseFile,
     vars.Language = lang.c_str();
     vars.AIXExports = "$AIX_EXPORTS";
 
+#ifdef __OS2__
+    vars.OS2DefVendor = (char*) this->GeneratorTarget->GetProperty("OS2_DEF_VENDOR").GetCStr();
+    vars.OS2DefVersion = (char*) this->GeneratorTarget->GetProperty("OS2_DEF_VERSION").GetCStr();
+    vars.OS2DefPatch = (char*) this->GeneratorTarget->GetProperty("OS2_DEF_PATCH").GetCStr();
+    vars.OS2DefExeType = (char*) this->GeneratorTarget->GetProperty("OS2_DEF_EXEType").GetCStr();
+    vars.OS2DefExeStack = (char*) this->GeneratorTarget->GetProperty("OS2_DEF_EXEStack").GetCStr();
+    vars.Version = (char*) this->GeneratorTarget->GetProperty("VERSION").GetCStr();
+#endif
+
     if (this->TargetLinkLanguage(config) == "Swift") {
       vars.SwiftLibraryName = "$SWIFT_LIBRARY_NAME";
       vars.SwiftModule = "$SWIFT_MODULE";
@@ -425,6 +434,15 @@ void cmNinjaNormalTargetGenerator::WriteLinkRule(bool useResponseFile,
     vars.TargetSOName = "$SONAME";
     vars.TargetInstallNameDir = "$INSTALLNAME_DIR";
     vars.TargetPDB = "$TARGET_PDB";
+
+#ifdef __OS2__
+    cmGeneratorTarget* gt = this->GetGeneratorTarget();
+    std::string prefix;
+    std::string base;
+    std::string suffix;
+    gt->GetFullNameComponents(prefix, base, suffix, config);
+    vars.TargetNameOS2 = base.c_str();
+#endif
 
     // Setup the target version.
     std::string targetVersionMajor;
