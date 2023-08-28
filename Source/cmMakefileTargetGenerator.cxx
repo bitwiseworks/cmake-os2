@@ -1893,11 +1893,7 @@ public:
 
     // Separate from previous object.
     this->CurrentString += this->Space;
-#ifdef __OS2__
-    this->Space = "\n";
-#else
     this->Space = " ";
-#endif
 
     // Append this object.
     this->CurrentString += this->NextObject;
@@ -2171,7 +2167,14 @@ std::string cmMakefileTargetGenerator::CreateResponseFile(
   cmGeneratedFileStream responseStream(responseFileNameFull, false,
                                        responseEncoding);
   responseStream.SetCopyIfDifferent(true);
+#ifndef __OS2__
   responseStream << options << "\n";
+#else
+  std::string opts = options;
+  for(int pos = 0; (pos = opts.find(' ', pos)) != opts.npos; ++pos)
+    opts[pos] = '\n';
+  responseStream << opts << "\n";
+#endif
 
   // Add a dependency so the target will rebuild when the set of
   // objects changes.
