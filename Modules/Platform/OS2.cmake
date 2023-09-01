@@ -128,7 +128,7 @@ exec_program(uname ARGS -n OUTPUT_VARIABLE unamebldLevel)
 SET(bldLevelInfo "\#\#1\#\# ${TSbldLevel}\\ \\ \\ \\ \\ ${unamebldLevel}")
 
 # there is the possibility to rely on EMXEXP instead of dllexport on CXX
-# the OS2_USE_CXX_EMXEXP is meant for that use it as -DOS2_USE_CXX_EMXEXP=ON
+# the OS2_USE_CXX_EMXEXP is meant for that. use it as -DOS2_USE_CXX_EMXEXP=ON
 # it migh be necessary to add the same for C as well later on. who knows
 
 SET(CMAKE_C_CREATE_SHARED_LIBRARY
