@@ -228,7 +228,10 @@ std::string cmRulePlaceholderExpander::ExpandVariable(
         std::string::size_type pos;
 
         // remove leading path stuff if any
-        targetName = this->ReplaceValues->Target;
+        if (this->ReplaceValues->TargetNameOS2 && strlen(this->ReplaceValues->TargetNameOS2) > 0)
+          targetName = this->ReplaceValues->TargetNameOS2;
+        else
+          targetName = this->ReplaceValues->Target;
         pos = targetName.find_last_of("/\\");
         if (pos != targetName.npos) {
           targetBase = targetName.substr(pos+1);

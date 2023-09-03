@@ -62,6 +62,7 @@ public:
     const char* DependencyTarget = nullptr;
     const char* FilterPrefix = nullptr;
 #ifdef __OS2__
+    const char* TargetNameOS2 = nullptr;
     const char* OS2DefVendor = nullptr;
     const char* OS2DefPatch = nullptr;
     const char* OS2DefVersion = nullptr;
