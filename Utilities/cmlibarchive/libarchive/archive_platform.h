@@ -197,7 +197,7 @@
 
 /* Set up defaults for internal error codes. */
 #ifndef ARCHIVE_ERRNO_FILE_FORMAT
-#if HAVE_EFTYPE
+#if defined(HAVE_EFTYPE) && !defined(__OS2__)
 #define	ARCHIVE_ERRNO_FILE_FORMAT EFTYPE
 #else
 #if HAVE_EILSEQ
