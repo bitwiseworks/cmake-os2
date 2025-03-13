@@ -4,6 +4,10 @@ This code is based on PPMd var.I (2002): Dmitry Shkarin : Public domain */
 
 #include "archive_platform.h"
 
+#ifdef __clang_analyzer__
+#include <assert.h>
+#endif
+
 #include <string.h>
 
 #include "archive_ppmd8_private.h"
@@ -107,7 +111,7 @@ Bool Ppmd8_Alloc(CPpmd8 *p, UInt32 size)
       #else
         4 - (size & 3);
       #endif
-    if ((p->Base = (Byte *)malloc(p->AlignOffset + size)) == 0)
+    if ((p->Base = malloc(p->AlignOffset + size)) == 0)
       return False;
     p->Size = size;
   }
@@ -337,6 +341,9 @@ static void ExpandTextArea(CPpmd8 *p)
 
 static void SetSuccessor(CPpmd_State *p, CPpmd_Void_Ref v)
 {
+  #ifdef __clang_analyzer__
+  assert(p);
+  #endif
   (p)->SuccessorLow = (UInt16)((UInt32)(v) & 0xFFFF);
   (p)->SuccessorHigh = (UInt16)(((UInt32)(v) >> 16) & 0xFFFF);
 }
@@ -616,6 +623,11 @@ static CTX_PTR CreateSuccessors(CPpmd8 *p, Bool skip, CPpmd_State *s1, CTX_PTR c
   /* fixed over Shkarin's code. Maybe it could work without + 1 too. */
   CPpmd_State *ps[PPMD8_MAX_ORDER + 1];
   unsigned numPs = 0;
+
+#ifdef __clang_analyzer__
+  memset(ps, 0, sizeof(ps));
+#endif
+
   
   if (!skip)
     ps[numPs++] = p->FoundState;
@@ -671,7 +683,7 @@ static CTX_PTR CreateSuccessors(CPpmd8 *p, Bool skip, CPpmd_State *s1, CTX_PTR c
     upState.Freq = (Byte)(1 + ((2 * cf <= s0) ? (5 * cf > s0) : ((cf + 2 * s0 - 3) / s0)));
   }
 
-  do
+  while (numPs != 0)
   {
     /* Create Child */
     CTX_PTR c1; /* = AllocContext(p); */
@@ -692,8 +704,7 @@ static CTX_PTR CreateSuccessors(CPpmd8 *p, Bool skip, CPpmd_State *s1, CTX_PTR c
     SetSuccessor(ps[--numPs], REF(c1));
     c = c1;
   }
-  while (numPs != 0);
-  
+
   return c;
 }
 

@@ -44,14 +44,24 @@ public:
 
   bool IsUtf8EncodingSupported() const override;
 
+  bool IsScanDependenciesSupported() const override;
+
   const char* GetAndroidApplicationTypeRevision() const override;
+
+  bool CheckCxxModuleSupport(CxxModuleSupportQuery /*query*/) override
+  {
+    return this->SupportsCxxModuleDyndep();
+  }
+  bool SupportsCxxModuleDyndep() const override
+  {
+    return this->Version >= cmGlobalVisualStudioGenerator::VSVersion::VS17;
+  }
 
 protected:
   cmGlobalVisualStudioVersionedGenerator(
     VSVersion version, cmake* cm, const std::string& name,
     std::string const& platformInGeneratorName);
 
-  bool InitializeWindows(cmMakefile* mf) override;
   bool SelectWindowsStoreToolset(std::string& toolset) const override;
 
   // Used to verify that the Desktop toolset for the current generator is
@@ -63,7 +73,7 @@ protected:
   bool IsWindowsStoreToolsetInstalled() const;
 
   // Check for a Win 8 SDK known to the registry or VS installer tool.
-  bool IsWin81SDKInstalled() const;
+  bool IsWin81SDKInstalled() const override;
 
   std::string GetWindows10SDKMaxVersionDefault(cmMakefile*) const override;
 
@@ -83,6 +93,7 @@ private:
   mutable cmVSSetupAPIHelper vsSetupAPIHelper;
 
   bool ParseGeneratorInstance(std::string const& is, cmMakefile* mf);
+  void SetVSVersionVar(cmMakefile* mf);
 
   std::string GeneratorInstance;
   std::string GeneratorInstanceVersion;

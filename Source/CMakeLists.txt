@@ -11,18 +11,6 @@ endif()
 
 include(CheckIncludeFile)
 
-if(NOT CMake_DEFAULT_RECURSION_LIMIT)
-  if(DEFINED ENV{DASHBOARD_TEST_FROM_CTEST})
-    set(CMake_DEFAULT_RECURSION_LIMIT 100)
-  elseif(MINGW OR MSYS)
-    set(CMake_DEFAULT_RECURSION_LIMIT 400)
-  elseif(WIN32 AND CMAKE_C_COMPILER_ID STREQUAL "IntelLLVM")
-    set(CMake_DEFAULT_RECURSION_LIMIT 600)
-  else()
-    set(CMake_DEFAULT_RECURSION_LIMIT 1000)
-  endif()
-endif()
-
 if(APPLE)
   set(CMake_USE_MACH_PARSER 1)
 endif()
@@ -133,6 +121,8 @@ add_library(
   cmBinUtilsWindowsPELinker.h
   cmBinUtilsWindowsPEObjdumpGetRuntimeDependenciesTool.cxx
   cmBinUtilsWindowsPEObjdumpGetRuntimeDependenciesTool.h
+  cmBuildDatabase.cxx
+  cmBuildDatabase.h
   cmBuildOptions.h
   cmCacheManager.cxx
   cmCacheManager.h
@@ -140,6 +130,8 @@ add_library(
   cmCLocaleEnvironmentScope.cxx
   cmCMakePath.h
   cmCMakePath.cxx
+  cmCMakePresetsErrors.cxx
+  cmCMakePresetsErrors.h
   cmCMakePresetsGraph.cxx
   cmCMakePresetsGraph.h
   cmCMakePresetsGraphInternal.h
@@ -150,6 +142,7 @@ add_library(
   cmCMakePresetsGraphReadJSONTestPresets.cxx
   cmCMakePresetsGraphReadJSONWorkflowPresets.cxx
   cmCommandArgumentParserHelper.cxx
+  cmCommandLineArgument.h
   cmCommonTargetGenerator.cxx
   cmCommonTargetGenerator.h
   cmComputeComponentGraph.cxx
@@ -160,6 +153,8 @@ add_library(
   cmComputeLinkInformation.h
   cmComputeTargetDepends.h
   cmComputeTargetDepends.cxx
+  cmConfigureLog.h
+  cmConfigureLog.cxx
   cmConsoleBuf.h
   cmConsoleBuf.cxx
   cmConstStack.h
@@ -179,6 +174,8 @@ add_library(
   cmCustomCommandTypes.h
   cmCxxModuleMapper.cxx
   cmCxxModuleMapper.h
+  cmCxxModuleUsageEffects.cxx
+  cmCxxModuleUsageEffects.h
   cmDefinitions.cxx
   cmDefinitions.h
   cmDependencyProvider.h
@@ -196,22 +193,37 @@ add_library(
   cmDependsCompiler.h
   cmDocumentation.cxx
   cmDocumentationFormatter.cxx
-  cmDocumentationSection.cxx
   cmDynamicLoader.cxx
   cmDynamicLoader.h
+  cmDyndepCollation.cxx
+  cmDyndepCollation.h
   cmELF.h
   cmELF.cxx
+  cmEvaluatedTargetProperty.cxx
+  cmEvaluatedTargetProperty.h
   cmExprParserHelper.cxx
+  cmExportAndroidMKGenerator.h
+  cmExportAndroidMKGenerator.cxx
   cmExportBuildAndroidMKGenerator.h
   cmExportBuildAndroidMKGenerator.cxx
+  cmExportBuildCMakeConfigGenerator.h
+  cmExportBuildCMakeConfigGenerator.cxx
   cmExportBuildFileGenerator.h
   cmExportBuildFileGenerator.cxx
+  cmExportCMakeConfigGenerator.h
+  cmExportCMakeConfigGenerator.cxx
   cmExportFileGenerator.h
   cmExportFileGenerator.cxx
   cmExportInstallAndroidMKGenerator.h
   cmExportInstallAndroidMKGenerator.cxx
+  cmExportInstallCMakeConfigGenerator.h
+  cmExportInstallCMakeConfigGenerator.cxx
   cmExportInstallFileGenerator.h
   cmExportInstallFileGenerator.cxx
+  cmExportInstallPackageInfoGenerator.h
+  cmExportInstallPackageInfoGenerator.cxx
+  cmExportPackageInfoGenerator.h
+  cmExportPackageInfoGenerator.cxx
   cmExportTryCompileFileGenerator.h
   cmExportTryCompileFileGenerator.cxx
   cmExportSet.h
@@ -234,8 +246,12 @@ add_library(
   cmFileAPICache.h
   cmFileAPICodemodel.cxx
   cmFileAPICodemodel.h
+  cmFileAPIConfigureLog.cxx
+  cmFileAPIConfigureLog.h
   cmFileAPICMakeFiles.cxx
   cmFileAPICMakeFiles.h
+  cmFileAPICommand.cxx
+  cmFileAPICommand.h
   cmFileAPIToolchains.cxx
   cmFileAPIToolchains.h
   cmFileCopier.cxx
@@ -284,6 +300,14 @@ add_library(
   cmGeneratorExpression.h
   cmGeneratorTarget.cxx
   cmGeneratorTarget.h
+  cmGeneratorTarget_CompatibleInterface.cxx
+  cmGeneratorTarget_IncludeDirectories.cxx
+  cmGeneratorTarget_Link.cxx
+  cmGeneratorTarget_LinkDirectories.cxx
+  cmGeneratorTarget_Options.cxx
+  cmGeneratorTarget_Sources.cxx
+  cmGeneratorTarget_TargetPropertyEntry.cxx
+  cmGeneratorTarget_TransitiveProperty.cxx
   cmLinkItemGraphVisitor.cxx
   cmLinkItemGraphVisitor.h
   cmGetPipes.cxx
@@ -300,6 +324,12 @@ add_library(
   cmGraphAdjacencyList.h
   cmGraphVizWriter.cxx
   cmGraphVizWriter.h
+  cmImportedCxxModuleInfo.cxx
+  cmImportedCxxModuleInfo.h
+  cmInstallAndroidMKExportGenerator.cxx
+  cmInstallAndroidMKExportGenerator.h
+  cmInstallCMakeConfigExportGenerator.cxx
+  cmInstallCMakeConfigExportGenerator.h
   cmInstallGenerator.h
   cmInstallGenerator.cxx
   cmInstallGetRuntimeDependenciesGenerator.h
@@ -313,6 +343,8 @@ add_library(
   cmInstallFilesGenerator.cxx
   cmInstallImportedRuntimeArtifactsGenerator.h
   cmInstallImportedRuntimeArtifactsGenerator.cxx
+  cmInstallPackageInfoExportGenerator.h
+  cmInstallPackageInfoExportGenerator.cxx
   cmInstallRuntimeDependencySet.h
   cmInstallRuntimeDependencySet.cxx
   cmInstallRuntimeDependencySetGenerator.h
@@ -325,7 +357,12 @@ add_library(
   cmInstallTargetGenerator.cxx
   cmInstallDirectoryGenerator.h
   cmInstallDirectoryGenerator.cxx
+  cmInstallScriptHandler.h
+  cmInstallScriptHandler.cxx
+  cmJSONHelpers.cxx
   cmJSONHelpers.h
+  cmJSONState.cxx
+  cmJSONState.h
   cmLDConfigLDConfigTool.cxx
   cmLDConfigLDConfigTool.h
   cmLDConfigTool.cxx
@@ -337,12 +374,18 @@ add_library(
   cmLinkLineComputer.h
   cmLinkLineDeviceComputer.cxx
   cmLinkLineDeviceComputer.h
+  cmList.h
+  cmList.cxx
   cmListFileCache.cxx
   cmListFileCache.h
   cmLocalCommonGenerator.cxx
   cmLocalCommonGenerator.h
   cmLocalGenerator.cxx
   cmLocalGenerator.h
+  cmPkgConfigParser.cxx
+  cmPkgConfigParser.h
+  cmPkgConfigResolver.cxx
+  cmPkgConfigResolver.h
   cmPlaceholderExpander.cxx
   cmPlaceholderExpander.h
   cmRulePlaceholderExpander.cxx
@@ -369,6 +412,8 @@ add_library(
   cmNewLineStyle.cxx
   cmOrderDirectories.cxx
   cmOrderDirectories.h
+  cmPlistParser.cxx
+  cmPlistParser.h
   cmPolicies.h
   cmPolicies.cxx
   cmProcessOutput.cxx
@@ -407,6 +452,7 @@ add_library(
   cmSourceFileLocationKind.h
   cmSourceGroup.cxx
   cmSourceGroup.h
+  cmStandardLevel.h
   cmStandardLevelResolver.cxx
   cmStandardLevelResolver.h
   cmState.cxx
@@ -418,6 +464,7 @@ add_library(
   cmStateTypes.h
   cmStringAlgorithms.cxx
   cmStringAlgorithms.h
+  cmSyntheticTargetCache.h
   cmSystemTools.cxx
   cmSystemTools.h
   cmTarget.cxx
@@ -425,6 +472,8 @@ add_library(
   cmTargetPropertyComputer.cxx
   cmTargetPropertyComputer.h
   cmTargetExport.h
+  cmTargetTraceDependencies.cxx
+  cmTargetTraceDependencies.h
   cmTest.cxx
   cmTest.h
   cmTestGenerator.cxx
@@ -436,8 +485,8 @@ add_library(
   cmUVHandlePtr.h
   cmUVProcessChain.cxx
   cmUVProcessChain.h
+  cmUVStream.h
   cmUVStreambuf.h
-  cmUVSignalHackRAII.h
   cmVariableWatch.cxx
   cmVariableWatch.h
   cmVersion.cxx
@@ -448,6 +497,8 @@ add_library(
   cmWorkerPool.h
   cmWorkingDirectory.cxx
   cmWorkingDirectory.h
+  cmXcFramework.cxx
+  cmXcFramework.h
   cmXMLParser.cxx
   cmXMLParser.h
   cmXMLSafe.cxx
@@ -499,6 +550,8 @@ add_library(
   cmCMakeMinimumRequired.h
   cmCMakePathCommand.h
   cmCMakePathCommand.cxx
+  cmCMakePkgConfigCommand.h
+  cmCMakePkgConfigCommand.cxx
   cmCMakePolicyCommand.cxx
   cmCMakePolicyCommand.h
   cmConditionEvaluator.cxx
@@ -533,6 +586,8 @@ add_library(
   cmFLTKWrapUICommand.h
   cmFileCommand.cxx
   cmFileCommand.h
+  cmFileCommand_ReadMacho.cxx
+  cmFileCommand_ReadMacho.h
   cmFindBase.cxx
   cmFindBase.h
   cmFindCommon.cxx
@@ -543,6 +598,8 @@ add_library(
   cmFindLibraryCommand.h
   cmFindPackageCommand.cxx
   cmFindPackageCommand.h
+  cmFindPackageStack.cxx
+  cmFindPackageStack.h
   cmFindPathCommand.cxx
   cmFindPathCommand.h
   cmFindProgramCommand.cxx
@@ -731,6 +788,8 @@ add_library(
   cm_utf8.c
   cm_codecvt.hxx
   cm_codecvt.cxx
+  cm_fileno.hxx
+  cm_fileno.cxx
 
   cmDuration.h
   cmDuration.cxx
@@ -760,7 +819,53 @@ target_link_libraries(
     LibUV::LibUV
     Threads::Threads
     ZLIB::ZLIB
+    llpkgc::llpkgc
   )
+
+if(CMake_ENABLE_DEBUGGER)
+  target_sources(
+    CMakeLib
+    PRIVATE
+      cmDebuggerAdapter.cxx
+      cmDebuggerAdapter.h
+      cmDebuggerBreakpointManager.cxx
+      cmDebuggerBreakpointManager.h
+      cmDebuggerExceptionManager.cxx
+      cmDebuggerExceptionManager.h
+      cmDebuggerProtocol.cxx
+      cmDebuggerProtocol.h
+      cmDebuggerSourceBreakpoint.cxx
+      cmDebuggerSourceBreakpoint.h
+      cmDebuggerStackFrame.cxx
+      cmDebuggerStackFrame.h
+      cmDebuggerThread.cxx
+      cmDebuggerThread.h
+      cmDebuggerThreadManager.cxx
+      cmDebuggerThreadManager.h
+      cmDebuggerVariables.cxx
+      cmDebuggerVariables.h
+      cmDebuggerVariablesHelper.cxx
+      cmDebuggerVariablesHelper.h
+      cmDebuggerVariablesManager.cxx
+      cmDebuggerVariablesManager.h
+    )
+  if(WIN32)
+    target_sources(
+    CMakeLib
+    PRIVATE
+      cmDebuggerWindowsPipeConnection.cxx
+      cmDebuggerWindowsPipeConnection.h
+    )
+  else()
+    target_sources(
+    CMakeLib
+    PRIVATE
+      cmDebuggerPosixPipeConnection.cxx
+      cmDebuggerPosixPipeConnection.h
+    )
+  endif()
+  target_link_libraries(CMakeLib PUBLIC cppdap::cppdap)
+endif()
 
 # Check if we can build the Mach-O parser.
 if(CMake_USE_MACH_PARSER)
@@ -823,8 +928,6 @@ if(WIN32)
         cmGlobalVisualStudio7Generator.h
         cmGlobalVisualStudio8Generator.cxx
         cmGlobalVisualStudio8Generator.h
-        cmGlobalVisualStudio9Generator.cxx
-        cmGlobalVisualStudio9Generator.h
         cmVisualStudioGeneratorOptions.h
         cmVisualStudioGeneratorOptions.cxx
         cmVsProjectType.h
@@ -894,6 +997,43 @@ if(WIN32 OR CMAKE_SYSTEM_NAME STREQUAL "Linux")
     )
 endif()
 
+if(CMake_BUILD_PCH)
+  target_precompile_headers(CMakeLib PRIVATE
+    "$<$<COMPILE_LANGUAGE:CXX>:<string$<ANGLE-R>>"
+    "$<$<COMPILE_LANGUAGE:CXX>:<iostream$<ANGLE-R>>"
+    "$<$<COMPILE_LANGUAGE:CXX>:<sstream$<ANGLE-R>>"
+    "$<$<COMPILE_LANGUAGE:CXX>:<iomanip$<ANGLE-R>>"
+    "$<$<COMPILE_LANGUAGE:CXX>:<cm/memory$<ANGLE-R>>"
+    "$<$<COMPILE_LANGUAGE:CXX>:<cm3p/cppdap/protocol.h$<ANGLE-R>>"
+    "$<$<COMPILE_LANGUAGE:CXX>:cmMakefile.h>"
+    "$<$<COMPILE_LANGUAGE:CXX>:cmGlobalGenerator.h>"
+    "$<$<COMPILE_LANGUAGE:CXX>:cmLocalGenerator.h>"
+    "$<$<COMPILE_LANGUAGE:CXX>:cmGeneratorTarget.h>"
+    "$<$<COMPILE_LANGUAGE:CXX>:cmGeneratorExpression.h>"
+    "$<$<COMPILE_LANGUAGE:CXX>:cmArgumentParser.h>"
+    "$<$<COMPILE_LANGUAGE:CXX>:cmake.h>"
+    "$<$<COMPILE_LANGUAGE:CXX>:cmCMakePath.h>"
+    "$<$<COMPILE_LANGUAGE:CXX>:cmCurl.h>")
+
+    set_source_files_properties(
+      "LexerParser/cmFortranLexer.cxx"
+      PROPERTIES SKIP_PRECOMPILE_HEADERS ON)
+
+  if(WIN32)
+    target_precompile_headers(CMakeLib PRIVATE
+      "$<$<COMPILE_LANGUAGE:CXX>:<cm3p/uv.h$<ANGLE-R>>"
+      "$<$<COMPILE_LANGUAGE:CXX>:cmVSSetupHelper.h>")
+    set_source_files_properties("LexerParser/cmFortranParser.cxx" PROPERTIES SKIP_PRECOMPILE_HEADERS ON)
+  else()
+    set_source_files_properties(
+      "LexerParser/cmCommandArgumentLexer.cxx"
+      "LexerParser/cmGccDepfileLexer.cxx"
+      "LexerParser/cmExprLexer.cxx"
+      "LexerParser/cmDependsJavaLexer.cxx"
+      PROPERTIES SKIP_PRECOMPILE_HEADERS ON)
+  endif()
+endif()
+
 # Temporary variable for tools targets
 set(_tools)
 
@@ -904,13 +1044,9 @@ if(WIN32 AND NOT CYGWIN)
   list(APPEND _tools cmcldeps)
 endif()
 
-if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR MATCHES "sparc")
-  # the atomic instructions are implemented using libatomic on some platforms,
-  # so linking to that may be required
-  check_library_exists(atomic __atomic_fetch_add_4 "" LIBATOMIC_NEEDED)
-  if(LIBATOMIC_NEEDED)
-    target_link_libraries(CMakeLib PUBLIC atomic)
-  endif()
+# Some atomic instructions are implemented using libatomic on some platforms.
+if(CMake_HAVE_CXX_ATOMIC_LIB)
+  target_link_libraries(CMakeLib PUBLIC atomic)
 endif()
 
 # On Apple we need CoreFoundation and CoreServices
@@ -995,6 +1131,9 @@ add_library(
   CTest/cmCTestP4.cxx
   CTest/cmCTestP4.h
 
+  CTest/cmUVJobServerClient.cxx
+  CTest/cmUVJobServerClient.h
+
   LexerParser/cmCTestResourceGroupsLexer.cxx
   LexerParser/cmCTestResourceGroupsLexer.h
   LexerParser/cmCTestResourceGroupsLexer.in.l
@@ -1005,6 +1144,24 @@ target_include_directories(
     "${CMAKE_CURRENT_SOURCE_DIR}/CTest"
   )
 target_link_libraries(CTestLib PUBLIC CMakeLib)
+
+if(CMake_BUILD_PCH)
+  target_precompile_headers(CTestLib PRIVATE
+    "cmDuration.h"
+    "cmMakefile.h"
+    "cmSystemTools.h"
+    "cmGlobalGenerator.h"
+    "cmake.h"
+    "CTest/cmCTestGenericHandler.h"
+    "<sstream>"
+    "<cm3p/uv.h>")
+
+  if(WIN32)
+    target_precompile_headers(CTestLib PRIVATE "cmCurl.h" "CTest/cmCTestMultiProcessHandler.h")
+  else()
+    set_source_files_properties("LexerParser/cmCTestResourceGroupsLexer.cxx" PROPERTIES SKIP_PRECOMPILE_HEADERS ON)
+  endif()
+endif()
 
 #
 # Build CPackLib
@@ -1018,6 +1175,7 @@ add_library(
   CPack/cmCPackGeneratorFactory.cxx
   CPack/cmCPackGenerator.cxx
   CPack/cmCPackLog.cxx
+  CPack/cmCPackInnoSetupGenerator.cxx
   CPack/cmCPackNSISGenerator.cxx
   CPack/cmCPackNuGetGenerator.cxx
   CPack/cmCPackSTGZGenerator.cxx

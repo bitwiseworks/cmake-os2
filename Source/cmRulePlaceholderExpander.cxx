@@ -30,6 +30,19 @@ std::string cmRulePlaceholderExpander::ExpandVariable(
       return this->ReplaceValues->LinkFlags;
     }
   }
+  if (this->ReplaceValues->Linker) {
+    if (variable == "CMAKE_LINKER") {
+      auto result = this->OutputConverter->ConvertToOutputForExisting(
+        this->ReplaceValues->Linker);
+      if (this->ReplaceValues->Launcher) {
+        // Add launcher as part of expansion so that it always appears
+        // immediately before the command itself, regardless of whether the
+        // overall rule template contains other content at the front.
+        result = cmStrCat(this->ReplaceValues->Launcher, " ", result);
+      }
+      return result;
+    }
+  }
   if (this->ReplaceValues->Manifests) {
     if (variable == "MANIFESTS") {
       return this->ReplaceValues->Manifests;
@@ -120,11 +133,6 @@ std::string cmRulePlaceholderExpander::ExpandVariable(
   if (this->ReplaceValues->SwiftModuleName) {
     if (variable == "SWIFT_MODULE_NAME") {
       return this->ReplaceValues->SwiftModuleName;
-    }
-  }
-  if (this->ReplaceValues->SwiftOutputFileMap) {
-    if (variable == "SWIFT_OUTPUT_FILE_MAP") {
-      return this->ReplaceValues->SwiftOutputFileMap;
     }
   }
   if (this->ReplaceValues->SwiftSources) {
@@ -417,17 +425,7 @@ std::string cmRulePlaceholderExpander::ExpandVariable(
   auto mapIt = this->VariableMappings.find(variable);
   if (mapIt != this->VariableMappings.end()) {
     if (variable.find("_FLAG") == std::string::npos) {
-      std::string ret =
-        this->OutputConverter->ConvertToOutputForExisting(mapIt->second);
-
-      if (this->ReplaceValues->Launcher && variable == "CMAKE_LINKER") {
-        // Add launcher as part of expansion so that it always appears
-        // immediately before the command itself, regardless of whether the
-        // overall rule template contains other content at the front.
-        ret = cmStrCat(this->ReplaceValues->Launcher, " ", ret);
-      }
-
-      return ret;
+      return this->OutputConverter->ConvertToOutputForExisting(mapIt->second);
     }
     return mapIt->second;
   }

@@ -19,18 +19,16 @@
 #include <cmext/algorithm>
 #include <cmext/string_view>
 
-#include "cm_codecvt.hxx"
-
 #include "cmBuildOptions.h"
 #include "cmCustomCommandLines.h"
 #include "cmDuration.h"
 #include "cmExportSet.h"
+#include "cmLocalGenerator.h"
 #include "cmStateSnapshot.h"
 #include "cmStringAlgorithms.h"
 #include "cmSystemTools.h"
 #include "cmTarget.h"
 #include "cmTargetDepend.h"
-#include "cmTransformDepfile.h"
 #include "cmValue.h"
 
 #if !defined(CMAKE_BOOTSTRAP)
@@ -41,15 +39,18 @@
 
 #define CMAKE_DIRECTORY_ID_SEP "::@"
 
+enum class cmDepfileFormat;
+enum class codecvt_Encoding;
+
 class cmDirectoryId;
 class cmExportBuildFileGenerator;
 class cmExternalMakefileProjectGenerator;
 class cmGeneratorTarget;
 class cmInstallRuntimeDependencySet;
 class cmLinkLineComputer;
-class cmLocalGenerator;
 class cmMakefile;
 class cmOutputConverter;
+class cmQtAutoGenGlobalInitializer;
 class cmSourceFile;
 class cmState;
 class cmStateDirectory;
@@ -84,10 +85,14 @@ struct GeneratedMakeCommand
   }
 
   std::string Printable() const { return cmJoin(this->PrimaryCommand, " "); }
+  std::string QuotedPrintable() const;
 
   std::vector<std::string> PrimaryCommand;
   bool RequiresOutputForward = false;
 };
+}
+namespace Json {
+class StreamWriter;
 }
 
 /** \class cmGlobalGenerator
@@ -118,10 +123,7 @@ public:
   }
 
   /** Get encoding used by generator for makefile files */
-  virtual codecvt::Encoding GetMakefileEncoding() const
-  {
-    return codecvt::None;
-  }
+  virtual codecvt_Encoding GetMakefileEncoding() const;
 
 #if !defined(CMAKE_BOOTSTRAP)
   /** Get a JSON object describing the generator.  */
@@ -156,6 +158,25 @@ public:
   virtual void Configure();
 
   virtual bool InspectConfigTypeVariables() { return true; }
+
+  enum class CxxModuleSupportQuery
+  {
+    // Support is expected at the call site.
+    Expected,
+    // The call site is querying for support and handles problems by itself.
+    Inspect,
+  };
+  virtual bool CheckCxxModuleSupport(CxxModuleSupportQuery /*query*/)
+  {
+    return false;
+  }
+
+  virtual bool SupportsBuildDatabase() const { return false; }
+  bool AddBuildDatabaseTargets();
+  void AddBuildDatabaseFile(std::string const& lang, std::string const& config,
+                            std::string const& path);
+
+  virtual bool IsGNUMakeJobServerAware() const { return false; }
 
   bool Compute();
   virtual void AddExtraIDETargets() {}
@@ -230,7 +251,7 @@ public:
   int Build(
     int jobs, const std::string& srcdir, const std::string& bindir,
     const std::string& projectName,
-    std::vector<std::string> const& targetNames, std::string& output,
+    std::vector<std::string> const& targetNames, std::ostream& ostr,
     const std::string& makeProgram, const std::string& config,
     const cmBuildOptions& buildOptions, bool verbose, cmDuration timeout,
     cmSystemTools::OutputOption outputflag = cmSystemTools::OUTPUT_NONE,
@@ -336,6 +357,8 @@ public:
   int GetLinkerPreference(const std::string& lang) const;
   //! What is the object file extension for a given source file?
   std::string GetLanguageOutputExtension(cmSourceFile const&) const;
+  //! What is the object file extension for a given language?
+  std::string GetLanguageOutputExtension(std::string const& lang) const;
 
   //! What is the configurations directory variable called?
   virtual const char* GetCMakeCFGIntDir() const { return "."; }
@@ -381,9 +404,17 @@ public:
       , Name(std::move(name))
     {
     }
-    FrameworkDescriptor(std::string directory, std::string name,
-                        std::string suffix)
+    FrameworkDescriptor(std::string directory, std::string version,
+                        std::string name)
       : Directory(std::move(directory))
+      , Version(std::move(version))
+      , Name(std::move(name))
+    {
+    }
+    FrameworkDescriptor(std::string directory, std::string version,
+                        std::string name, std::string suffix)
+      : Directory(std::move(directory))
+      , Version(std::move(version))
       , Name(std::move(name))
       , Suffix(std::move(suffix))
     {
@@ -397,6 +428,13 @@ public:
     {
       return cmStrCat(this->Name, ".framework/"_s, this->Name, this->Suffix);
     }
+    std::string GetVersionedName() const
+    {
+      return this->Version.empty()
+        ? this->GetFullName()
+        : cmStrCat(this->Name, ".framework/Versions/"_s, this->Version, '/',
+                   this->Name, this->Suffix);
+    }
     std::string GetFrameworkPath() const
     {
       return this->Directory.empty()
@@ -409,8 +447,15 @@ public:
         ? this->GetFullName()
         : cmStrCat(this->Directory, '/', this->GetFullName());
     }
+    std::string GetVersionedPath() const
+    {
+      return this->Directory.empty()
+        ? this->GetVersionedName()
+        : cmStrCat(this->Directory, '/', this->GetVersionedName());
+    }
 
     const std::string Directory;
+    const std::string Version;
     const std::string Name;
     const std::string Suffix;
   };
@@ -477,6 +522,11 @@ public:
   TargetDependSet const& GetTargetDirectDepends(
     const cmGeneratorTarget* target);
 
+  // Return true if target 'l' occurs before 'r' in a global ordering
+  // of targets that respects inter-target dependencies.
+  bool TargetOrderIndexLess(cmGeneratorTarget const* l,
+                            cmGeneratorTarget const* r) const;
+
   const std::map<std::string, std::vector<cmLocalGenerator*>>& GetProjectMap()
     const
   {
@@ -538,6 +588,8 @@ public:
     return cm::nullopt;
   }
 
+  virtual bool SupportsLinkerDependencyFile() const { return false; }
+
   std::string GetSharedLibFlagsForLanguage(std::string const& lang) const;
 
   /** Generate an <output>.rule file path for a given command output.  */
@@ -546,6 +598,18 @@ public:
   virtual bool SupportsDefaultBuildType() const { return false; }
   virtual bool SupportsCrossConfigs() const { return false; }
   virtual bool SupportsDefaultConfigs() const { return false; }
+
+  virtual std::string ConvertToOutputPath(std::string path) const
+  {
+    return path;
+  }
+  virtual std::string GetConfigDirectory(std::string const& config) const
+  {
+    if (!this->IsMultiConfig() || config.empty()) {
+      return {};
+    }
+    return cmStrCat('/', config);
+  }
 
   static std::string EscapeJSON(const std::string& s);
 
@@ -584,7 +648,7 @@ public:
 
   std::string MakeSilentFlag;
 
-  int RecursionDepth;
+  size_t RecursionDepth = 0;
 
   virtual void GetQtAutoGenConfigs(std::vector<std::string>& configs) const
   {
@@ -599,6 +663,19 @@ public:
 
   cmInstallRuntimeDependencySet* GetNamedRuntimeDependencySet(
     const std::string& name);
+
+  enum class StripCommandStyle
+  {
+    Default,
+    Apple,
+  };
+  StripCommandStyle GetStripCommandStyle(std::string const& strip);
+
+  virtual std::string& EncodeLiteral(std::string& lit) { return lit; }
+
+  bool CheckCMP0171() const;
+
+  void AddInstallScript(std::string const& file);
 
 protected:
   // for a project collect all its targets by following depend
@@ -619,14 +696,20 @@ protected:
 
   virtual bool ComputeTargetDepends();
 
+#if !defined(CMAKE_BOOTSTRAP)
+  void WriteJsonContent(const std::string& fname,
+                        const Json::Value& value) const;
+  void WriteInstallJson() const;
+#endif
+
   virtual bool CheckALLOW_DUPLICATE_CUSTOM_TARGETS() const;
 
-  /// @brief Qt AUTOMOC/UIC/RCC target generation
-  /// @return true on success
-  bool QtAutoGen();
+  bool ApplyCXXStdTargets();
+  bool DiscoverSyntheticTargets();
 
   bool AddHeaderSetVerification();
 
+  void CreateFileGenerateOutputs();
   bool AddAutomaticSources();
 
   std::string SelectMakeProgram(const std::string& makeProgram,
@@ -666,11 +749,18 @@ protected:
   void AddGlobalTarget_Install(std::vector<GlobalTargetInfo>& targets);
   void CreateGlobalTarget(GlobalTargetInfo const& gti, cmMakefile* mf);
 
+  void ReserveGlobalTargetCodegen();
+
   std::string FindMakeProgramFile;
   std::string ConfiguredFilesPath;
   cmake* CMakeInstance;
   std::vector<std::unique_ptr<cmMakefile>> Makefiles;
   LocalGeneratorVector LocalGenerators;
+
+#ifndef CMAKE_BOOTSTRAP
+  std::unique_ptr<cmQtAutoGenGlobalInitializer> QtAutoGen;
+#endif
+
   cmMakefile* CurrentConfigureMakefile;
   // map from project name to vector of local generators in that project
   std::map<std::string, std::vector<cmLocalGenerator*>> ProjectMap;
@@ -728,6 +818,14 @@ private:
   std::map<std::string, int> LanguageToLinkerPreference;
   std::map<std::string, std::string> LanguageToOriginalSharedLibFlags;
 
+#if !defined(CMAKE_BOOTSTRAP)
+  std::unique_ptr<Json::StreamWriter> JsonWriter;
+#endif
+
+#ifdef __APPLE__
+  std::map<std::string, StripCommandStyle> StripCommandStyleMap;
+#endif
+
   // Deferral id generation.
   size_t NextDeferId = 0;
 
@@ -778,6 +876,8 @@ private:
 
   bool CheckCMP0037(std::string const& targetName,
                     std::string const& reason) const;
+  bool CheckCMP0037Prefix(std::string const& targetPrefix,
+                          std::string const& reason) const;
 
   void IndexMakefile(cmMakefile* mf);
   void IndexLocalGenerator(cmLocalGenerator* lg);
@@ -816,10 +916,19 @@ private:
   std::map<std::string, cmInstallRuntimeDependencySet*>
     RuntimeDependencySetsByName;
 
+  std::vector<std::string> InstallScripts;
+
 #if !defined(CMAKE_BOOTSTRAP)
   // Pool of file locks
   cmFileLockPool FileLockPool;
 #endif
+
+  using PerLanguageModuleDatabases =
+    std::map<std::string, std::vector<std::string>>;
+  using PerConfigModuleDatabases =
+    std::map<std::string, PerLanguageModuleDatabases>;
+  PerConfigModuleDatabases PerConfigModuleDbs;
+  PerLanguageModuleDatabases PerLanguageModuleDbs;
 
 protected:
   float FirstTimeProgress;
@@ -829,4 +938,5 @@ protected:
   bool ToolSupportsColor;
   bool InstallTargetEnabled;
   bool ConfigureDoneCMP0026AndCMP0024;
+  bool AllowGlobalTargetCodegen;
 };

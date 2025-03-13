@@ -7,7 +7,8 @@
 # It's content may change in any way between releases.
 
 include_guard(GLOBAL)
-cmake_policy(PUSH)
+
+block(SCOPE_FOR POLICIES)
 cmake_policy(SET CMP0054 NEW) # if() quoted variables not dereferenced
 cmake_policy(SET CMP0057 NEW) # if() supports IN_LIST
 
@@ -26,7 +27,8 @@ macro(CMAKE_CHECK_FLAG_COMMON_INIT _FUNC _LANG _SRC _PATTERNS)
       FAIL_REGEX "argument unused during compilation: .*") # Clang
   elseif("${_LANG}" STREQUAL "Fortran")
     set(${_SRC} "       program test\n       stop\n       end program")
-    set(${_PATTERNS} FAIL_REGEX "command[ -]line option .* is valid for .* but not for Fortran")
+    set(${_PATTERNS} FAIL_REGEX "command[ -]line option .* is valid for .* but not for Fortran"
+      FAIL_REGEX "argument unused during compilation: .*") # LLVMFlang
   elseif("${_LANG}" STREQUAL "HIP")
     set(${_SRC} "__host__ int main() { return 0; }")
     set(${_PATTERNS} FAIL_REGEX "argument unused during compilation: .*") # Clang
@@ -48,6 +50,8 @@ macro(CMAKE_CHECK_FLAG_COMMON_INIT _FUNC _LANG _SRC _PATTERNS)
       FAIL_REGEX "argument unused during compilation: .*") # Clang
   elseif("${_LANG}" STREQUAL "ISPC")
     set(${_SRC} "float func(uniform int32, float a) { return a / 2.25; }")
+  elseif("${_LANG}" STREQUAL "Swift")
+    set(${_SRC} "func blarpy() { }")
   else()
     message (SEND_ERROR "${_FUNC}: ${_LANG}: unknown language.")
     return()
@@ -72,4 +76,4 @@ macro(CMAKE_CHECK_FLAG_COMMON_FINISH)
   endforeach()
 endmacro()
 
-cmake_policy(POP)
+endblock()

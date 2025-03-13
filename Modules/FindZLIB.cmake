@@ -20,33 +20,57 @@ Result Variables
 
 This module defines the following variables:
 
-::
+``ZLIB_INCLUDE_DIRS``
+  where to find zlib.h, etc.
+``ZLIB_LIBRARIES``
+  List of libraries when using zlib.
+``ZLIB_FOUND``
+  True if zlib found.
+``ZLIB_VERSION``
+  .. versionadded:: 3.26
+    the version of Zlib found.
 
-  ZLIB_INCLUDE_DIRS   - where to find zlib.h, etc.
-  ZLIB_LIBRARIES      - List of libraries when using zlib.
-  ZLIB_FOUND          - True if zlib found.
-
-::
-
-  ZLIB_VERSION_STRING - The version of zlib found (x.y.z)
-  ZLIB_VERSION_MAJOR  - The major version of zlib
-  ZLIB_VERSION_MINOR  - The minor version of zlib
-  ZLIB_VERSION_PATCH  - The patch version of zlib
-  ZLIB_VERSION_TWEAK  - The tweak version of zlib
+  See also legacy variable ``ZLIB_VERSION_STRING``.
 
 .. versionadded:: 3.4
   Debug and Release variants are found separately.
 
-Backward Compatibility
-^^^^^^^^^^^^^^^^^^^^^^
+Legacy Variables
+^^^^^^^^^^^^^^^^
 
-The following variable are provided for backward compatibility
+The following variables are provided for backward compatibility:
 
-::
+``ZLIB_VERSION_MAJOR``
+  The major version of zlib.
 
-  ZLIB_MAJOR_VERSION  - The major version of zlib
-  ZLIB_MINOR_VERSION  - The minor version of zlib
-  ZLIB_PATCH_VERSION  - The patch version of zlib
+  .. versionchanged:: 3.26
+    Superseded by ``ZLIB_VERSION``.
+``ZLIB_VERSION_MINOR``
+  The minor version of zlib.
+
+  .. versionchanged:: 3.26
+    Superseded by ``ZLIB_VERSION``.
+``ZLIB_VERSION_PATCH``
+  The patch version of zlib.
+
+  .. versionchanged:: 3.26
+    Superseded by ``ZLIB_VERSION``.
+``ZLIB_VERSION_TWEAK``
+  The tweak version of zlib.
+
+  .. versionchanged:: 3.26
+    Superseded by ``ZLIB_VERSION``.
+``ZLIB_VERSION_STRING``
+  The version of zlib found (x.y.z)
+
+  .. versionchanged:: 3.26
+    Superseded by ``ZLIB_VERSION``.
+``ZLIB_MAJOR_VERSION``
+  The major version of zlib.  Superseded by ``ZLIB_VERSION_MAJOR``.
+``ZLIB_MINOR_VERSION``
+  The minor version of zlib.  Superseded by ``ZLIB_VERSION_MINOR``.
+``ZLIB_PATCH_VERSION``
+  The patch version of zlib.  Superseded by ``ZLIB_VERSION_PATCH``.
 
 Hints
 ^^^^^
@@ -59,6 +83,17 @@ module where to look.
   Default is ``OFF``.
 
 #]=======================================================================]
+
+cmake_policy(PUSH)
+cmake_policy(SET CMP0159 NEW) # file(STRINGS) with REGEX updates CMAKE_MATCH_<n>
+
+if(ZLIB_FIND_COMPONENTS AND NOT ZLIB_FIND_QUIETLY)
+  message(AUTHOR_WARNING
+    "ZLIB does not provide any COMPONENTS.  Calling\n"
+    "  find_package(ZLIB COMPONENTS ...)\n"
+    "will always fail."
+    )
+endif()
 
 set(_ZLIB_SEARCHES)
 
@@ -143,28 +178,30 @@ unset(ZLIB_NAMES_DEBUG)
 mark_as_advanced(ZLIB_INCLUDE_DIR)
 
 if(ZLIB_INCLUDE_DIR AND EXISTS "${ZLIB_INCLUDE_DIR}/zlib.h")
-    file(STRINGS "${ZLIB_INCLUDE_DIR}/zlib.h" ZLIB_H REGEX "^#define ZLIB_VERSION \"[^\"]*\"$")
-
-    string(REGEX REPLACE "^.*ZLIB_VERSION \"([0-9]+).*$" "\\1" ZLIB_VERSION_MAJOR "${ZLIB_H}")
-    string(REGEX REPLACE "^.*ZLIB_VERSION \"[0-9]+\\.([0-9]+).*$" "\\1" ZLIB_VERSION_MINOR  "${ZLIB_H}")
-    string(REGEX REPLACE "^.*ZLIB_VERSION \"[0-9]+\\.[0-9]+\\.([0-9]+).*$" "\\1" ZLIB_VERSION_PATCH "${ZLIB_H}")
-    set(ZLIB_VERSION_STRING "${ZLIB_VERSION_MAJOR}.${ZLIB_VERSION_MINOR}.${ZLIB_VERSION_PATCH}")
-
-    # only append a TWEAK version if it exists:
+  file(STRINGS "${ZLIB_INCLUDE_DIR}/zlib.h" ZLIB_H REGEX "^#define ZLIB_VERSION \"[^\"]*\"$")
+  if(ZLIB_H MATCHES "ZLIB_VERSION \"(([0-9]+)\\.([0-9]+)(\\.([0-9]+)(\\.([0-9]+))?)?)")
+    set(ZLIB_VERSION_STRING "${CMAKE_MATCH_1}")
+    set(ZLIB_VERSION_MAJOR "${CMAKE_MATCH_2}")
+    set(ZLIB_VERSION_MINOR "${CMAKE_MATCH_3}")
+    set(ZLIB_VERSION_PATCH "${CMAKE_MATCH_5}")
+    set(ZLIB_VERSION_TWEAK "${CMAKE_MATCH_7}")
+  else()
+    set(ZLIB_VERSION_STRING "")
+    set(ZLIB_VERSION_MAJOR "")
+    set(ZLIB_VERSION_MINOR "")
+    set(ZLIB_VERSION_PATCH "")
     set(ZLIB_VERSION_TWEAK "")
-    if( "${ZLIB_H}" MATCHES "ZLIB_VERSION \"[0-9]+\\.[0-9]+\\.[0-9]+\\.([0-9]+)")
-        set(ZLIB_VERSION_TWEAK "${CMAKE_MATCH_1}")
-        string(APPEND ZLIB_VERSION_STRING ".${ZLIB_VERSION_TWEAK}")
-    endif()
-
-    set(ZLIB_MAJOR_VERSION "${ZLIB_VERSION_MAJOR}")
-    set(ZLIB_MINOR_VERSION "${ZLIB_VERSION_MINOR}")
-    set(ZLIB_PATCH_VERSION "${ZLIB_VERSION_PATCH}")
+  endif()
+  set(ZLIB_MAJOR_VERSION "${ZLIB_VERSION_MAJOR}")
+  set(ZLIB_MINOR_VERSION "${ZLIB_VERSION_MINOR}")
+  set(ZLIB_PATCH_VERSION "${ZLIB_VERSION_PATCH}")
+  set(ZLIB_VERSION "${ZLIB_VERSION_STRING}")
 endif()
 
 include(${CMAKE_CURRENT_LIST_DIR}/FindPackageHandleStandardArgs.cmake)
 FIND_PACKAGE_HANDLE_STANDARD_ARGS(ZLIB REQUIRED_VARS ZLIB_LIBRARY ZLIB_INCLUDE_DIR
-                                       VERSION_VAR ZLIB_VERSION_STRING)
+                                       VERSION_VAR ZLIB_VERSION
+                                       HANDLE_COMPONENTS)
 
 if(ZLIB_FOUND)
     set(ZLIB_INCLUDE_DIRS ${ZLIB_INCLUDE_DIR})
@@ -198,3 +235,5 @@ if(ZLIB_FOUND)
       endif()
     endif()
 endif()
+
+cmake_policy(POP)

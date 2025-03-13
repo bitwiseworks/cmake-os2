@@ -10,6 +10,8 @@
 #include <utility>
 #include <vector>
 
+#include <cm/optional>
+
 #include <cm3p/json/value.h>
 
 #include "cmGlobalVisualStudioGenerator.h"
@@ -31,7 +33,7 @@ class BT;
 class cmGlobalVisualStudio7Generator : public cmGlobalVisualStudioGenerator
 {
 public:
-  ~cmGlobalVisualStudio7Generator();
+  ~cmGlobalVisualStudio7Generator() override;
 
   //! Create a local generator appropriate to this Global Generator
   std::unique_ptr<cmLocalGenerator> CreateLocalGenerator(
@@ -102,10 +104,15 @@ public:
   }
 
   const std::string& GetIntelProjectVersion();
+  virtual cm::optional<std::string> GetPlatformToolsetFortran() const
+  {
+    return cm::nullopt;
+  }
 
   bool FindMakeProgram(cmMakefile* mf) override;
 
   /** Is the Microsoft Assembler enabled?  */
+  bool IsMarmasmEnabled() const { return this->MarmasmEnabled; }
   bool IsMasmEnabled() const { return this->MasmEnabled; }
   bool IsNasmEnabled() const { return this->NasmEnabled; }
 
@@ -113,6 +120,8 @@ public:
   virtual std::string Encoding();
 
   cmIDEFlagTable const* ExtraFlagTable;
+
+  virtual bool SupportsCxxModuleDyndep() const { return false; }
 
 protected:
   cmGlobalVisualStudio7Generator(cmake* cm,
@@ -157,8 +166,6 @@ protected:
     cmValue typeGuid,
     const std::set<BT<std::pair<std::string, bool>>>& dependencies) = 0;
 
-  virtual bool SupportsCxxModuleDyndep() const { return false; }
-
   std::string ConvertToSolutionPath(const std::string& path);
 
   std::set<std::string> IsPartOfDefaultBuild(
@@ -176,6 +183,7 @@ protected:
   // Set during OutputSLNFile with the name of the current project.
   // There is one SLN file per project.
   std::string CurrentProject;
+  bool MarmasmEnabled;
   bool MasmEnabled;
   bool NasmEnabled;
 

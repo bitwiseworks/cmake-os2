@@ -65,24 +65,26 @@ macro(__compiler_lcc lang)
   set(CMAKE_${lang}_COMPILE_OPTIONS_IPO ${__lto_flags})
 
   set(CMAKE_${lang}_ARCHIVE_CREATE_IPO
-    "\"${CMAKE_${lang}_COMPILER_AR}\" cr <TARGET> <LINK_FLAGS> <OBJECTS>"
+    "\"${CMAKE_${lang}_COMPILER_AR}\" qc <TARGET> <LINK_FLAGS> <OBJECTS>"
   )
 
   set(CMAKE_${lang}_ARCHIVE_APPEND_IPO
-    "\"${CMAKE_${lang}_COMPILER_AR}\" r <TARGET> <LINK_FLAGS> <OBJECTS>"
+    "\"${CMAKE_${lang}_COMPILER_AR}\" q <TARGET> <LINK_FLAGS> <OBJECTS>"
   )
 
   set(CMAKE_${lang}_ARCHIVE_FINISH_IPO
     "\"${CMAKE_${lang}_COMPILER_RANLIB}\" <TARGET>"
   )
 
-  set(CMAKE_${lang}_COMPILER_PREDEFINES_COMMAND "${CMAKE_${lang}_COMPILER}")
-  if(CMAKE_${lang}_COMPILER_ARG1)
-    separate_arguments(_COMPILER_ARGS NATIVE_COMMAND "${CMAKE_${lang}_COMPILER_ARG1}")
-    list(APPEND CMAKE_${lang}_COMPILER_PREDEFINES_COMMAND ${_COMPILER_ARGS})
-    unset(_COMPILER_ARGS)
+  if("${lang}" STREQUAL "CXX")
+    set(CMAKE_${lang}_COMPILER_PREDEFINES_COMMAND "${CMAKE_${lang}_COMPILER}")
+    if(CMAKE_${lang}_COMPILER_ARG1)
+      separate_arguments(_COMPILER_ARGS NATIVE_COMMAND "${CMAKE_${lang}_COMPILER_ARG1}")
+      list(APPEND CMAKE_${lang}_COMPILER_PREDEFINES_COMMAND ${_COMPILER_ARGS})
+      unset(_COMPILER_ARGS)
+    endif()
+    list(APPEND CMAKE_${lang}_COMPILER_PREDEFINES_COMMAND "-dM" "-E" "-c" "${CMAKE_ROOT}/Modules/CMakeCXXCompilerABI.cpp")
   endif()
-  list(APPEND CMAKE_${lang}_COMPILER_PREDEFINES_COMMAND "-dM" "-E" "-c" "${CMAKE_ROOT}/Modules/CMakeCXXCompilerABI.cpp")
 
   if(NOT "x${lang}" STREQUAL "xFortran")
     set(CMAKE_PCH_EXTENSION .gch)

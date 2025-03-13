@@ -33,8 +33,10 @@ protected:
 
   bool CopyFile(std::ostringstream& source, std::ostringstream& target);
   bool CreateEmptyFile(std::ostringstream& target, size_t size);
-  bool RunCommand(std::ostringstream& command, std::string* output = nullptr);
+  bool RunCommand(std::string const& command, std::string* output = nullptr);
 
+  std::string GetComponentInstallSuffix(
+    const std::string& componentName) override;
   std::string GetComponentInstallDirNameSuffix(
     const std::string& componentName) override;
 

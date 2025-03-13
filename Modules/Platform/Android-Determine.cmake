@@ -32,20 +32,29 @@ endif()
 
 cmake_policy(PUSH)
 cmake_policy(SET CMP0057 NEW) # if IN_LIST
+cmake_policy(SET CMP0159 NEW) # file(STRINGS) with REGEX updates CMAKE_MATCH_<n>
 
 # If using Android tools for Visual Studio, compile a sample project to get the
-# sysroot.
+# NDK path and set the processor from the generator platform.
 if(CMAKE_GENERATOR MATCHES "Visual Studio")
-  if(NOT CMAKE_SYSROOT)
-    set(vcx_platform ${CMAKE_GENERATOR_PLATFORM})
-    if(CMAKE_GENERATOR MATCHES "Visual Studio 1[45]")
-      set(vcx_sysroot_var "Sysroot")
+  if(NOT CMAKE_ANDROID_ARCH_ABI AND NOT CMAKE_SYSTEM_PROCESSOR)
+    if(CMAKE_GENERATOR_PLATFORM STREQUAL "ARM")
+      set(CMAKE_SYSTEM_PROCESSOR "armv7-a")
+    elseif(CMAKE_GENERATOR_PLATFORM STREQUAL "ARM64")
+      set(CMAKE_SYSTEM_PROCESSOR "aarch64")
+    elseif(CMAKE_GENERATOR_PLATFORM STREQUAL "x86")
+      set(CMAKE_SYSTEM_PROCESSOR "i686")
+    elseif(CMAKE_GENERATOR_PLATFORM STREQUAL "x64")
+      set(CMAKE_SYSTEM_PROCESSOR "x86_64")
     else()
-      set(vcx_sysroot_var "SysrootLink")
+      message(FATAL_ERROR "Unhandled generator platform, please choose ARM, ARM64, x86 or x86_64 using -A")
     endif()
+  endif()
+  if(NOT CMAKE_ANDROID_NDK)
+    set(vcx_platform ${CMAKE_GENERATOR_PLATFORM})
     if(CMAKE_GENERATOR MATCHES "Visual Studio 14")
       set(vcx_revision "2.0")
-    elseif(CMAKE_GENERATOR MATCHES "Visual Studio 1[56]")
+    elseif(CMAKE_GENERATOR MATCHES "Visual Studio 1[567]")
       set(vcx_revision "3.0")
     else()
       set(vcx_revision "")
@@ -62,24 +71,24 @@ if(CMAKE_GENERATOR MATCHES "Visual Studio")
       RESULT_VARIABLE VCXPROJ_INSPECT_RESULT
       )
     unset(_msbuild)
-    if(NOT CMAKE_SYSROOT AND VCXPROJ_INSPECT_OUTPUT MATCHES "CMAKE_SYSROOT=([^%\r\n]+)[\r\n]")
+    if(VCXPROJ_INSPECT_OUTPUT MATCHES "CMAKE_ANDROID_NDK=([^%\r\n]+)[\r\n]")
       # Strip VS diagnostic output from the end of the line.
-      string(REGEX REPLACE " \\(TaskId:[0-9]*\\)$" "" _sysroot "${CMAKE_MATCH_1}")
-      if(EXISTS "${_sysroot}")
-        file(TO_CMAKE_PATH "${_sysroot}" CMAKE_SYSROOT)
+      string(REGEX REPLACE " \\(TaskId:[0-9]*\\)$" "" _ndk "${CMAKE_MATCH_1}")
+      if(EXISTS "${_ndk}")
+        file(TO_CMAKE_PATH "${_ndk}" CMAKE_ANDROID_NDK)
       endif()
     endif()
     if(VCXPROJ_INSPECT_RESULT)
-      file(APPEND ${CMAKE_BINARY_DIR}${CMAKE_FILES_DIRECTORY}/CMakeError.log
-        "Determining the sysroot for the Android NDK failed.
+      message(CONFIGURE_LOG
+        "Determining the Android NDK failed from msbuild failed.
 The output was:
 ${VCXPROJ_INSPECT_RESULT}
 ${VCXPROJ_INSPECT_OUTPUT}
 
 ")
     else()
-      file(APPEND ${CMAKE_BINARY_DIR}${CMAKE_FILES_DIRECTORY}/CMakeOutput.log
-        "Determining the sysroot for the Android NDK succeeded.
+      message(CONFIGURE_LOG
+        "Determining the Android NDK succeeded.
 The output was:
 ${VCXPROJ_INSPECT_RESULT}
 ${VCXPROJ_INSPECT_OUTPUT}
@@ -366,21 +375,21 @@ endif()
 if(CMAKE_ANDROID_ARCH_ABI AND NOT DEFINED "NDK_ABI_${CMAKE_ANDROID_ARCH_ABI}_PROC")
   message(FATAL_ERROR "Android: Unknown ABI CMAKE_ANDROID_ARCH_ABI='${CMAKE_ANDROID_ARCH_ABI}'.")
 endif()
-if(CMAKE_SYSTEM_PROCESSOR AND NOT DEFINED "NDK_PROC_${CMAKE_SYSTEM_PROCESSOR}_ABI")
-  message(FATAL_ERROR "Android: Unknown processor CMAKE_SYSTEM_PROCESSOR='${CMAKE_SYSTEM_PROCESSOR}'.")
-endif()
-if(_ANDROID_SYSROOT_ARCH AND NOT DEFINED "NDK_ARCH_${_ANDROID_SYSROOT_ARCH}_ABI")
-  message(FATAL_ERROR
-    "Android: Unknown architecture '${_ANDROID_SYSROOT_ARCH}' specified in CMAKE_SYSROOT:\n"
-    "  ${CMAKE_SYSROOT}"
-    )
-endif()
 
 # Select an ABI.
 if(NOT CMAKE_ANDROID_ARCH_ABI)
   if(CMAKE_SYSTEM_PROCESSOR)
+    if(NOT DEFINED "NDK_PROC_${CMAKE_SYSTEM_PROCESSOR}_ABI")
+      message(FATAL_ERROR "Android: Unknown processor CMAKE_SYSTEM_PROCESSOR='${CMAKE_SYSTEM_PROCESSOR}'.")
+    endif()
     set(CMAKE_ANDROID_ARCH_ABI "${NDK_PROC_${CMAKE_SYSTEM_PROCESSOR}_ABI}")
   elseif(_ANDROID_SYSROOT_ARCH)
+    if(NOT DEFINED "NDK_ARCH_${_ANDROID_SYSROOT_ARCH}_ABI")
+      message(FATAL_ERROR
+        "Android: Unknown architecture '${_ANDROID_SYSROOT_ARCH}' specified in CMAKE_SYSROOT:\n"
+        "  ${CMAKE_SYSROOT}"
+        )
+    endif()
     set(CMAKE_ANDROID_ARCH_ABI "${NDK_ARCH_${_ANDROID_SYSROOT_ARCH}_ABI}")
   elseif(_INCLUDED_ABIS)
     # Default to the oldest ARM ABI.
@@ -524,7 +533,7 @@ elseif(CMAKE_ANDROID_NDK)
     set(_ANDROID_APIS ${_ANDROID_APIS_1} ${_ANDROID_APIS_2})
     unset(_ANDROID_APIS_1)
     unset(_ANDROID_APIS_2)
-    if(_ANDROID_APIS STREQUAL "")
+    if(NOT DEFINED _ANDROID_APIS OR _ANDROID_APIS STREQUAL "")
       message(FATAL_ERROR
         "Android: No APIs found in the NDK.  No\n"
         "  ${CMAKE_ANDROID_NDK}/platforms/android-*\n"

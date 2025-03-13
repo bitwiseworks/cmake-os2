@@ -289,25 +289,29 @@ if(BLA_PREFER_PKGCONFIG)
     set(BLA_PKGCONFIG_LAPACK "lapack")
   endif()
   find_package(PkgConfig QUIET)
-  pkg_check_modules(PKGC_LAPACK QUIET ${BLA_PKGCONFIG_LAPACK})
-  if(PKGC_LAPACK_FOUND)
-    set(LAPACK_FOUND TRUE)
-    set(LAPACK_LIBRARIES "${PKGC_LAPACK_LINK_LIBRARIES}")
-    if (BLAS_LIBRARIES)
-      list(APPEND LAPACK_LIBRARIES "${BLAS_LIBRARIES}")
+  if(PKG_CONFIG_FOUND)
+    pkg_check_modules(PKGC_LAPACK QUIET ${BLA_PKGCONFIG_LAPACK})
+    if(PKGC_LAPACK_FOUND)
+      set(LAPACK_FOUND TRUE)
+      set(LAPACK_LIBRARIES "${PKGC_LAPACK_LINK_LIBRARIES}")
+      if (BLAS_LIBRARIES)
+        list(APPEND LAPACK_LIBRARIES "${BLAS_LIBRARIES}")
+      endif()
+      _add_lapack_target()
+      return()
     endif()
-    _add_lapack_target()
-    return()
   endif()
 endif()
 
 # Search for different LAPACK distributions if BLAS is found
 if(NOT LAPACK_NOT_FOUND_MESSAGE)
   set(LAPACK_LINKER_FLAGS ${BLAS_LINKER_FLAGS})
-  if(NOT $ENV{BLA_VENDOR} STREQUAL "")
-    set(BLA_VENDOR $ENV{BLA_VENDOR})
-  elseif(NOT BLA_VENDOR)
-    set(BLA_VENDOR "All")
+  if(NOT BLA_VENDOR)
+    if(NOT "$ENV{BLA_VENDOR}" STREQUAL "")
+      set(BLA_VENDOR "$ENV{BLA_VENDOR}")
+    else()
+      set(BLA_VENDOR "All")
+    endif()
   endif()
 
   # LAPACK in the Intel MKL 10+ library?
@@ -485,7 +489,11 @@ if(NOT LAPACK_NOT_FOUND_MESSAGE)
     set(_lapack_openblas_lib "openblas")
 
     if(_lapack_sizeof_integer EQUAL 8)
-      string(APPEND _lapack_openblas_lib "64")
+      if(MINGW)
+        string(APPEND _lapack_openblas_lib "_64")
+      else()
+        string(APPEND _lapack_openblas_lib "64")
+      endif()
     endif()
 
     check_lapack_libraries(
@@ -557,6 +565,29 @@ if(NOT LAPACK_NOT_FOUND_MESSAGE)
         "${BLAS_LIBRARIES}"
       )
     endif()
+  endif()
+
+  # AOCL? (https://developer.amd.com/amd-aocl/)
+  if(NOT LAPACK_LIBRARIES
+      AND (BLA_VENDOR MATCHES "AOCL" OR BLA_VENDOR STREQUAL "All"))
+    if(_lapack_sizeof_integer EQUAL 8)
+      set(_lapack_aocl_subdir "ILP64")
+    else()
+      set(_lapack_aocl_subdir "LP64")
+    endif()
+
+    check_lapack_libraries(
+      LAPACK_LIBRARIES
+      LAPACK
+      cheev
+      ""
+      "flame"
+      "-fopenmp"
+      ""
+      "${_lapack_aocl_subdir}"
+      "${BLAS_LIBRARIES}"
+    )
+    unset(_lapack_aocl_subdir)
   endif()
 
   # LAPACK in SCSL library? (SGI/Cray Scientific Library)
@@ -711,6 +742,14 @@ if(NOT LAPACK_NOT_FOUND_MESSAGE)
 
     unset(_lapack_nvhpc_lib)
     unset(_lapack_nvhpc_flags)
+  endif()
+
+  # libblastrampoline? (https://github.com/JuliaLinearAlgebra/libblastrampoline/tree/main)
+  if(NOT LAPACK_LIBRARIES
+      AND (BLA_VENDOR STREQUAL "libblastrampoline" OR BLA_VENDOR STREQUAL "All"))
+    if(BLAS_LIBRARIES MATCHES "blastrampoline.+")
+      set(LAPACK_LIBRARIES ${BLAS_LIBRARIES})
+    endif()
   endif()
 
   # Generic LAPACK library?

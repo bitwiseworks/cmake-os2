@@ -11,6 +11,7 @@
 #include "cmsys/RegularExpression.hxx"
 
 #include "cmGlobalGenerator.h"
+#include "cmList.h"
 #include "cmMakefile.h"
 #include "cmState.h"
 #include "cmStateTypes.h"
@@ -196,8 +197,8 @@ struct cmFindLibraryHelper
   cmGlobalGenerator* GG;
 
   // List of valid prefixes and suffixes.
-  std::vector<std::string> Prefixes;
-  std::vector<std::string> Suffixes;
+  cmList Prefixes;
+  cmList Suffixes;
   std::string PrefixRegexStr;
   std::string SuffixRegexStr;
 
@@ -206,7 +207,7 @@ struct cmFindLibraryHelper
   std::string BestPath;
 
   // Support for OpenBSD shared library naming: lib<name>.so.<major>.<minor>
-  bool OpenBSD;
+  bool IsOpenBSD;
 
   bool DebugMode;
 
@@ -223,7 +224,7 @@ struct cmFindLibraryHelper
   std::string TestPath;
 
   void RegexFromLiteral(std::string& out, std::string const& in);
-  void RegexFromList(std::string& out, std::vector<std::string> const& in);
+  void RegexFromList(std::string& out, cmList const& in);
   size_type GetPrefixIndex(std::string const& prefix)
   {
     return std::find(this->Prefixes.begin(), this->Prefixes.end(), prefix) -
@@ -250,8 +251,14 @@ struct cmFindLibraryHelper
   void DebugLibraryFailed(std::string const& name, std::string const& path)
   {
     if (this->DebugMode) {
-      auto regexName =
-        cmStrCat(this->PrefixRegexStr, name, this->SuffixRegexStr);
+      // To improve readability of the debug output, if there is only one
+      // prefix/suffix, use the plain prefix/suffix instead of the regex.
+      const auto& prefix = (this->Prefixes.size() == 1) ? this->Prefixes[0]
+                                                        : this->PrefixRegexStr;
+      const auto& suffix = (this->Suffixes.size() == 1) ? this->Suffixes[0]
+                                                        : this->SuffixRegexStr;
+
+      auto regexName = cmStrCat(prefix, name, suffix);
       this->DebugSearches.FailedAt(path, regexName);
     }
   }
@@ -307,13 +314,13 @@ cmFindLibraryHelper::cmFindLibraryHelper(std::string debugName, cmMakefile* mf,
   std::string const& prefixes_list = get_prefixes(this->Makefile);
   std::string const& suffixes_list = get_suffixes(this->Makefile);
 
-  cmExpandList(prefixes_list, this->Prefixes, true);
-  cmExpandList(suffixes_list, this->Suffixes, true);
+  this->Prefixes.assign(prefixes_list, cmList::EmptyElements::Yes);
+  this->Suffixes.assign(suffixes_list, cmList::EmptyElements::Yes);
   this->RegexFromList(this->PrefixRegexStr, this->Prefixes);
   this->RegexFromList(this->SuffixRegexStr, this->Suffixes);
 
   // Check whether to use OpenBSD-style library version comparisons.
-  this->OpenBSD = this->Makefile->GetState()->GetGlobalPropertyAsBool(
+  this->IsOpenBSD = this->Makefile->GetState()->GetGlobalPropertyAsBool(
     "FIND_LIBRARY_USE_OPENBSD_VERSIONING");
 }
 
@@ -334,14 +341,13 @@ void cmFindLibraryHelper::RegexFromLiteral(std::string& out,
   }
 }
 
-void cmFindLibraryHelper::RegexFromList(std::string& out,
-                                        std::vector<std::string> const& in)
+void cmFindLibraryHelper::RegexFromList(std::string& out, cmList const& in)
 {
   // Surround the list in parens so the '|' does not apply to anything
   // else and the result can be checked after matching.
   out += "(";
   const char* sep = "";
-  for (std::string const& s : in) {
+  for (auto const& s : in) {
     // Separate from previous item.
     out += sep;
     sep = "|";
@@ -384,7 +390,7 @@ void cmFindLibraryHelper::AddName(std::string const& name)
   std::string regex = cmStrCat('^', this->PrefixRegexStr);
   this->RegexFromLiteral(regex, name);
   regex += this->SuffixRegexStr;
-  if (this->OpenBSD) {
+  if (this->IsOpenBSD) {
     regex += "(\\.[0-9]+\\.[0-9]+)?";
   }
   regex += "$";
@@ -466,7 +472,7 @@ bool cmFindLibraryHelper::CheckDirectoryForName(std::string const& path,
         size_type suffix = this->GetSuffixIndex(name.Regex.match(2));
         unsigned int major = 0;
         unsigned int minor = 0;
-        if (this->OpenBSD) {
+        if (this->IsOpenBSD) {
           sscanf(name.Regex.match(3).c_str(), ".%u.%u", &major, &minor);
         }
         if (this->BestPath.empty() || prefix < bestPrefix ||
@@ -552,6 +558,14 @@ std::string cmFindLibraryCommand::FindFrameworkLibraryNamesPerDir()
   // Search for all names in each search path.
   for (std::string const& d : this->SearchPaths) {
     for (std::string const& n : this->Names) {
+      fwPath = cmStrCat(d, n, ".xcframework");
+      if (cmSystemTools::FileIsDirectory(fwPath)) {
+        auto finalPath = cmSystemTools::CollapseFullPath(fwPath);
+        if (this->Validate(finalPath)) {
+          return finalPath;
+        }
+      }
+
       fwPath = cmStrCat(d, n, ".framework");
       if (cmSystemTools::FileIsDirectory(fwPath)) {
         auto finalPath = cmSystemTools::CollapseFullPath(fwPath);
@@ -572,6 +586,14 @@ std::string cmFindLibraryCommand::FindFrameworkLibraryDirsPerName()
   // Search for each name in all search paths.
   for (std::string const& n : this->Names) {
     for (std::string const& d : this->SearchPaths) {
+      fwPath = cmStrCat(d, n, ".xcframework");
+      if (cmSystemTools::FileIsDirectory(fwPath)) {
+        auto finalPath = cmSystemTools::CollapseFullPath(fwPath);
+        if (this->Validate(finalPath)) {
+          return finalPath;
+        }
+      }
+
       fwPath = cmStrCat(d, n, ".framework");
       if (cmSystemTools::FileIsDirectory(fwPath)) {
         auto finalPath = cmSystemTools::CollapseFullPath(fwPath);

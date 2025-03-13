@@ -21,6 +21,30 @@ Find a package (usually provided by something external to the project),
 and load its package-specific details.  Calls to this command can also
 be intercepted by :ref:`dependency providers <dependency_providers>`.
 
+Typical Usage
+^^^^^^^^^^^^^
+
+Most calls to ``find_package()`` typically have the following form:
+
+.. parsed-literal::
+
+  find_package(<PackageName> [<version>] [REQUIRED] [COMPONENTS <components>...])
+
+The ``<PackageName>`` is the only mandatory argument.  The ``<version>`` is
+often omitted, and ``REQUIRED`` should be given if the project cannot be
+configured successfully without the package.  Some more complicated packages
+support components which can be selected with the ``COMPONENTS`` keyword, but
+most packages don't have that level of complexity.
+
+The above is a reduced form of the `basic signature`_.  Where possible,
+projects should find packages using this form.  This reduces complexity and
+maximizes the ways in which the package can be found or provided.
+
+Understanding the `basic signature`_ should be enough for general usage of
+``find_package()``.  Project maintainers who intend to provide a config
+package should understand the bigger picture, as explained in
+:ref:`Full Signature` and all subsequent sections on this page.
+
 Search Modes
 ^^^^^^^^^^^^
 
@@ -85,12 +109,6 @@ to true to reverse the priority and direct CMake to search using Config mode
 first before falling back to Module mode.  The basic signature can also be
 forced to use only Module mode with a ``MODULE`` keyword.  If the
 `full signature`_ is used, the command only searches in Config mode.
-
-Where possible, user code should generally look for packages using the
-`basic signature`_, since that allows the package to be found with any mode.
-Project maintainers wishing to provide a config package should understand
-the bigger picture, as explained in :ref:`Full Signature` and all subsequent
-sections on this page.
 
 .. _`basic signature`:
 
@@ -323,18 +341,27 @@ containing a configuration file:
 In all cases the ``<name>`` is treated as case-insensitive and corresponds
 to any of the names specified (``<PackageName>`` or names given by ``NAMES``).
 
-Paths with ``lib/<arch>`` are enabled if the
-:variable:`CMAKE_LIBRARY_ARCHITECTURE` variable is set. ``lib*`` includes one
-or more of the values ``lib64``, ``lib32``, ``libx32`` or ``lib`` (searched in
-that order).
+If at least one compiled language has been enabled, the architecture-specific
+``lib/<arch>`` and ``lib*`` directories may be searched based on the compiler's
+target architecture, in the following order:
 
-* Paths with ``lib64`` are searched on 64 bit platforms if the
+``lib/<arch>``
+  Searched if the :variable:`CMAKE_LIBRARY_ARCHITECTURE` variable is set.
+
+``lib64``
+  Searched on 64 bit platforms (:variable:`CMAKE_SIZEOF_VOID_P` is 8) and the
   :prop_gbl:`FIND_LIBRARY_USE_LIB64_PATHS` property is set to ``TRUE``.
-* Paths with ``lib32`` are searched on 32 bit platforms if the
+
+``lib32``
+  Searched on 32 bit platforms (:variable:`CMAKE_SIZEOF_VOID_P` is 4) and the
   :prop_gbl:`FIND_LIBRARY_USE_LIB32_PATHS` property is set to ``TRUE``.
-* Paths with ``libx32`` are searched on platforms using the x32 ABI
+
+``libx32``
+  Searched on platforms using the x32 ABI
   if the :prop_gbl:`FIND_LIBRARY_USE_LIBX32_PATHS` property is set to ``TRUE``.
-* The ``lib`` path is always searched.
+
+``lib``
+  Always searched.
 
 .. versionchanged:: 3.24
   On ``Windows`` platform, it is possible to include registry queries as part
@@ -346,7 +373,7 @@ that order).
   ``REGISTRY_VIEW`` can be specified to manage ``Windows`` registry queries
   specified as part of ``PATHS`` and ``HINTS``.
 
-.. include:: FIND_XXX_REGISTRY_VIEW.txt
+  .. include:: FIND_XXX_REGISTRY_VIEW.txt
 
 If ``PATH_SUFFIXES`` is specified, the suffixes are appended to each
 (``W``) or (``U``) directory entry one-by-one.
@@ -367,16 +394,37 @@ The set of installation prefixes is constructed using the following
 steps.  If ``NO_DEFAULT_PATH`` is specified all ``NO_*`` options are
 enabled.
 
-1. .. versionadded:: 3.12
-    Search paths specified in the :variable:`<PackageName>_ROOT` CMake
-    variable and the :envvar:`<PackageName>_ROOT` environment variable,
-    where ``<PackageName>`` is the package to be found.
-    The package root variables are maintained as a stack so if
-    called from within a find module, root paths from the parent's find
-    module will also be searched after paths for the current package.
-    This can be skipped if ``NO_PACKAGE_ROOT_PATH`` is passed or by setting
-    the :variable:`CMAKE_FIND_USE_PACKAGE_ROOT_PATH` to ``FALSE``.
-    See policy :policy:`CMP0074`.
+1. Search prefixes unique to the current ``<PackageName>`` being found.
+   See policy :policy:`CMP0074`.
+
+   .. versionadded:: 3.12
+
+   Specifically, search prefixes specified by the following variables,
+   in order:
+
+   a. :variable:`<PackageName>_ROOT` CMake variable,
+      where ``<PackageName>`` is the case-preserved package name.
+
+   b. :variable:`<PACKAGENAME>_ROOT` CMake variable,
+      where ``<PACKAGENAME>`` is the upper-cased package name.
+      See policy :policy:`CMP0144`.
+
+      .. versionadded:: 3.27
+
+   c. :envvar:`<PackageName>_ROOT` environment variable,
+      where ``<PackageName>`` is the case-preserved package name.
+
+   d. :envvar:`<PACKAGENAME>_ROOT` environment variable,
+      where ``<PACKAGENAME>`` is the upper-cased package name.
+      See policy :policy:`CMP0144`.
+
+      .. versionadded:: 3.27
+
+   The package root variables are maintained as a stack so if
+   called from within a find module, root paths from the parent's find
+   module will also be searched after paths for the current package.
+   This can be skipped if ``NO_PACKAGE_ROOT_PATH`` is passed or by setting
+   the :variable:`CMAKE_FIND_USE_PACKAGE_ROOT_PATH` to ``FALSE``.
 
 2. Search paths specified in cmake-specific cache variables.  These
    are intended to be used on the command line with a :option:`-DVAR=VALUE <cmake -D>`.
@@ -397,8 +445,8 @@ enabled.
 
    * ``<PackageName>_DIR``
    * :envvar:`CMAKE_PREFIX_PATH`
-   * ``CMAKE_FRAMEWORK_PATH``
-   * ``CMAKE_APPBUNDLE_PATH``
+   * :envvar:`CMAKE_FRAMEWORK_PATH`
+   * :envvar:`CMAKE_APPBUNDLE_PATH`
 
 4. Search paths specified by the ``HINTS`` option.  These should be paths
    computed by system introspection, such as a hint provided by the
@@ -454,6 +502,42 @@ The :variable:`CMAKE_IGNORE_PATH`, :variable:`CMAKE_IGNORE_PREFIX_PATH`,
 :variable:`CMAKE_SYSTEM_IGNORE_PATH` and
 :variable:`CMAKE_SYSTEM_IGNORE_PREFIX_PATH` variables can also cause some
 of the above locations to be ignored.
+
+Paths are searched in the order described above.  The first viable package
+configuration file found is used, even if a newer version of the package
+resides later in the list of search paths.
+
+For search paths which contain ``<name>*``, the order among matching paths
+is unspecified unless the :variable:`CMAKE_FIND_PACKAGE_SORT_ORDER` variable
+is set.  This variable, along with the
+:variable:`CMAKE_FIND_PACKAGE_SORT_DIRECTION` variable, determines the order
+in which CMake considers paths that match a single search path containing
+``<name>*``.  For example, if the file system contains the package
+configuration files
+
+::
+
+  <prefix>/example-1.2/example-config.cmake
+  <prefix>/example-1.10/example-config.cmake
+  <prefix>/share/example-2.0/example-config.cmake
+
+it is unspecified (when the aforementioned variables are unset) whether
+``find_package(example)`` will find ``example-1.2`` or ``example-1.10``
+(assuming that both are viable), but ``find_package`` will *not* find
+``example-2.0``, because one of the other two will be found first.
+
+To control the order in which ``find_package`` searches directories that match
+a glob expression, use :variable:`CMAKE_FIND_PACKAGE_SORT_ORDER` and
+:variable:`CMAKE_FIND_PACKAGE_SORT_DIRECTION`.
+For instance, to cause the above example to select ``example-1.10``,
+one can set
+
+.. code-block:: cmake
+
+  SET(CMAKE_FIND_PACKAGE_SORT_ORDER NATURAL)
+  SET(CMAKE_FIND_PACKAGE_SORT_DIRECTION DEC)
+
+before calling ``find_package``.
 
 .. versionadded:: 3.16
    Added the ``CMAKE_FIND_USE_<CATEGORY>`` variables to globally disable
@@ -600,22 +684,6 @@ is acceptable the following variables are set:
   Number of version components, 0 to 4
 
 and the corresponding package configuration file is loaded.
-When multiple package configuration files are available whose version files
-claim compatibility with the version requested it is unspecified which
-one is chosen: unless the variable :variable:`CMAKE_FIND_PACKAGE_SORT_ORDER`
-is set no attempt is made to choose a highest or closest version number.
-
-To control the order in which ``find_package`` checks for compatibility use
-the two variables :variable:`CMAKE_FIND_PACKAGE_SORT_ORDER` and
-:variable:`CMAKE_FIND_PACKAGE_SORT_DIRECTION`.
-For instance in order to select the highest version one can set
-
-.. code-block:: cmake
-
-  SET(CMAKE_FIND_PACKAGE_SORT_ORDER NATURAL)
-  SET(CMAKE_FIND_PACKAGE_SORT_DIRECTION DEC)
-
-before calling ``find_package``.
 
 Package File Interface Variables
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

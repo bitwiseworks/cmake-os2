@@ -5,10 +5,12 @@
     "projectName": "codemodel-v2",
     "type": "SHARED_LIBRARY",
     "isGeneratorProvided": null,
+    "fileSets": null,
     "sources": [
         {
             "path": "^empty\\.c$",
             "isGenerated": null,
+            "fileSetName": null,
             "sourceGroupName": "Source Files",
             "compileGroupLanguage": "C",
             "backtrace": [
@@ -54,6 +56,7 @@
                 "^empty\\.c$"
             ],
             "includes": null,
+            "frameworks": null,
             "defines": [
                 {
                     "define": "c_shared_lib_EXPORTS",
@@ -97,7 +100,7 @@
             "_dllExtra": false
         },
         {
-            "path": "^((Debug|Release|RelWithDebInfo|MinSizeRel)/)?(lib)?c_shared_lib\\.(dll\\.a|lib)$",
+            "path": "^((Debug|Release|RelWithDebInfo|MinSizeRel)/)?(lib)?c_shared_lib\\.(dll\\.a|lib|l)$",
             "_dllExtra": true
         },
         {
@@ -115,7 +118,7 @@
                 "backtrace": [
                     {
                         "file": "^codemodel-v2\\.cmake$",
-                        "line": 45,
+                        "line": 46,
                         "command": "install",
                         "hasParent": true
                     },
@@ -145,7 +148,7 @@
                 "backtrace": [
                     {
                         "file": "^codemodel-v2\\.cmake$",
-                        "line": 45,
+                        "line": 46,
                         "command": "install",
                         "hasParent": true
                     },
@@ -175,7 +178,7 @@
                 "backtrace": [
                     {
                         "file": "^codemodel-v2\\.cmake$",
-                        "line": 50,
+                        "line": 51,
                         "command": "install",
                         "hasParent": true
                     },

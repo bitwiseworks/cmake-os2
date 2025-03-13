@@ -24,7 +24,6 @@ class cmLocalUnixMakefileGenerator3;
 class cmMakefile;
 class cmMakefileTargetGenerator;
 class cmake;
-struct cmDocumentationEntry;
 
 /** \class cmGlobalUnixMakefileGenerator3
  * \brief Write a Unix makefiles.
@@ -100,8 +99,14 @@ public:
    */
   bool SupportsCustomCommandDepfile() const override { return true; }
 
+  /**
+   * Utilized to determine if this generator
+   * supports linker dependency file.
+   */
+  bool SupportsLinkerDependencyFile() const override { return true; }
+
   /** Get the documentation entry for this generator.  */
-  static void GetDocumentation(cmDocumentationEntry& entry);
+  static cmDocumentationEntry GetDocumentation();
 
   std::unique_ptr<cmLocalGenerator> CreateLocalGenerator(
     cmMakefile* mf) override;
@@ -114,6 +119,8 @@ public:
                       bool optional) override;
 
   void Configure() override;
+
+  bool IsGNUMakeJobServerAware() const override { return true; }
 
   /**
    * Generate the all required files for building this project/tree. This
@@ -174,7 +181,8 @@ public:
 
   void AddCXXCompileCommand(const std::string& sourceFile,
                             const std::string& workingDirectory,
-                            const std::string& compileCommand);
+                            const std::string& compileCommand,
+                            const std::string& objPath);
 
   /** Does the make tool tolerate .NOTPARALLEL? */
   virtual bool AllowNotParallel() const { return true; }
@@ -214,6 +222,9 @@ protected:
 
   void AppendGlobalTargetDepends(std::vector<std::string>& depends,
                                  cmGeneratorTarget* target);
+
+  void AppendCodegenTargetDepends(std::vector<std::string>& depends,
+                                  cmGeneratorTarget* target);
 
   // Target name hooks for superclass.
   const char* GetAllTargetName() const override { return "all"; }

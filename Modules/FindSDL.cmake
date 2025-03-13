@@ -110,6 +110,9 @@ This needed to change because "proper" SDL convention is #include
 because not all systems place things in SDL/ (see FreeBSD).
 #]=======================================================================]
 
+cmake_policy(PUSH)
+cmake_policy(SET CMP0159 NEW) # file(STRINGS) with REGEX updates CMAKE_MATCH_<n>
+
 find_path(SDL_INCLUDE_DIR SDL.h
   HINTS
     ENV SDLDIR
@@ -181,7 +184,7 @@ if(SDL_LIBRARY_TEMP)
 
   # For OS X, SDL uses Cocoa as a backend so it must link to Cocoa.
   # CMake doesn't display the -framework Cocoa string in the UI even
-  # though it actually is there if I modify a pre-used variable.
+  # though it actually is there if I modify a preused variable.
   # I think it has something to do with the CACHE STRING.
   # So I use a temporary variable until the end so I can set the
   # "real" variable in one-shot.
@@ -235,3 +238,5 @@ if(SDL_FOUND)
       INTERFACE_LINK_LIBRARIES "${SDL_LIBRARY}")
   endif()
 endif()
+
+cmake_policy(POP)

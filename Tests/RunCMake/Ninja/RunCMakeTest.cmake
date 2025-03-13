@@ -46,8 +46,20 @@ if(WIN32)
   if(RunCMake_MAKE_PROGRAM)
     set(maybe_MAKE_PROGRAM "-DRunCMake_MAKE_PROGRAM=${RunCMake_MAKE_PROGRAM}")
   endif()
-  run_cmake_script(ShowIncludes-54936 -DshowIncludes=${showIncludes} ${maybe_MAKE_PROGRAM})
-  run_cmake_script(ShowIncludes-65001 -DshowIncludes=${showIncludes} ${maybe_MAKE_PROGRAM})
+  run_cmake_script(ShowIncludes-437-ClangCl-17 -DshowIncludes=${showIncludes} ${maybe_MAKE_PROGRAM})
+  run_cmake_script(ShowIncludes-437-ClangCl-18 -DshowIncludes=${showIncludes} ${maybe_MAKE_PROGRAM})
+  run_cmake_script(ShowIncludes-437-English -DshowIncludes=${showIncludes} ${maybe_MAKE_PROGRAM})
+  run_cmake_script(ShowIncludes-437-French -DshowIncludes=${showIncludes} ${maybe_MAKE_PROGRAM})
+  run_cmake_script(ShowIncludes-437-German -DshowIncludes=${showIncludes} ${maybe_MAKE_PROGRAM})
+  run_cmake_script(ShowIncludes-437-Italian -DshowIncludes=${showIncludes} ${maybe_MAKE_PROGRAM})
+  run_cmake_script(ShowIncludes-437-WineMSVC -DshowIncludes=${showIncludes} ${maybe_MAKE_PROGRAM})
+  run_cmake_script(ShowIncludes-54936-Chinese -DshowIncludes=${showIncludes} ${maybe_MAKE_PROGRAM})
+  run_cmake_script(ShowIncludes-65001-Chinese -DshowIncludes=${showIncludes} ${maybe_MAKE_PROGRAM})
+  run_cmake_script(ShowIncludes-65001-French -DshowIncludes=${showIncludes} ${maybe_MAKE_PROGRAM})
+  run_cmake_script(ShowIncludes-65001-Japanese -DshowIncludes=${showIncludes} ${maybe_MAKE_PROGRAM})
+  if(NOT CMake_TEST_NO_CODEPAGE_9xx)
+    run_cmake_script(ShowIncludes-932-Japanese -DshowIncludes=${showIncludes} ${maybe_MAKE_PROGRAM})
+  endif()
   unset(maybe_MAKE_PROGRAM)
 endif()
 
@@ -89,12 +101,17 @@ run_CMP0058(NEW-no)
 run_CMP0058(NEW-by)
 
 run_cmake_with_options(CustomCommandDepfile -DCMAKE_BUILD_TYPE=Debug)
+run_cmake_with_options(CustomCommandDepfileAsOutput -DCMAKE_BUILD_TYPE=Debug)
+run_cmake_with_options(CustomCommandDepfileAsByproduct -DCMAKE_BUILD_TYPE=Debug)
 run_cmake(CustomCommandJobPool)
 run_cmake(JobPoolUsesTerminal)
 
 run_cmake(RspFileC)
 run_cmake(RspFileCXX)
-if(TEST_Fortran)
+if(CMake_TEST_Fortran
+    # FIXME(lfortran): The compiler does not support response files.
+    AND NOT CMAKE_Fortran_COMPILER_ID STREQUAL "LFortran"
+    )
   run_cmake(RspFileFortran)
 endif()
 
@@ -180,6 +197,38 @@ function (run_LooseObjectDepends)
   endif ()
 endfunction ()
 run_LooseObjectDepends()
+
+function (run_CustomCommandExplictDepends)
+  set(RunCMake_TEST_BINARY_DIR ${RunCMake_BINARY_DIR}/CustomCommandExplicitDepends-build)
+  run_cmake(CustomCommandExplicitDepends)
+
+  set(DEP_LIB "${RunCMake_TEST_BINARY_DIR}/${CMAKE_SHARED_LIBRARY_PREFIX}dep${CMAKE_SHARED_LIBRARY_SUFFIX}")
+
+  run_ninja("${RunCMake_TEST_BINARY_DIR}" "command-option.h")
+  if (EXISTS "${DEP_LIB}")
+    message(FATAL_ERROR
+      "The `dep` library was created when requesting a custom command to be "
+      "generated; this should no longer be necessary when passing "
+      "DEPENDS_EXPLICIT_ONLY option.")
+  endif ()
+
+  run_ninja("${RunCMake_TEST_BINARY_DIR}" "command-variable-on.h")
+  if (EXISTS "${DEP_LIB}")
+    message(FATAL_ERROR
+      "The `dep` library was created when requesting a custom command to be "
+      "generated; this should no longer be necessary when setting "
+      "CMAKE_ADD_CUSTOM_COMMAND_DEPENDS_EXPLICIT_ONLY variable to ON.")
+  endif ()
+
+  run_ninja("${RunCMake_TEST_BINARY_DIR}" "command-variable-off.h")
+  if (NOT EXISTS "${DEP_LIB}")
+    message(FATAL_ERROR
+      "The `dep` library was not created when requesting a custom command to be "
+      "generated; this should be necessary when setting "
+      "CMAKE_ADD_CUSTOM_COMMAND_DEPENDS_EXPLICIT_ONLY variable to OFF.")
+  endif ()
+endfunction ()
+run_CustomCommandExplictDepends()
 
 function (run_AssumedSources)
   set(RunCMake_TEST_BINARY_DIR ${RunCMake_BINARY_DIR}/AssumedSources-build)
@@ -304,8 +353,15 @@ if("${ninja_version}" VERSION_LESS 1.6)
   message(WARNING "Ninja is too old; skipping rest of test.")
   return()
 endif()
+if("${ninja_version}" VERSION_LESS 1.12)
+  set(maybe_w_dupbuild_err -w dupbuild=err)
+endif()
 
-foreach(ninja_output_path_prefix "sub space" "sub")
+set(ninja_output_path_prefixes "sub")
+if(NOT CMAKE_C_COMPILER_ID STREQUAL "OrangeC")
+  list(APPEND ninja_output_path_prefixes "sub space")
+endif()
+foreach(ninja_output_path_prefix IN LISTS ninja_output_path_prefixes)
   run_sub_cmake(Executable "${ninja_output_path_prefix}")
   run_sub_cmake(StaticLib  "${ninja_output_path_prefix}")
   run_sub_cmake(SharedLib "${ninja_output_path_prefix}")
@@ -317,14 +373,14 @@ endforeach(ninja_output_path_prefix)
 function (run_PreventTargetAliasesDupBuildRule)
   set(RunCMake_TEST_BINARY_DIR ${RunCMake_BINARY_DIR}/PreventTargetAliasesDupBuildRule-build)
   run_cmake(PreventTargetAliasesDupBuildRule)
-  run_ninja("${RunCMake_TEST_BINARY_DIR}" -w dupbuild=err)
+  run_ninja("${RunCMake_TEST_BINARY_DIR}" ${maybe_w_dupbuild_err})
 endfunction ()
 run_PreventTargetAliasesDupBuildRule()
 
 function (run_PreventConfigureFileDupBuildRule)
   set(RunCMake_TEST_BINARY_DIR ${RunCMake_BINARY_DIR}/PreventConfigureFileDupBuildRule-build)
   run_cmake(PreventConfigureFileDupBuildRule)
-  run_ninja("${RunCMake_TEST_BINARY_DIR}" -w dupbuild=err)
+  run_ninja("${RunCMake_TEST_BINARY_DIR}" ${maybe_w_dupbuild_err})
 endfunction()
 run_PreventConfigureFileDupBuildRule()
 
@@ -333,48 +389,9 @@ function (run_ChangeBuildType)
   set(RunCMake_TEST_OPTIONS "-DCMAKE_BUILD_TYPE:STRING=Debug")
   run_cmake(ChangeBuildType)
   unset(RunCMake_TEST_OPTIONS)
-  run_ninja("${RunCMake_TEST_BINARY_DIR}" -w dupbuild=err)
+  run_ninja("${RunCMake_TEST_BINARY_DIR}" ${maybe_w_dupbuild_err})
 endfunction()
 run_ChangeBuildType()
-
-function(run_QtAutoMocDeps)
-  set(QtX Qt${CMake_TEST_Qt_version})
-  if(CMake_TEST_${QtX}Core_Version VERSION_GREATER_EQUAL 5.15.0)
-    set(RunCMake_TEST_BINARY_DIR ${RunCMake_BINARY_DIR}/QtAutoMocDeps-build)
-    run_cmake_with_options(QtAutoMocDeps
-      "-Dwith_qt_version=${CMake_TEST_Qt_version}"
-      "-D${QtX}_DIR=${${QtX}_DIR}"
-      "-D${QtX}Core_DIR=${${QtX}Core_DIR}"
-      "-D${QtX}Widgets_DIR=${${QtX}Widgets_DIR}"
-      "-DCMAKE_PREFIX_PATH:STRING=${CMAKE_PREFIX_PATH}"
-    )
-    # Build the project.
-    run_ninja("${RunCMake_TEST_BINARY_DIR}")
-    # Touch just the library source file, which shouldn't cause a rerun of AUTOMOC
-    # for app_with_qt target.
-    file(TOUCH "${RunCMake_SOURCE_DIR}/simple_lib.cpp")
-    # Build and assert that AUTOMOC was not run for app_with_qt.
-    run_ninja("${RunCMake_TEST_BINARY_DIR}")
-    if(ninja_stdout MATCHES "Automatic MOC for target app_with_qt")
-      message(FATAL_ERROR
-        "AUTOMOC should not have executed for 'app_with_qt' target:\nstdout:\n${ninja_stdout}")
-    endif()
-    # Assert that the subdir executables were not rebuilt.
-    if(ninja_stdout MATCHES "Automatic MOC for target sub_exe_1")
-      message(FATAL_ERROR
-        "AUTOMOC should not have executed for 'sub_exe_1' target:\nstdout:\n${ninja_stdout}")
-    endif()
-    if(ninja_stdout MATCHES "Automatic MOC for target sub_exe_2")
-      message(FATAL_ERROR
-        "AUTOMOC should not have executed for 'sub_exe_2' target:\nstdout:\n${ninja_stdout}")
-    endif()
-    # Touch a header file to make sure an automoc dependency cycle is not introduced.
-    file(TOUCH "${RunCMake_SOURCE_DIR}/MyWindow.h")
-    run_ninja("${RunCMake_TEST_BINARY_DIR}")
-    # Need to run a second time to hit the dependency cycle.
-    run_ninja("${RunCMake_TEST_BINARY_DIR}")
-  endif()
-endfunction()
 
 function(run_QtAutoMocSkipPch)
   set(QtX Qt${CMake_TEST_Qt_version})
@@ -390,7 +407,9 @@ function(run_QtAutoMocSkipPch)
     run_ninja("${RunCMake_TEST_BINARY_DIR}")
   endif()
 endfunction()
+
 if(CMake_TEST_Qt_version)
-  run_QtAutoMocDeps()
   run_QtAutoMocSkipPch()
 endif()
+
+run_cmake(LINK_OPTIONSWithNewlines)

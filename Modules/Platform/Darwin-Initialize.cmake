@@ -1,3 +1,6 @@
+set(APPLE 1)
+set(UNIX 1)
+
 # Ask xcode-select where to find /Developer or fall back to ancient location.
 execute_process(COMMAND xcode-select -print-path
   OUTPUT_VARIABLE _stdout
@@ -40,7 +43,7 @@ if(NOT CMAKE_CROSSCOMPILING AND
   unset(_sysctl_stdout)
 endif()
 
-# macOS, iOS, tvOS, and watchOS should lookup compilers from
+# macOS, iOS, tvOS, visionOS, and watchOS should lookup compilers from
 # Platform/Apple-${CMAKE_CXX_COMPILER_ID}-<LANG>
 set(CMAKE_EFFECTIVE_SYSTEM_NAME "Apple")
 
@@ -73,6 +76,8 @@ elseif(CMAKE_SYSTEM_NAME STREQUAL iOS)
   set(_CMAKE_OSX_SYSROOT_DEFAULT "iphoneos")
 elseif(CMAKE_SYSTEM_NAME STREQUAL tvOS)
   set(_CMAKE_OSX_SYSROOT_DEFAULT "appletvos")
+elseif(CMAKE_SYSTEM_NAME STREQUAL visionOS)
+  set(_CMAKE_OSX_SYSROOT_DEFAULT "xros")
 elseif(CMAKE_SYSTEM_NAME STREQUAL watchOS)
   set(_CMAKE_OSX_SYSROOT_DEFAULT "watchos")
 elseif("${CMAKE_GENERATOR}" MATCHES Xcode
@@ -154,7 +159,10 @@ function(_apple_resolve_supported_archs_for_sdk_from_system_lib sdk_path ret ret
   # Newer SDKs ship text based dylib stub files which contain the architectures supported by the
   # library in text form.
   if(EXISTS "${system_lib_tbd_path}")
+    cmake_policy(PUSH)
+    cmake_policy(SET CMP0159 NEW) # file(STRINGS) with REGEX updates CMAKE_MATCH_<n>
     file(STRINGS "${system_lib_tbd_path}" tbd_lines REGEX "^(archs|targets): +\\[.+\\]")
+    cmake_policy(POP)
     if(NOT tbd_lines)
       set(${ret_failed} TRUE PARENT_SCOPE)
       return()

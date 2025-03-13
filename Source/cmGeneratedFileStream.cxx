@@ -3,6 +3,7 @@
 #include "cmGeneratedFileStream.h"
 
 #include <cstdio>
+#include <locale>
 
 #include "cmStringAlgorithms.h"
 #include "cmSystemTools.h"
@@ -16,7 +17,7 @@
 cmGeneratedFileStream::cmGeneratedFileStream(Encoding encoding)
 {
 #ifndef CMAKE_BOOTSTRAP
-  if (encoding != codecvt::None) {
+  if (encoding != codecvt_Encoding::None) {
     this->imbue(std::locale(this->getloc(), new codecvt(encoding)));
   }
 #else
@@ -27,7 +28,7 @@ cmGeneratedFileStream::cmGeneratedFileStream(Encoding encoding)
 cmGeneratedFileStream::cmGeneratedFileStream(std::string const& name,
                                              bool quiet, Encoding encoding)
   : cmGeneratedFileStreamBase(name)
-  , Stream(this->TempName.c_str())
+  , Stream(this->TempName.c_str()) // NOLINT(cmake-use-cmsys-fstream)
 {
   // Check if the file opened.
   if (!*this && !quiet) {
@@ -35,13 +36,13 @@ cmGeneratedFileStream::cmGeneratedFileStream(std::string const& name,
     cmSystemTools::ReportLastSystemError("");
   }
 #ifndef CMAKE_BOOTSTRAP
-  if (encoding != codecvt::None) {
+  if (encoding != codecvt_Encoding::None) {
     this->imbue(std::locale(this->getloc(), new codecvt(encoding)));
   }
 #else
   static_cast<void>(encoding);
 #endif
-  if (encoding == codecvt::UTF8_WITH_BOM) {
+  if (encoding == codecvt_Encoding::UTF8_WITH_BOM) {
     // Write the BOM encoding header into the file
     char magic[] = { static_cast<char>(0xEF), static_cast<char>(0xBB),
                      static_cast<char>(0xBF) };
@@ -67,10 +68,11 @@ cmGeneratedFileStream& cmGeneratedFileStream::Open(std::string const& name,
 
   // Open the temporary output file.
   if (binaryFlag) {
-    this->Stream::open(this->TempName.c_str(),
-                       std::ios::out | std::ios::binary);
+    this->Stream::open( // NOLINT(cmake-use-cmsys-fstream)
+      this->TempName.c_str(), std::ios::out | std::ios::binary);
   } else {
-    this->Stream::open(this->TempName.c_str());
+    this->Stream::open( // NOLINT(cmake-use-cmsys-fstream)
+      this->TempName.c_str());
   }
 
   // Check if the file opened.
@@ -87,7 +89,7 @@ bool cmGeneratedFileStream::Close()
   this->Okay = !this->fail();
 
   // Close the temporary output file.
-  this->Stream::close();
+  this->Stream::close(); // NOLINT(cmake-use-cmsys-fstream)
 
   // Remove the temporary file (possibly by renaming to the real file).
   return this->cmGeneratedFileStreamBase::Close();

@@ -1,4 +1,4 @@
-cmake_minimum_required (VERSION 3.8)
+cmake_minimum_required(VERSION 3.10)
 project(SourceGroups)
 
 # this is not really a test which can fail
@@ -63,3 +63,5 @@ add_executable(SourceGroups main.c bar.c foo.c sub1/foo.c sub1/foobar.c baz.c
                             ${tree_files_with_prefix} ${tree_files_without_prefix}
                             ${tree_files_with_empty_prefix} README.txt
                             nested.c)
+
+add_subdirectory(sub2)

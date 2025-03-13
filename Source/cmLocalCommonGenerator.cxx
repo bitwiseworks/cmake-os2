@@ -2,46 +2,38 @@
    file Copyright.txt or https://cmake.org/licensing for details.  */
 #include "cmLocalCommonGenerator.h"
 
+#include <memory>
 #include <utility>
 #include <vector>
 
 #include "cmGeneratorTarget.h"
+#include "cmGlobalGenerator.h"
 #include "cmMakefile.h"
 #include "cmOutputConverter.h"
-#include "cmState.h"
 #include "cmStateDirectory.h"
 #include "cmStateSnapshot.h"
 #include "cmStringAlgorithms.h"
 #include "cmValue.h"
 
-class cmGlobalGenerator;
-
 cmLocalCommonGenerator::cmLocalCommonGenerator(cmGlobalGenerator* gg,
-                                               cmMakefile* mf, WorkDir wd)
+                                               cmMakefile* mf)
   : cmLocalGenerator(gg, mf)
-  , WorkingDirectory(wd)
 {
-  this->ConfigNames =
-    this->Makefile->GetGeneratorConfigs(cmMakefile::IncludeEmptyConfig);
+  // Multi-config generators define one set of configurations at the top.
+  // Single-config generators nominally define one configuration at the top,
+  // but the implementation has never been strict about that, so look up the
+  // per-directory config to preserve behavior.
+  this->ConfigNames = (gg->IsMultiConfig() && !gg->GetMakefiles().empty()
+                         ? gg->GetMakefiles().front().get()
+                         : this->Makefile)
+                        ->GetGeneratorConfigs(cmMakefile::IncludeEmptyConfig);
 }
 
 cmLocalCommonGenerator::~cmLocalCommonGenerator() = default;
 
 std::string const& cmLocalCommonGenerator::GetWorkingDirectory() const
 {
-  if (this->WorkingDirectory == WorkDir::TopBin) {
-    return this->GetState()->GetBinaryDirectory();
-  }
   return this->StateSnapshot.GetDirectory().GetCurrentBinary();
-}
-
-std::string cmLocalCommonGenerator::MaybeRelativeToWorkDir(
-  std::string const& path) const
-{
-  if (this->WorkingDirectory == WorkDir::TopBin) {
-    return this->MaybeRelativeToTopBinDir(path);
-  }
-  return this->MaybeRelativeToCurBinDir(path);
 }
 
 std::string cmLocalCommonGenerator::GetTargetFortranFlags(

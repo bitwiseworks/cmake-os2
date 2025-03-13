@@ -1,21 +1,14 @@
 /* Distributed under the OSI-approved BSD 3-Clause License.  See accompanying
    file Copyright.txt or https://cmake.org/licensing for details.  */
 
-#include <iostream>
 #include <string>
 #include <vector>
 
 #include "cmRange.h"
 
-#define ASSERT_TRUE(x)                                                        \
-  do {                                                                        \
-    if (!(x)) {                                                               \
-      std::cout << "ASSERT_TRUE(" #x ") failed on line " << __LINE__ << "\n"; \
-      return -1;                                                              \
-    }                                                                         \
-  } while (false)
+#include "testCommon.h"
 
-int testRange(int /*unused*/, char* /*unused*/ [])
+int testRange(int /*unused*/, char* /*unused*/[])
 {
   std::vector<int> const testData = { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 };
 

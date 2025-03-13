@@ -9,7 +9,6 @@
 #include <map>
 #include <memory>
 #include <set>
-#include <stack>
 #include <string>
 #include <unordered_set>
 #include <utility>
@@ -18,13 +17,16 @@
 #include <cm/string_view>
 #include <cmext/string_view>
 
+#include "cmDocumentationEntry.h" // IWYU pragma: keep
 #include "cmGeneratedFileStream.h"
+#include "cmGlobalGeneratorFactory.h"
 #include "cmInstalledFile.h"
 #include "cmListFileCache.h"
 #include "cmMessageType.h"
 #include "cmState.h"
 #include "cmStateSnapshot.h"
 #include "cmStateTypes.h"
+#include "cmSystemTools.h"
 #include "cmValue.h"
 
 #if !defined(CMAKE_BOOTSTRAP)
@@ -33,21 +35,26 @@
 #  include <cm3p/json/value.h>
 
 #  include "cmCMakePresetsGraph.h"
+#  include "cmMakefileProfilingData.h"
+#endif
+
+class cmConfigureLog;
+
+#ifdef CMake_ENABLE_DEBUGGER
+namespace cmDebugger {
+class cmDebuggerAdapter;
+}
 #endif
 
 class cmExternalMakefileProjectGeneratorFactory;
 class cmFileAPI;
 class cmFileTimeCache;
 class cmGlobalGenerator;
-class cmGlobalGeneratorFactory;
 class cmMakefile;
-#if !defined(CMAKE_BOOTSTRAP)
-class cmMakefileProfilingData;
-#endif
 class cmMessenger;
 class cmVariableWatch;
 struct cmBuildOptions;
-struct cmDocumentationEntry;
+struct cmGlobCacheEntry;
 
 /** \brief Represents a cmake invocation.
  *
@@ -120,13 +127,7 @@ public:
     FIND_PACKAGE_MODE
   };
 
-  /** \brief Define supported trace formats **/
-  enum TraceFormat
-  {
-    TRACE_UNDEFINED,
-    TRACE_HUMAN,
-    TRACE_JSON_V1,
-  };
+  using TraceFormat = cmTraceEnums::TraceOutputFormat;
 
   struct GeneratorInfo
   {
@@ -298,6 +299,14 @@ public:
     this->GeneratorToolsetSet = true;
   }
 
+  //! Set the name of the graphviz file.
+  void SetGraphVizFile(std::string const& ts)
+  {
+    std::string path = cmSystemTools::CollapseFullPath(ts);
+    cmSystemTools::ConvertToUnixSlashes(path);
+    this->GraphVizFile = path;
+  }
+
   bool IsAKnownSourceExtension(cm::string_view ext) const
   {
     return this->CLikeSourceFileExtensions.Test(ext) ||
@@ -336,30 +345,26 @@ public:
    */
   cmValue GetCacheDefinition(const std::string&) const;
   //! Add an entry into the cache
-  void AddCacheEntry(const std::string& key, const char* value,
-                     const char* helpString, int type)
-  {
-    this->AddCacheEntry(key,
-                        value ? cmValue(std::string(value)) : cmValue(nullptr),
-                        helpString, type);
-  }
   void AddCacheEntry(const std::string& key, const std::string& value,
-                     const char* helpString, int type)
+                     const std::string& helpString, int type)
   {
-    this->AddCacheEntry(key, cmValue(value), helpString, type);
+    this->AddCacheEntry(key, cmValue{ value }, cmValue{ helpString }, type);
   }
   void AddCacheEntry(const std::string& key, cmValue value,
-                     const char* helpString, int type);
+                     const std::string& helpString, int type)
+  {
+    this->AddCacheEntry(key, value, cmValue{ helpString }, type);
+  }
+  void AddCacheEntry(const std::string& key, cmValue value, cmValue helpString,
+                     int type);
 
   bool DoWriteGlobVerifyTarget() const;
   std::string const& GetGlobVerifyScript() const;
   std::string const& GetGlobVerifyStamp() const;
-  void AddGlobCacheEntry(bool recurse, bool listDirectories,
-                         bool followSymlinks, const std::string& relative,
-                         const std::string& expression,
-                         const std::vector<std::string>& files,
+  void AddGlobCacheEntry(const cmGlobCacheEntry& entry,
                          const std::string& variable,
                          cmListFileBacktrace const& bt);
+  std::vector<cmGlobCacheEntry> GetGlobCacheEntries() const;
 
   /**
    * Get the system information and write it to the file specified
@@ -412,8 +417,11 @@ public:
   std::vector<cmDocumentationEntry> GetGeneratorsDocumentation();
 
   //! Set/Get a property of this target file
-  void SetProperty(const std::string& prop, const char* value);
   void SetProperty(const std::string& prop, cmValue value);
+  void SetProperty(const std::string& prop, std::nullptr_t)
+  {
+    this->SetProperty(prop, cmValue{ nullptr });
+  }
   void SetProperty(const std::string& prop, const std::string& value)
   {
     this->SetProperty(prop, cmValue(value));
@@ -473,13 +481,17 @@ public:
   }
   std::string GetTopCheckInProgressMessage()
   {
-    auto message = this->CheckInProgressMessages.top();
-    this->CheckInProgressMessages.pop();
+    auto message = this->CheckInProgressMessages.back();
+    this->CheckInProgressMessages.pop_back();
     return message;
   }
   void PushCheckInProgressMessage(std::string message)
   {
-    this->CheckInProgressMessages.emplace(std::move(message));
+    this->CheckInProgressMessages.emplace_back(std::move(message));
+  }
+  std::vector<std::string> const& GetCheckInProgressMessages() const
+  {
+    return this->CheckInProgressMessages;
   }
 
   //! Should `message` command display context.
@@ -513,9 +525,22 @@ public:
   {
     return this->TraceOnlyThisSources;
   }
-  cmGeneratedFileStream& GetTraceFile() { return this->TraceFile; }
+  cmGeneratedFileStream& GetTraceFile()
+  {
+    if (this->TraceRedirect) {
+      return this->TraceRedirect->GetTraceFile();
+    }
+    return this->TraceFile;
+  }
   void SetTraceFile(std::string const& file);
   void PrintTraceFormatVersion();
+
+#ifndef CMAKE_BOOTSTRAP
+  cmConfigureLog* GetConfigureLog() const { return this->ConfigureLog.get(); }
+#endif
+
+  //! Use trace from another ::cmake instance.
+  void SetTraceRedirect(cmake* other);
 
   bool GetWarnUninitialized() const { return this->WarnUninitialized; }
   void SetWarnUninitialized(bool b) { this->WarnUninitialized = b; }
@@ -618,6 +643,10 @@ public:
   void UnwatchUnusedCli(const std::string& var);
   void WatchUnusedCli(const std::string& var);
 
+#if !defined(CMAKE_BOOTSTRAP)
+  cmFileAPI* GetFileAPI() const { return this->FileAPI.get(); }
+#endif
+
   cmState* GetState() const { return this->State.get(); }
   void SetCurrentSnapshot(cmStateSnapshot const& snapshot)
   {
@@ -630,6 +659,41 @@ public:
 #if !defined(CMAKE_BOOTSTRAP)
   cmMakefileProfilingData& GetProfilingOutput();
   bool IsProfilingEnabled() const;
+
+  cm::optional<cmMakefileProfilingData::RAII> CreateProfilingEntry(
+    const std::string& category, const std::string& name)
+  {
+    return this->CreateProfilingEntry(
+      category, name, []() -> cm::nullopt_t { return cm::nullopt; });
+  }
+
+  template <typename ArgsFunc>
+  cm::optional<cmMakefileProfilingData::RAII> CreateProfilingEntry(
+    const std::string& category, const std::string& name, ArgsFunc&& argsFunc)
+  {
+    if (this->IsProfilingEnabled()) {
+      return cm::make_optional<cmMakefileProfilingData::RAII>(
+        this->GetProfilingOutput(), category, name, argsFunc());
+    }
+    return cm::nullopt;
+  }
+#endif
+
+#ifdef CMake_ENABLE_DEBUGGER
+  bool GetDebuggerOn() const { return this->DebuggerOn; }
+  std::string GetDebuggerPipe() const { return this->DebuggerPipe; }
+  std::string GetDebuggerDapLogFile() const
+  {
+    return this->DebuggerDapLogFile;
+  }
+  void SetDebuggerOn(bool b) { this->DebuggerOn = b; }
+  bool StartDebuggerIfEnabled();
+  void StopDebuggerIfNeeded(int exitCode);
+  std::shared_ptr<cmDebugger::cmDebuggerAdapter> GetDebugAdapter()
+    const noexcept
+  {
+    return this->DebugAdapter;
+  }
 #endif
 
 protected:
@@ -686,8 +750,12 @@ private:
   bool DebugFindOutput = false;
   bool Trace = false;
   bool TraceExpand = false;
-  TraceFormat TraceFormatVar = TRACE_HUMAN;
+  TraceFormat TraceFormatVar = TraceFormat::Human;
   cmGeneratedFileStream TraceFile;
+  cmake* TraceRedirect = nullptr;
+#ifndef CMAKE_BOOTSTRAP
+  std::unique_ptr<cmConfigureLog> ConfigureLog;
+#endif
   bool WarnUninitialized = false;
   bool WarnUnusedCli = true;
   bool CheckSystemVars = false;
@@ -739,7 +807,7 @@ private:
   bool LogLevelWasSetViaCLI = false;
   bool LogContext = false;
 
-  std::stack<std::string> CheckInProgressMessages;
+  std::vector<std::string> CheckInProgressMessages;
 
   std::unique_ptr<cmGlobalGenerator> GlobalGenerator;
 
@@ -767,37 +835,23 @@ private:
 #if !defined(CMAKE_BOOTSTRAP)
   std::unique_ptr<cmMakefileProfilingData> ProfilingOutput;
 #endif
-};
 
-#define CMAKE_STANDARD_OPTIONS_TABLE                                          \
-  { "-S <path-to-source>", "Explicitly specify a source directory." },        \
-    { "-B <path-to-build>", "Explicitly specify a build directory." },        \
-    { "-C <initial-cache>", "Pre-load a script to populate the cache." },     \
-    { "-D <var>[:<type>]=<value>", "Create or update a cmake cache entry." }, \
-    { "-U <globbing_expr>", "Remove matching entries from CMake cache." },    \
-    { "-G <generator-name>", "Specify a build system generator." },           \
-    { "-T <toolset-name>",                                                    \
-      "Specify toolset name if supported by generator." },                    \
-    { "-A <platform-name>",                                                   \
-      "Specify platform name if supported by generator." },                   \
-    { "--toolchain <file>",                                                   \
-      "Specify toolchain file [CMAKE_TOOLCHAIN_FILE]." },                     \
-    { "--install-prefix <directory>",                                         \
-      "Specify install directory [CMAKE_INSTALL_PREFIX]." },                  \
-    { "-Wdev", "Enable developer warnings." },                                \
-    { "-Wno-dev", "Suppress developer warnings." },                           \
-    { "-Werror=dev", "Make developer warnings errors." },                     \
-    { "-Wno-error=dev", "Make developer warnings not errors." },              \
-    { "-Wdeprecated", "Enable deprecation warnings." },                       \
-    { "-Wno-deprecated", "Suppress deprecation warnings." },                  \
-    { "-Werror=deprecated",                                                   \
-      "Make deprecated macro and function warnings "                          \
-      "errors." },                                                            \
-  {                                                                           \
-    "-Wno-error=deprecated",                                                  \
-      "Make deprecated macro and function warnings "                          \
-      "not errors."                                                           \
-  }
+#ifdef CMake_ENABLE_DEBUGGER
+  std::shared_ptr<cmDebugger::cmDebuggerAdapter> DebugAdapter;
+  bool DebuggerOn = false;
+  std::string DebuggerPipe;
+  std::string DebuggerDapLogFile;
+#endif
+
+  cm::optional<int> ScriptModeExitCode;
+
+public:
+  bool HasScriptModeExitCode() const { return ScriptModeExitCode.has_value(); }
+  void SetScriptModeExitCode(int code) { ScriptModeExitCode = code; }
+  int GetScriptModeExitCode() const { return ScriptModeExitCode.value_or(-1); }
+
+  static cmDocumentationEntry CMAKE_STANDARD_OPTIONS_TABLE[18];
+};
 
 #define FOR_EACH_C90_FEATURE(F) F(c_function_prototypes)
 

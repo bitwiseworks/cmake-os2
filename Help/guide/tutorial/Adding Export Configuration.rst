@@ -46,7 +46,7 @@ you will see that CMake will generate an error that looks like:
 
   which is prefixed in the source directory.
 
-What CMake is trying to say is that during generating the export information
+CMake is telling you that during the generation of the export information
 it will export a path that is intrinsically tied to the current machine and
 will not be valid on other machines. The solution to this is to update the
 ``MathFunctions`` :command:`target_include_directories` to understand that it
@@ -102,7 +102,7 @@ but prepended with a ``PACKAGE_`` prefix.
   :end-before: # generate the version file
 
 The :command:`write_basic_package_version_file` is next.  This command writes
-a file which is used by the "find_package" document the version and
+a file which is used by :command:`find_package`, documenting the version and
 compatibility of the desired package.  Here, we use the ``Tutorial_VERSION_*``
 variables and say that it is compatible with ``AnyNewerVersion``, which
 denotes that this version or any higher one are compatible with the requested
@@ -133,8 +133,8 @@ the following to the bottom of the top level ``CMakeLists.txt``:
   :caption: CMakeLists.txt
   :name: CMakeLists.txt-export
   :language: cmake
-  :start-after: # needs to be after the install(TARGETS ) command
+  :start-after: # needs to be after the install(TARGETS) command
 
-With this export call we now generate a ``Targets.cmake``, allowing the
+With this export call we now generate a ``MathFunctionsTargets.cmake``, allowing the
 configured ``MathFunctionsConfig.cmake`` in the build directory to be used by
 other projects, without needing it to be installed.

@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.24)
+cmake_minimum_required(VERSION 3.24...3.28)
 project(cxx_modules_export_bmi_and_interfaces CXX)
 
 include("${CMAKE_SOURCE_DIR}/../cxx-modules-rules.cmake")
@@ -18,10 +18,14 @@ target_sources(export_bmi_and_interfaces
       BASE_DIRS
         "${CMAKE_CURRENT_SOURCE_DIR}"
       FILES
-        importable.cxx)
+        importable.cxx
+        subdir/importable.cxx
+  )
 target_compile_features(export_bmi_and_interfaces PUBLIC cxx_std_20)
 
-install(TARGETS export_bmi_and_interfaces
+add_library(no_modules STATIC no_modules.cxx)
+
+install(TARGETS export_bmi_and_interfaces no_modules
   EXPORT CXXModules
   FILE_SET modules DESTINATION "lib/cxx/miu"
   CXX_MODULES_BMI DESTINATION "lib/cxx/bmi")

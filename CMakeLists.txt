@@ -1,13 +1,9 @@
 # Distributed under the OSI-approved BSD 3-Clause License.  See accompanying
 # file Copyright.txt or https://cmake.org/licensing for details.
 
-cmake_minimum_required(VERSION 3.13...3.23 FATAL_ERROR)
+cmake_minimum_required(VERSION 3.13...3.29 FATAL_ERROR)
 set(CMAKE_USER_MAKE_RULES_OVERRIDE_C ${CMAKE_CURRENT_SOURCE_DIR}/Source/Modules/OverrideC.cmake)
 set(CMAKE_USER_MAKE_RULES_OVERRIDE_CXX ${CMAKE_CURRENT_SOURCE_DIR}/Source/Modules/OverrideCXX.cmake)
-
-if(POLICY CMP0129)
-  cmake_policy(SET CMP0129 NEW) # CMake 3.23
-endif()
 
 project(CMake)
 unset(CMAKE_USER_MAKE_RULES_OVERRIDE_CXX)
@@ -73,11 +69,7 @@ if(NOT DEFINED CMAKE_CXX_STANDARD AND NOT CMake_NO_CXX_STANDARD)
   if(CMAKE_CXX_COMPILER_ID STREQUAL SunPro AND CMAKE_CXX_COMPILER_VERSION VERSION_LESS 5.14)
     set(CMAKE_CXX_STANDARD 98)
   else()
-    if(NOT CMAKE_VERSION VERSION_LESS 3.8)
-      include(${CMake_SOURCE_DIR}/Source/Checks/cm_cxx17_check.cmake)
-    else()
-      set(CMake_CXX17_BROKEN 1)
-    endif()
+    include(${CMake_SOURCE_DIR}/Source/Checks/cm_cxx17_check.cmake)
     if(NOT CMake_CXX17_BROKEN)
       set(CMAKE_CXX_STANDARD 17)
     else()
@@ -130,15 +122,33 @@ option(CMake_BUILD_DEVELOPER_REFERENCE
 mark_as_advanced(CMake_BUILD_DEVELOPER_REFERENCE)
 
 # option to build using interprocedural optimizations (IPO/LTO)
-if(NOT CMAKE_VERSION VERSION_LESS 3.12.2)
-  option(CMake_BUILD_LTO "Compile CMake with link-time optimization if supported" OFF)
-  if(CMake_BUILD_LTO)
-    include(CheckIPOSupported)
-    check_ipo_supported(RESULT HAVE_IPO)
-    if(HAVE_IPO)
-      set(CMAKE_INTERPROCEDURAL_OPTIMIZATION TRUE)
+option(CMake_BUILD_LTO "Compile CMake with link-time optimization if supported" OFF)
+if(CMake_BUILD_LTO)
+  include(CheckIPOSupported)
+  check_ipo_supported(RESULT HAVE_IPO)
+  if(HAVE_IPO)
+    set(CMAKE_INTERPROCEDURAL_OPTIMIZATION TRUE)
+  endif()
+endif()
+
+option(CMake_BUILD_PCH "Compile CMake with precompiled headers" OFF)
+
+# Check whether to build support for the debugger mode.
+if(NOT CMake_TEST_EXTERNAL_CMAKE)
+  if(NOT DEFINED CMake_ENABLE_DEBUGGER)
+    # The debugger uses cppdap, which does not compile everywhere.
+    if(CMAKE_SYSTEM_NAME MATCHES "Windows|Darwin|Linux|BSD|DragonFly|CYGWIN|MSYS"
+        AND NOT (CMAKE_CXX_COMPILER_ID STREQUAL "MSVC" AND CMAKE_CXX_COMPILER_VERSION VERSION_LESS 19.16)
+        AND NOT (CMAKE_CXX_COMPILER_ID STREQUAL "XLClang" AND CMAKE_CXX_COMPILER_VERSION VERSION_LESS 16.1)
+        AND NOT (CMAKE_CXX_COMPILER_ID STREQUAL "LCC" AND CMAKE_CXX_COMPILER_VERSION VERSION_LESS 1.23)
+        )
+      set(CMake_ENABLE_DEBUGGER 1)
+    else()
+      set(CMake_ENABLE_DEBUGGER 0)
     endif()
   endif()
+else()
+  set(CMake_ENABLE_DEBUGGER 0)
 endif()
 
 #-----------------------------------------------------------------------
@@ -146,12 +156,11 @@ endif()
 # simply to improve readability of the main script
 #-----------------------------------------------------------------------
 macro(CMAKE_HANDLE_SYSTEM_LIBRARIES)
-  # Options have dependencies.
   include(CMakeDependentOption)
 
   # Allow the user to enable/disable all system utility library options by
   # defining CMAKE_USE_SYSTEM_LIBRARIES or CMAKE_USE_SYSTEM_LIBRARY_${util}.
-  set(UTILITIES BZIP2 CURL EXPAT FORM JSONCPP LIBARCHIVE LIBLZMA LIBRHASH LIBUV NGHTTP2 ZLIB ZSTD)
+  set(UTILITIES BZIP2 CPPDAP CURL EXPAT FORM JSONCPP LIBARCHIVE LIBLZMA LIBRHASH LIBUV NGHTTP2 ZLIB ZSTD)
   foreach(util IN LISTS UTILITIES)
     if(NOT DEFINED CMAKE_USE_SYSTEM_LIBRARY_${util}
         AND DEFINED CMAKE_USE_SYSTEM_LIBRARIES)
@@ -169,6 +178,9 @@ macro(CMAKE_HANDLE_SYSTEM_LIBRARIES)
       string(TOLOWER "${util}" lutil)
       set(CMAKE_USE_SYSTEM_${util} "${CMAKE_USE_SYSTEM_LIBRARY_${util}}"
         CACHE BOOL "Use system-installed ${lutil}" FORCE)
+    elseif(util STREQUAL "CURL" AND APPLE)
+      # macOS provides a curl with backends configured by Apple.
+      set(CMAKE_USE_SYSTEM_LIBRARY_${util} ON)
     else()
       set(CMAKE_USE_SYSTEM_LIBRARY_${util} OFF)
     endif()
@@ -179,6 +191,9 @@ macro(CMAKE_HANDLE_SYSTEM_LIBRARIES)
 
   # Optionally use system utility libraries.
   option(CMAKE_USE_SYSTEM_LIBARCHIVE "Use system-installed libarchive" "${CMAKE_USE_SYSTEM_LIBRARY_LIBARCHIVE}")
+  if(CMake_ENABLE_DEBUGGER)
+    option(CMAKE_USE_SYSTEM_CPPDAP "Use system-installed cppdap" "${CMAKE_USE_SYSTEM_LIBRARY_CPPDAP}")
+  endif()
   option(CMAKE_USE_SYSTEM_CURL "Use system-installed curl" "${CMAKE_USE_SYSTEM_LIBRARY_CURL}")
   option(CMAKE_USE_SYSTEM_EXPAT "Use system-installed expat" "${CMAKE_USE_SYSTEM_LIBRARY_EXPAT}")
   CMAKE_DEPENDENT_OPTION(CMAKE_USE_SYSTEM_ZLIB "Use system-installed zlib"
@@ -192,7 +207,8 @@ macro(CMAKE_HANDLE_SYSTEM_LIBRARIES)
   CMAKE_DEPENDENT_OPTION(CMAKE_USE_SYSTEM_NGHTTP2 "Use system-installed nghttp2"
     "${CMAKE_USE_SYSTEM_LIBRARY_NGHTTP2}" "NOT CMAKE_USE_SYSTEM_CURL" ON)
   option(CMAKE_USE_SYSTEM_FORM "Use system-installed libform" "${CMAKE_USE_SYSTEM_LIBRARY_FORM}")
-  option(CMAKE_USE_SYSTEM_JSONCPP "Use system-installed jsoncpp" "${CMAKE_USE_SYSTEM_LIBRARY_JSONCPP}")
+  CMAKE_DEPENDENT_OPTION(CMAKE_USE_SYSTEM_JSONCPP "Use system-installed jsoncpp"
+    "${CMAKE_USE_SYSTEM_LIBRARY_JSONCPP}" "NOT CMAKE_USE_SYSTEM_CPPDAP" ON)
   option(CMAKE_USE_SYSTEM_LIBRHASH "Use system-installed librhash" "${CMAKE_USE_SYSTEM_LIBRARY_LIBRHASH}")
   option(CMAKE_USE_SYSTEM_LIBUV "Use system-installed libuv" "${CMAKE_USE_SYSTEM_LIBRARY_LIBUV}")
 
@@ -202,6 +218,10 @@ macro(CMAKE_HANDLE_SYSTEM_LIBRARIES)
   mark_as_advanced(CMAKE_USE_SYSTEM_KWIML)
 
   # Mention to the user what system libraries are being used.
+  if(CMAKE_USE_SYSTEM_CURL)
+    # Avoid messaging about curl-only dependencies.
+    list(REMOVE_ITEM UTILITIES NGHTTP2)
+  endif()
   foreach(util IN LISTS UTILITIES ITEMS KWIML)
     if(CMAKE_USE_SYSTEM_${util})
       message(STATUS "Using system-installed ${util}")
@@ -247,14 +267,8 @@ macro(CMAKE_SETUP_TESTING)
   endif()
 
   # configure some files for testing
-  configure_file(Templates/CTestScript.cmake.in CTestScript.cmake @ONLY)
   configure_file(Tests/.NoDartCoverage Tests/.NoDartCoverage)
-  configure_file(Tests/.NoDartCoverage Modules/.NoDartCoverage)
   configure_file(CTestCustom.cmake.in CTestCustom.cmake @ONLY)
-  if(BUILD_TESTING AND DART_ROOT)
-    configure_file(CMakeLogo.gif Testing/HTML/TestingResults/Icons/Logo.gif COPYONLY)
-  endif()
-  mark_as_advanced(DART_ROOT)
 endmacro()
 
 
@@ -277,6 +291,25 @@ if(CMake_RUN_CLANG_TIDY)
   endif()
   set(CMAKE_CXX_CLANG_TIDY "${CLANG_TIDY_COMMAND}")
 
+  option(CMake_USE_CLANG_TIDY_MODULE "Use CMake's clang-tidy module." OFF)
+  if(CMake_USE_CLANG_TIDY_MODULE)
+    find_library(CMake_CLANG_TIDY_MODULE NAMES cmake-clang-tidy-module DOC "Location of the clang-tidy module")
+    if(NOT CMake_CLANG_TIDY_MODULE)
+      message(FATAL_ERROR "CMake_USE_CLANG_TIDY_MODULE is ON but cmake-clang-tidy-module is not found!")
+    endif()
+    list(APPEND CMAKE_CXX_CLANG_TIDY "--load=${CMake_CLANG_TIDY_MODULE}")
+    set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${CMake_CLANG_TIDY_MODULE}")
+  endif()
+
+  set(CMake_CLANG_TIDY_EXPORT_FIXES_DIR "" CACHE PATH "Directory to put clang-tidy fix files in.")
+  mark_as_advanced(CMake_CLANG_TIDY_EXPORT_FIXES_DIR)
+  if(CMake_CLANG_TIDY_EXPORT_FIXES_DIR)
+    if(NOT IS_ABSOLUTE "${CMake_CLANG_TIDY_EXPORT_FIXES_DIR}")
+      message(FATAL_ERROR "CMake_CLANG_TIDY_EXPORT_FIXES_DIR must be an absolute path!")
+    endif()
+    set(CMAKE_CXX_CLANG_TIDY_EXPORT_FIXES_DIR "${CMake_CLANG_TIDY_EXPORT_FIXES_DIR}")
+  endif()
+
   # Create a preprocessor definition that depends on .clang-tidy content so
   # the compile command will change when .clang-tidy changes.  This ensures
   # that a subsequent build re-runs clang-tidy on all sources even if they
@@ -286,6 +319,11 @@ if(CMake_RUN_CLANG_TIDY)
   file(SHA1 ${CMAKE_CURRENT_SOURCE_DIR}/.clang-tidy clang_tidy_sha1)
   set(CLANG_TIDY_DEFINITIONS "CLANG_TIDY_SHA1=${clang_tidy_sha1}")
   unset(clang_tidy_sha1)
+  if(CMake_USE_CLANG_TIDY_MODULE)
+    file(SHA1 "${CMake_CLANG_TIDY_MODULE}" clang_tidy_module_sha1)
+    list(APPEND CLANG_TIDY_DEFINITIONS "CLANG_TIDY_MODULE_SHA1=${clang_tidy_module_sha1}")
+    unset(clang_tidy_module_sha1)
+  endif()
 
 endif()
 configure_file(.clang-tidy .clang-tidy COPYONLY)
@@ -293,12 +331,20 @@ configure_file(.clang-tidy .clang-tidy COPYONLY)
 
 option(CMake_RUN_IWYU "Run include-what-you-use with the compiler." OFF)
 if(CMake_RUN_IWYU)
+  if(CMake_BUILD_PCH)
+    message(FATAL_ERROR "CMake_RUN_IWYU and CMake_BUILD_PCH are ON, but they are incompatible!")
+  endif()
   find_program(IWYU_COMMAND NAMES include-what-you-use iwyu)
   if(NOT IWYU_COMMAND)
     message(FATAL_ERROR "CMake_RUN_IWYU is ON but include-what-you-use is not found!")
   endif()
   set(CMAKE_CXX_INCLUDE_WHAT_YOU_USE
     "${IWYU_COMMAND};-Xiwyu;--mapping_file=${CMake_SOURCE_DIR}/Utilities/IWYU/mapping.imp;-w")
+  option(CMake_IWYU_VERBOSE "Run include-what-you-use in verbose mode" OFF)
+  if (CMake_IWYU_VERBOSE)
+    list(APPEND CMAKE_CXX_INCLUDE_WHAT_YOU_USE
+      -Xiwyu -v7)
+  endif ()
   list(APPEND CMAKE_CXX_INCLUDE_WHAT_YOU_USE ${CMake_IWYU_OPTIONS})
 endif()
 
@@ -342,9 +388,7 @@ endif()
 #-----------------------------------------------------------------------
 include(Source/CMakeVersion.cmake)
 
-# Include the standard Dart testing module
-enable_testing()
-include(${CMAKE_ROOT}/Modules/Dart.cmake)
+include(CTest)
 
 # Set up test-time configuration.
 set_directory_properties(PROPERTIES

@@ -4,7 +4,9 @@
 
 #include <ostream>
 
-#include "cmDocumentationEntry.h"
+#include <cm/string_view>
+#include <cmext/string_view>
+
 #include "cmGlobalGenerator.h"
 #include "cmMakefile.h"
 #include "cmState.h"
@@ -47,18 +49,17 @@ void cmGlobalWatcomWMakeGenerator::EnableLanguage(
 bool cmGlobalWatcomWMakeGenerator::SetSystemName(std::string const& s,
                                                  cmMakefile* mf)
 {
-  if (mf->GetSafeDefinition("CMAKE_SYSTEM_PROCESSOR") == "I86") {
+  if (mf->GetSafeDefinition("CMAKE_SYSTEM_PROCESSOR") == "I86"_s) {
     mf->AddDefinition("CMAKE_GENERATOR_CC", "wcl");
     mf->AddDefinition("CMAKE_GENERATOR_CXX", "wcl");
   }
   return this->cmGlobalUnixMakefileGenerator3::SetSystemName(s, mf);
 }
 
-void cmGlobalWatcomWMakeGenerator::GetDocumentation(
-  cmDocumentationEntry& entry)
+cmDocumentationEntry cmGlobalWatcomWMakeGenerator::GetDocumentation()
 {
-  entry.Name = cmGlobalWatcomWMakeGenerator::GetActualName();
-  entry.Brief = "Generates Watcom WMake makefiles.";
+  return { cmGlobalWatcomWMakeGenerator::GetActualName(),
+           "Generates Watcom WMake makefiles." };
 }
 
 std::vector<cmGlobalGenerator::GeneratedMakeCommand>

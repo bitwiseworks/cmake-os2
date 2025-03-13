@@ -5,7 +5,7 @@
 CheckCSourceCompiles
 --------------------
 
-Check if given C source compiles and links into an executable.
+Check once if C source code can be built.
 
 .. command:: check_c_source_compiles
 
@@ -14,58 +14,40 @@ Check if given C source compiles and links into an executable.
     check_c_source_compiles(<code> <resultVar>
                             [FAIL_REGEX <regex1> [<regex2>...]])
 
-  Check that the source supplied in ``<code>`` can be compiled as a C source
-  file and linked as an executable (so it must contain at least a ``main()``
-  function). The result will be stored in the internal cache variable specified
-  by ``<resultVar>``, with a boolean true value for success and boolean false
-  for failure. If ``FAIL_REGEX`` is provided, then failure is determined by
-  checking if anything in the output matches any of the specified regular
+  Check once that the source supplied in ``<code>`` can be built. The result is
+  stored in the internal cache variable specified by ``<resultVar>``, with
+  boolean ``true`` for success and boolean ``false`` for failure.
+
+  If ``FAIL_REGEX`` is provided, then failure is determined by checking
+  if anything in the compiler output matches any of the specified regular
   expressions.
 
-  The underlying check is performed by the :command:`try_compile` command. The
-  compile and link commands can be influenced by setting any of the following
-  variables prior to calling ``check_c_source_compiles()``:
+  Internally, :command:`try_compile` is used to compile the source. If
+  :variable:`CMAKE_TRY_COMPILE_TARGET_TYPE` is set to ``EXECUTABLE`` (default),
+  the source is compiled and linked as an executable program. If set to
+  ``STATIC_LIBRARY``, the source is compiled but not linked. In any case, all
+  functions must be declared as usual.
 
-  ``CMAKE_REQUIRED_FLAGS``
-    Additional flags to pass to the compiler. Note that the contents of
-    :variable:`CMAKE_C_FLAGS <CMAKE_<LANG>_FLAGS>` and its associated
-    configuration-specific variable are automatically added to the compiler
-    command before the contents of ``CMAKE_REQUIRED_FLAGS``.
+  See also :command:`check_source_compiles` for a more general command syntax.
 
-  ``CMAKE_REQUIRED_DEFINITIONS``
-    A :ref:`;-list <CMake Language Lists>` of compiler definitions of the form
-    ``-DFOO`` or ``-DFOO=bar``. A definition for the name specified by
-    ``<resultVar>`` will also be added automatically.
+  See also :command:`check_source_runs` to run compiled source.
 
-  ``CMAKE_REQUIRED_INCLUDES``
-    A :ref:`;-list <CMake Language Lists>` of header search paths to pass to
-    the compiler. These will be the only header search paths used by
-    ``try_compile()``, i.e. the contents of the :prop_dir:`INCLUDE_DIRECTORIES`
-    directory property will be ignored.
+  The compile and link commands can be influenced by setting any of the
+  following variables prior to calling ``check_c_source_compiles()``:
 
-  ``CMAKE_REQUIRED_LINK_OPTIONS``
-    .. versionadded:: 3.14
+.. include:: /module/CMAKE_REQUIRED_FLAGS.txt
 
-    A :ref:`;-list <CMake Language Lists>` of options to add to the link
-    command (see :command:`try_compile` for further details).
+.. include:: /module/CMAKE_REQUIRED_DEFINITIONS.txt
 
-  ``CMAKE_REQUIRED_LIBRARIES``
-    A :ref:`;-list <CMake Language Lists>` of libraries to add to the link
-    command. These can be the name of system libraries or they can be
-    :ref:`Imported Targets <Imported Targets>` (see :command:`try_compile` for
-    further details).
+.. include:: /module/CMAKE_REQUIRED_INCLUDES.txt
 
-  ``CMAKE_REQUIRED_QUIET``
-    .. versionadded:: 3.1
+.. include:: /module/CMAKE_REQUIRED_LINK_OPTIONS.txt
 
-    If this variable evaluates to a boolean true value, all status messages
-    associated with the check will be suppressed.
+.. include:: /module/CMAKE_REQUIRED_LIBRARIES.txt
 
-  The check is only performed once, with the result cached in the variable
-  named by ``<resultVar>``. Every subsequent CMake run will re-use this cached
-  value rather than performing the check again, even if the ``<code>`` changes.
-  In order to force the check to be re-evaluated, the variable named by
-  ``<resultVar>`` must be manually removed from the cache.
+.. include:: /module/CMAKE_REQUIRED_LINK_DIRECTORIES.txt
+
+.. include:: /module/CMAKE_REQUIRED_QUIET.txt
 
 #]=======================================================================]
 

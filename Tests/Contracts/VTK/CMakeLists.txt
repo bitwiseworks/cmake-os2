@@ -1,6 +1,6 @@
 # The VTK external project for CMake
 # ---------------------------------------------------------------------------
-cmake_minimum_required(VERSION 2.8.12)
+cmake_minimum_required(VERSION 3.10)
 project(VTK)
 include(ExternalProject)
 

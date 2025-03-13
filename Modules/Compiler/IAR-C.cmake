@@ -10,8 +10,8 @@
 include(Compiler/IAR)
 include(Compiler/CMakeCommonCompilerMacros)
 
-if(NOT DEFINED CMAKE_C_COMPILER_VERSION)
-  message(FATAL_ERROR "CMAKE_C_COMPILER_VERSION not detected.  This should be automatic.")
+if(NOT CMAKE_C_COMPILER_VERSION)
+  message(FATAL_ERROR "Could not detect CMAKE_C_COMPILER_VERSION. This should be automatic. Check your product license.\n")
 endif()
 
 # Unused after CMP0128
@@ -59,7 +59,7 @@ elseif("${CMAKE_C_COMPILER_ARCHITECTURE_ID}" STREQUAL "RISCV")
 
 elseif("${CMAKE_C_COMPILER_ARCHITECTURE_ID}" STREQUAL "AVR")
   __compiler_iar_xlink(C)
-  __compiler_check_default_language_standard(C 7.10 99)
+  __compiler_check_default_language_standard(C 7.10 99 8.10 17)
   set(CMAKE_C_OUTPUT_EXTENSION ".r90")
 
 elseif("${CMAKE_C_COMPILER_ARCHITECTURE_ID}" STREQUAL "MSP430")

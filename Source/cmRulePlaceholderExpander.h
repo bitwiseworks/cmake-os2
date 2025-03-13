@@ -53,6 +53,7 @@ public:
     const char* SONameFlag = nullptr;
     const char* TargetSOName = nullptr;
     const char* TargetInstallNameDir = nullptr;
+    const char* Linker = nullptr;
     const char* LinkFlags = nullptr;
     const char* Manifests = nullptr;
     const char* LanguageCompileFlags = nullptr;
@@ -73,7 +74,7 @@ public:
     const char* SwiftLibraryName = nullptr;
     const char* SwiftModule = nullptr;
     const char* SwiftModuleName = nullptr;
-    const char* SwiftOutputFileMap = nullptr;
+    const char* SwiftOutputFileMapOption = nullptr;
     const char* SwiftSources = nullptr;
     const char* ISPCHeader = nullptr;
     const char* CudaCompileMode = nullptr;

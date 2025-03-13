@@ -9,7 +9,6 @@
 #include <ostream>
 #include <stdexcept>
 #include <string>
-#include <type_traits>
 
 namespace cm {
 
@@ -68,7 +67,7 @@ std::string const& String::str()
 const char* String::c_str()
 {
   const char* c = this->data();
-  if (c == nullptr) {
+  if (!c) {
     return c;
   }
 

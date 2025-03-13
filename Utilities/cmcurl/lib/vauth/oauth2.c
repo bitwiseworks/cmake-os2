@@ -5,7 +5,7 @@
  *                            | (__| |_| |  _ <| |___
  *                             \___|\___/|_| \_\_____|
  *
- * Copyright (C) 1998 - 2022, Daniel Stenberg, <daniel@haxx.se>, et al.
+ * Copyright (C) Daniel Stenberg, <daniel@haxx.se>, et al.
  *
  * This software is licensed as described in the file COPYING, which
  * you should have received as part of this distribution. The terms
@@ -27,7 +27,8 @@
 #include "curl_setup.h"
 
 #if !defined(CURL_DISABLE_IMAP) || !defined(CURL_DISABLE_SMTP) || \
-  !defined(CURL_DISABLE_POP3)
+  !defined(CURL_DISABLE_POP3) || \
+  (!defined(CURL_DISABLE_LDAP) && defined(USE_OPENLDAP))
 
 #include <curl/curl.h>
 #include "urldata.h"
@@ -48,8 +49,8 @@
  *
  * Parameters:
  *
- * user[in]         - The user name.
- * host[in]         - The host name.
+ * user[in]         - The username.
+ * host[in]         - The hostname.
  * port[in]         - The port(when not Port 80).
  * bearer[in]       - The bearer token.
  * out[out]         - The result storage.
@@ -86,7 +87,7 @@ CURLcode Curl_auth_create_oauth_bearer_message(const char *user,
  *
  * Parameters:
  *
- * user[in]         - The user name.
+ * user[in]         - The username.
  * bearer[in]       - The bearer token.
  * out[out]         - The result storage.
  *

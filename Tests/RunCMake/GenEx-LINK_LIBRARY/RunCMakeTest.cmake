@@ -29,9 +29,19 @@ run_cmake(nested-compatible-features)
 run_cmake(nested-incompatible-features)
 run_cmake(only-targets)
 
-# testing target propertes LINK_LIBRARY_OVERRIDE and LINK_LIBRARY_OVERRIDE_<LIBRARY>
+# testing target properties LINK_LIBRARY_OVERRIDE and LINK_LIBRARY_OVERRIDE_<LIBRARY>
 run_cmake(override-features1)
 run_cmake(override-features2)
 run_cmake(override-features3)
 run_cmake(override-features4)
 run_cmake(override-features5)
+
+# testing feature attributes specification
+run_cmake(bad-feature-attributes1)
+run_cmake(bad-feature-attributes2)
+run_cmake(bad-feature-attributes3)
+run_cmake(bad-feature-attributes4)
+run_cmake(bad-feature-attributes5)
+run_cmake(unsupported-library_type)
+run_cmake(cyclic-override)
+run_cmake(multiple-override)

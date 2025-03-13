@@ -8,7 +8,6 @@
 #include <memory>
 #include <set>
 #include <string>
-#include <type_traits>
 #include <unordered_map>
 #include <unordered_set>
 #include <utility>
@@ -35,6 +34,7 @@ class cmStateSnapshot;
 class cmMessenger;
 class cmExecutionStatus;
 class cmListFileBacktrace;
+struct cmGlobCacheEntry;
 struct cmListFileArgument;
 
 template <typename T>
@@ -53,6 +53,7 @@ public:
     FindPackage,
     CTest,
     CPack,
+    Help
   };
 
   enum class ProjectKind
@@ -183,7 +184,8 @@ public:
   void AddFlowControlCommand(std::string const& name, Command command);
   void AddFlowControlCommand(std::string const& name, BuiltinCommand command);
   void AddDisallowedCommand(std::string const& name, BuiltinCommand command,
-                            cmPolicies::PolicyID policy, const char* message);
+                            cmPolicies::PolicyID policy, const char* message,
+                            const char* additionalWarning = nullptr);
   void AddUnexpectedCommand(std::string const& name, const char* error);
   void AddUnexpectedFlowControlCommand(std::string const& name,
                                        const char* error);
@@ -193,7 +195,7 @@ public:
   void RemoveUserDefinedCommands();
   std::vector<std::string> GetCommandNames() const;
 
-  void SetGlobalProperty(const std::string& prop, const char* value);
+  void SetGlobalProperty(const std::string& prop, const std::string& value);
   void SetGlobalProperty(const std::string& prop, cmValue value);
   void AppendGlobalProperty(const std::string& prop, const std::string& value,
                             bool asString = false);
@@ -211,6 +213,8 @@ public:
   bool UseWindowsVSIDE() const;
   void SetGhsMultiIDE(bool ghsMultiIDE);
   bool UseGhsMultiIDE() const;
+  void SetBorlandMake(bool borlandMake);
+  bool UseBorlandMake() const;
   void SetWatcomWMake(bool watcomWMake);
   bool UseWatcomWMake() const;
   void SetMinGWMake(bool minGWMake);
@@ -219,6 +223,8 @@ public:
   bool UseNMake() const;
   void SetMSYSShell(bool mSYSShell);
   bool UseMSYSShell() const;
+  void SetNinja(bool ninja);
+  bool UseNinja() const;
   void SetNinjaMulti(bool ninjaMulti);
   bool UseNinjaMulti() const;
 
@@ -252,33 +258,19 @@ public:
 
 private:
   friend class cmake;
-  void AddCacheEntry(const std::string& key, const char* value,
-                     const char* helpString, cmStateEnums::CacheEntryType type)
-  {
-    this->AddCacheEntry(key,
-                        value ? cmValue(std::string(value)) : cmValue(nullptr),
-                        helpString, type);
-  }
-  void AddCacheEntry(const std::string& key, const std::string& value,
-                     const char* helpString, cmStateEnums::CacheEntryType type)
-  {
-    this->AddCacheEntry(key, cmValue(value), helpString, type);
-  }
   void AddCacheEntry(const std::string& key, cmValue value,
-                     const char* helpString,
+                     const std::string& helpString,
                      cmStateEnums::CacheEntryType type);
 
   bool DoWriteGlobVerifyTarget() const;
   std::string const& GetGlobVerifyScript() const;
   std::string const& GetGlobVerifyStamp() const;
   bool SaveVerificationScript(const std::string& path, cmMessenger* messenger);
-  void AddGlobCacheEntry(bool recurse, bool listDirectories,
-                         bool followSymlinks, const std::string& relative,
-                         const std::string& expression,
-                         const std::vector<std::string>& files,
+  void AddGlobCacheEntry(const cmGlobCacheEntry& entry,
                          const std::string& variable,
                          cmListFileBacktrace const& bt,
                          cmMessenger* messenger);
+  std::vector<cmGlobCacheEntry> GetGlobCacheEntries() const;
 
   cmPropertyDefinitionMap PropertyDefinitions;
   std::vector<std::string> EnabledLanguages;
@@ -304,10 +296,12 @@ private:
   bool WindowsShell = false;
   bool WindowsVSIDE = false;
   bool GhsMultiIDE = false;
+  bool BorlandMake = false;
   bool WatcomWMake = false;
   bool MinGWMake = false;
   bool NMake = false;
   bool MSYSShell = false;
+  bool Ninja = false;
   bool NinjaMulti = false;
   Mode StateMode = Unknown;
   ProjectKind StateProjectKind = ProjectKind::Normal;

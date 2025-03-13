@@ -5,10 +5,10 @@
 #include <algorithm>
 #include <cassert>
 #include <cctype>
+#include <cstddef>
 #include <initializer_list>
 #include <map>
 #include <string>
-#include <type_traits>
 #include <utility>
 
 #include <cm/optional>
@@ -21,10 +21,12 @@
 
 #include "cmArgumentParser.h"
 #include "cmExecutionStatus.h"
+#include "cmList.h"
 #include "cmMakefile.h"
 #include "cmRange.h"
 #include "cmStringAlgorithms.h"
 #include "cmSystemTools.h"
+#include "cmValue.h"
 #include "cmWindowsRegistry.h"
 
 #ifdef _WIN32
@@ -33,7 +35,6 @@
 #  include "cmGlobalVisualStudio10Generator.h"
 #  include "cmGlobalVisualStudioVersionedGenerator.h"
 #  include "cmVSSetupHelper.h"
-#  define HAVE_VS_SETUP_HELPER
 #endif
 
 namespace {
@@ -177,7 +178,7 @@ cm::optional<std::pair<std::string, std::string>> ParseOSReleaseLine(
         if (std::isalpha(ch) || ch == '_') {
           key += ch;
           state = PARSE_KEY;
-        } else if (!std::isspace(ch)) {
+        } else if (!cmIsSpace(ch)) {
           state = IGNORE_REST;
         }
         break;
@@ -237,7 +238,7 @@ cm::optional<std::pair<std::string, std::string>> ParseOSReleaseLine(
         break;
 
       case PARSE_VALUE:
-        if (ch == '#' || std::isspace(ch)) {
+        if (ch == '#' || cmIsSpace(ch)) {
           state = IGNORE_REST;
         } else {
           value += ch;
@@ -269,7 +270,7 @@ std::map<std::string, std::string> GetOSReleaseVariables(
 
   std::map<std::string, std::string> data;
   // Based on
-  // https://www.freedesktop.org/software/systemd/man/os-release.html
+  // https://www.freedesktop.org/software/systemd/man/latest/os-release.html
   for (auto name : { "/etc/os-release"_s, "/usr/lib/os-release"_s }) {
     const auto& filename = cmStrCat(sysroot, name);
     if (cmSystemTools::FileExists(filename)) {
@@ -303,7 +304,8 @@ std::map<std::string, std::string> GetOSReleaseVariables(
   }
 
   // 2. User provided (append to the CMake prvided)
-  makefile.GetDefExpandList("CMAKE_GET_OS_RELEASE_FALLBACK_SCRIPTS", scripts);
+  cmList::append(
+    scripts, makefile.GetDefinition("CMAKE_GET_OS_RELEASE_FALLBACK_SCRIPTS"));
 
   // Filter out files that are not in format `NNN-name.cmake`
   auto checkName = [](std::string const& filepath) -> bool {
@@ -330,11 +332,11 @@ std::map<std::string, std::string> GetOSReleaseVariables(
             });
 
   // Name of the variable to put the results
-  auto const result_variable = "CMAKE_GET_OS_RELEASE_FALLBACK_RESULT"_s;
+  std::string const result_variable{ "CMAKE_GET_OS_RELEASE_FALLBACK_RESULT" };
 
   for (auto const& script : scripts) {
     // Unset the result variable
-    makefile.RemoveDefinition(result_variable.data());
+    makefile.RemoveDefinition(result_variable);
 
     // include FATAL_ERROR and ERROR in the return status
     if (!makefile.ReadListFile(script) ||
@@ -343,8 +345,8 @@ std::map<std::string, std::string> GetOSReleaseVariables(
       continue;
     }
 
-    std::vector<std::string> variables;
-    if (!makefile.GetDefExpandList(result_variable.data(), variables)) {
+    cmList variables{ makefile.GetDefinition(result_variable) };
+    if (variables.empty()) {
       // Heh, this script didn't found anything... go try the next one.
       continue;
     }
@@ -370,14 +372,14 @@ std::map<std::string, std::string> GetOSReleaseVariables(
     }
   }
 
-  makefile.RemoveDefinition(result_variable.data());
+  makefile.RemoveDefinition(result_variable);
 
   return data;
 }
 
-cm::optional<std::string> GetValue(cmExecutionStatus& status,
-                                   std::string const& key,
-                                   std::string const& variable)
+cm::optional<std::string> GetDistribValue(cmExecutionStatus& status,
+                                          std::string const& key,
+                                          std::string const& variable)
 {
   const auto prefix = "DISTRIB_"_s;
   if (!cmHasPrefix(key, prefix)) {
@@ -411,9 +413,89 @@ cm::optional<std::string> GetValue(cmExecutionStatus& status,
   return std::string{};
 }
 
-#ifdef HAVE_VS_SETUP_HELPER
-cm::optional<std::string> GetValue(cmExecutionStatus& status,
-                                   std::string const& key)
+#ifdef _WIN32
+std::string FindMSYSTEM_PREFIX(std::vector<std::string> prefixes)
+{
+  for (std::string const& prefix : prefixes) {
+    std::string out;
+    std::string err;
+    int ret;
+    // In a modern MSYSTEM environment we expect cygpath to be in PATH.
+    std::vector<std::string> cygpath_cmd{ "cygpath", "-w", prefix };
+    if (cmSystemTools::RunSingleCommand(cygpath_cmd, &out, &err, &ret, nullptr,
+                                        cmSystemTools::OUTPUT_NONE)) {
+      if (ret == 0) {
+        out = cmTrimWhitespace(out);
+        cmSystemTools::ConvertToUnixSlashes(out);
+        if (cmSystemTools::FileIsDirectory(out)) {
+          return out;
+        }
+      }
+    } else {
+      // In a legacy MSYSTEM environment (MinGW/MSYS 1.0) there is no
+      // cygpath but we expect 'sh' to be in PATH.
+      std::vector<std::string> sh_cmd{
+        "sh", "-c", cmStrCat("cd \"", prefix, "\" && cmd //c cd")
+      };
+      if (cmSystemTools::RunSingleCommand(sh_cmd, &out, &err, &ret, nullptr,
+                                          cmSystemTools::OUTPUT_NONE)) {
+        if (ret == 0) {
+          out = cmTrimWhitespace(out);
+          cmSystemTools::ConvertToUnixSlashes(out);
+          if (cmSystemTools::FileIsDirectory(out)) {
+            return out;
+          }
+        }
+      }
+    }
+  }
+  return {};
+}
+
+std::string FallbackMSYSTEM_PREFIX(cm::string_view msystem)
+{
+  // These layouts are used by distributions such as
+  // * MSYS2: https://www.msys2.org/docs/environments/
+  // * MinGW/MSYS 1.0: http://mingw.osdn.io/
+  if (msystem == "MSYS"_s) {
+    static std::string const msystem_msys = FindMSYSTEM_PREFIX({ "/usr" });
+    return msystem_msys;
+  }
+  if (msystem == "MINGW32"_s) {
+    static std::string const msystem_mingw32 =
+      FindMSYSTEM_PREFIX({ "/mingw32", "/mingw" });
+    return msystem_mingw32;
+  }
+  if (msystem == "MINGW64"_s) {
+    static std::string const msystem_mingw64 =
+      FindMSYSTEM_PREFIX({ "/mingw64" });
+    return msystem_mingw64;
+  }
+  if (msystem == "UCRT64"_s) {
+    static std::string const msystem_ucrt64 =
+      FindMSYSTEM_PREFIX({ "/ucrt64" });
+    return msystem_ucrt64;
+  }
+  if (msystem == "CLANG32"_s) {
+    static std::string const msystem_clang32 =
+      FindMSYSTEM_PREFIX({ "/clang32" });
+    return msystem_clang32;
+  }
+  if (msystem == "CLANG64"_s) {
+    static std::string const msystem_clang64 =
+      FindMSYSTEM_PREFIX({ "/clang64" });
+    return msystem_clang64;
+  }
+  if (msystem == "CLANGARM64"_s) {
+    static std::string const msystem_clangarm64 =
+      FindMSYSTEM_PREFIX({ "/clangarm64" });
+    return msystem_clangarm64;
+  }
+  return {};
+}
+
+cm::optional<std::string> GetWindowsValue(cmExecutionStatus& status,
+                                          std::string const& key)
 {
   auto* const gg = status.GetMakefile().GetGlobalGenerator();
   for (auto vs : { 15, 16, 17 }) {
@@ -444,6 +526,23 @@ cm::optional<std::string> GetValue(cmExecutionStatus& status,
     return vs10gen->FindMSBuildCommandEarly(&status.GetMakefile());
   }
 
+  if (key == "MSYSTEM_PREFIX") {
+    // MSYSTEM_PREFIX is meaningful only under a MSYSTEM environment.
+    cm::optional<std::string> ms = cmSystemTools::GetEnvVar("MSYSTEM");
+    if (!ms || ms->empty()) {
+      return std::string();
+    }
+    // Prefer the MSYSTEM_PREFIX environment variable.
+    if (cm::optional<std::string> msp =
+          cmSystemTools::GetEnvVar("MSYSTEM_PREFIX")) {
+      cmSystemTools::ConvertToUnixSlashes(*msp);
+      if (cmSystemTools::FileIsDirectory(*msp)) {
+        return msp;
+      }
+    }
+    // Fall back to known distribution layouts.
+    return FallbackMSYSTEM_PREFIX(*ms);
+  }
   return {};
 }
 #endif
@@ -527,12 +626,12 @@ bool QueryWindowsRegistry(Range args, cmExecutionStatus& status,
   if (arguments.ValueNames) {
     auto result = registry.GetValueNames(key, view);
     if (result) {
-      makefile.AddDefinition(variable, cmJoin(*result, ";"_s));
+      makefile.AddDefinition(variable, cmList::to_string(*result));
     }
   } else if (arguments.SubKeys) {
     auto result = registry.GetSubKeys(key, view);
     if (result) {
-      makefile.AddDefinition(variable, cmJoin(*result, ";"_s));
+      makefile.AddDefinition(variable, cmList::to_string(*result));
     }
   } else {
     auto result =
@@ -595,9 +694,9 @@ bool cmCMakeHostSystemInformationCommand(std::vector<std::string> const& args,
     auto value =
       GetValueChained(
           [&]() { return GetValue(info, key); }
-        , [&]() { return GetValue(status, key, variable); }
-#ifdef HAVE_VS_SETUP_HELPER
-        , [&]() { return GetValue(status, key); }
+        , [&]() { return GetDistribValue(status, key, variable); }
+#ifdef _WIN32
+        , [&]() { return GetWindowsValue(status, key); }
 #endif
         );
     // clang-format on

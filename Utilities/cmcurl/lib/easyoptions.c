@@ -1,11 +1,11 @@
 /***************************************************************************
  *                                  _   _ ____  _
- *  Project                     ___| | | |  _ | |
+ *  Project                     ___| | | |  _ \| |
  *                             / __| | | | |_) | |
  *                            | (__| |_| |  _ <| |___
- *                             ___|___/|_| ______|
+ *                             \___|\___/|_| \_\_____|
  *
- * Copyright (C) 1998 - 2022, Daniel Stenberg, <daniel.se>, et al.
+ * Copyright (C) Daniel Stenberg, <daniel@haxx.se>, et al.
  *
  * This software is licensed as described in the file COPYING, which
  * you should have received as part of this distribution. The terms
@@ -42,6 +42,7 @@ struct curl_easyoption Curl_easyopts[] = {
   {"CAINFO", CURLOPT_CAINFO, CURLOT_STRING, 0},
   {"CAINFO_BLOB", CURLOPT_CAINFO_BLOB, CURLOT_BLOB, 0},
   {"CAPATH", CURLOPT_CAPATH, CURLOT_STRING, 0},
+  {"CA_CACHE_TIMEOUT", CURLOPT_CA_CACHE_TIMEOUT, CURLOT_LONG, 0},
   {"CERTINFO", CURLOPT_CERTINFO, CURLOT_LONG, 0},
   {"CHUNK_BGN_FUNCTION", CURLOPT_CHUNK_BGN_FUNCTION, CURLOT_FUNCTION, 0},
   {"CHUNK_DATA", CURLOPT_CHUNK_DATA, CURLOT_CBPTR, 0},
@@ -85,6 +86,7 @@ struct curl_easyoption Curl_easyopts[] = {
   {"DOH_SSL_VERIFYPEER", CURLOPT_DOH_SSL_VERIFYPEER, CURLOT_LONG, 0},
   {"DOH_SSL_VERIFYSTATUS", CURLOPT_DOH_SSL_VERIFYSTATUS, CURLOT_LONG, 0},
   {"DOH_URL", CURLOPT_DOH_URL, CURLOT_STRING, 0},
+  {"ECH", CURLOPT_ECH, CURLOT_STRING, 0},
   {"EGDSOCKET", CURLOPT_EGDSOCKET, CURLOT_STRING, 0},
   {"ENCODING", CURLOPT_ACCEPT_ENCODING, CURLOT_STRING, CURLOT_FLAG_ALIAS},
   {"ERRORBUFFER", CURLOPT_ERRORBUFFER, CURLOT_OBJECT, 0},
@@ -119,6 +121,7 @@ struct curl_easyoption Curl_easyopts[] = {
   {"HAPPY_EYEBALLS_TIMEOUT_MS", CURLOPT_HAPPY_EYEBALLS_TIMEOUT_MS,
    CURLOT_LONG, 0},
   {"HAPROXYPROTOCOL", CURLOPT_HAPROXYPROTOCOL, CURLOT_LONG, 0},
+  {"HAPROXY_CLIENT_IP", CURLOPT_HAPROXY_CLIENT_IP, CURLOT_STRING, 0},
   {"HEADER", CURLOPT_HEADER, CURLOT_LONG, 0},
   {"HEADERDATA", CURLOPT_HEADERDATA, CURLOT_CBPTR, 0},
   {"HEADERFUNCTION", CURLOPT_HEADERFUNCTION, CURLOT_FUNCTION, 0},
@@ -163,7 +166,9 @@ struct curl_easyoption Curl_easyopts[] = {
   {"MAIL_AUTH", CURLOPT_MAIL_AUTH, CURLOT_STRING, 0},
   {"MAIL_FROM", CURLOPT_MAIL_FROM, CURLOT_STRING, 0},
   {"MAIL_RCPT", CURLOPT_MAIL_RCPT, CURLOT_SLIST, 0},
-  {"MAIL_RCPT_ALLLOWFAILS", CURLOPT_MAIL_RCPT_ALLLOWFAILS, CURLOT_LONG, 0},
+  {"MAIL_RCPT_ALLLOWFAILS", CURLOPT_MAIL_RCPT_ALLOWFAILS,
+   CURLOT_LONG, CURLOT_FLAG_ALIAS},
+  {"MAIL_RCPT_ALLOWFAILS", CURLOPT_MAIL_RCPT_ALLOWFAILS, CURLOT_LONG, 0},
   {"MAXAGE_CONN", CURLOPT_MAXAGE_CONN, CURLOT_LONG, 0},
   {"MAXCONNECTS", CURLOPT_MAXCONNECTS, CURLOT_LONG, 0},
   {"MAXFILESIZE", CURLOPT_MAXFILESIZE, CURLOT_LONG, 0},
@@ -241,6 +246,7 @@ struct curl_easyoption Curl_easyopts[] = {
    CURLOT_STRING, 0},
   {"PROXY_TRANSFER_MODE", CURLOPT_PROXY_TRANSFER_MODE, CURLOT_LONG, 0},
   {"PUT", CURLOPT_PUT, CURLOT_LONG, 0},
+  {"QUICK_EXIT", CURLOPT_QUICK_EXIT, CURLOT_LONG, 0},
   {"QUOTE", CURLOPT_QUOTE, CURLOT_SLIST, 0},
   {"RANDOM_FILE", CURLOPT_RANDOM_FILE, CURLOT_STRING, 0},
   {"RANGE", CURLOPT_RANGE, CURLOT_STRING, 0},
@@ -268,6 +274,8 @@ struct curl_easyoption Curl_easyopts[] = {
   {"SEEKDATA", CURLOPT_SEEKDATA, CURLOT_CBPTR, 0},
   {"SEEKFUNCTION", CURLOPT_SEEKFUNCTION, CURLOT_FUNCTION, 0},
   {"SERVER_RESPONSE_TIMEOUT", CURLOPT_SERVER_RESPONSE_TIMEOUT,
+   CURLOT_LONG, 0},
+  {"SERVER_RESPONSE_TIMEOUT_MS", CURLOPT_SERVER_RESPONSE_TIMEOUT_MS,
    CURLOT_LONG, 0},
   {"SERVICE_NAME", CURLOPT_SERVICE_NAME, CURLOT_STRING, 0},
   {"SHARE", CURLOPT_SHARE, CURLOT_OBJECT, 0},
@@ -320,6 +328,7 @@ struct curl_easyoption Curl_easyopts[] = {
    CURLOT_LONG, 0},
   {"TCP_FASTOPEN", CURLOPT_TCP_FASTOPEN, CURLOT_LONG, 0},
   {"TCP_KEEPALIVE", CURLOPT_TCP_KEEPALIVE, CURLOT_LONG, 0},
+  {"TCP_KEEPCNT", CURLOPT_TCP_KEEPCNT, CURLOT_LONG, 0},
   {"TCP_KEEPIDLE", CURLOPT_TCP_KEEPIDLE, CURLOT_LONG, 0},
   {"TCP_KEEPINTVL", CURLOPT_TCP_KEEPINTVL, CURLOT_LONG, 0},
   {"TCP_NODELAY", CURLOPT_TCP_NODELAY, CURLOT_LONG, 0},
@@ -368,6 +377,6 @@ struct curl_easyoption Curl_easyopts[] = {
  */
 int Curl_easyopts_check(void)
 {
-  return ((CURLOPT_LASTENTRY%10000) != (320 + 1));
+  return ((CURLOPT_LASTENTRY%10000) != (326 + 1));
 }
 #endif

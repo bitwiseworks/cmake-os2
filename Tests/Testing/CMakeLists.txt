@@ -1,8 +1,10 @@
 #
 # Testing
 #
-cmake_minimum_required (VERSION 2.7)
+cmake_minimum_required(VERSION 3.10)
 project (Testing)
+
+include (CTest)
 
 #
 # Lib and exe path
@@ -25,16 +27,13 @@ else ()
 endif ()
 
 #
-# Include Dart
-# (will also set NSLOOKUP, HOSTNAME, etc.)
-#
-include (${CMAKE_ROOT}/Modules/Dart.cmake)
-
-#
 # Extra coverage
 #
 build_command(BUILD_COMMAND_VAR ${CMAKE_MAKE_PROGRAM})
+block(SCOPE_FOR POLICIES)
+cmake_policy(VERSION 2.8.12) # old enough to not set CMP0036
 build_name(BUILD_NAME_VAR)
+endblock()
 site_name(SITE_NAME_VAR)
 
 #

@@ -155,7 +155,7 @@ void cmDependsJavaParserHelper::CheckEmpty(
 void cmDependsJavaParserHelper::PrepareElement(
   cmDependsJavaParserHelper::ParserType* me)
 {
-  // Inititalize self
+  // Initialize self
   me->str = nullptr;
 }
 
@@ -309,7 +309,7 @@ void cmDependsJavaParserHelper::Error(const char* str)
 void cmDependsJavaParserHelper::UpdateCombine(const char* str1,
                                               const char* str2)
 {
-  if (this->CurrentCombine.empty() && str1 != nullptr) {
+  if (this->CurrentCombine.empty() && str1) {
     this->CurrentCombine = str1;
   }
   this->CurrentCombine += ".";

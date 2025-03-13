@@ -4,16 +4,18 @@
 
 #include <algorithm>
 #include <cassert>
-#include <cstdlib>
+#include <cstddef>
 #include <functional>
 #include <iostream>
 #include <iterator>
 #include <utility>
 
+#include <cm/memory>
 #include <cm/string_view>
 
 #include "cmsys/RegularExpression.hxx"
 
+#include "cmCMakePresetsErrors.h"
 #include "cmCMakePresetsGraphInternal.h"
 #include "cmStringAlgorithms.h"
 #include "cmSystemTools.h"
@@ -39,7 +41,6 @@ enum class CycleStatus
   Verified,
 };
 
-using ReadFileResult = cmCMakePresetsGraph::ReadFileResult;
 using ConfigurePreset = cmCMakePresetsGraph::ConfigurePreset;
 using BuildPreset = cmCMakePresetsGraph::BuildPreset;
 using TestPreset = cmCMakePresetsGraph::TestPreset;
@@ -49,6 +50,12 @@ template <typename T>
 using PresetPair = cmCMakePresetsGraph::PresetPair<T>;
 using ExpandMacroResult = cmCMakePresetsGraphInternal::ExpandMacroResult;
 using MacroExpander = cmCMakePresetsGraphInternal::MacroExpander;
+using MacroExpanderVector = cmCMakePresetsGraphInternal::MacroExpanderVector;
+using BaseMacroExpander = cmCMakePresetsGraphInternal::BaseMacroExpander;
+template <typename T>
+using PresetMacroExpander =
+  cmCMakePresetsGraphInternal::PresetMacroExpander<T>;
+using cmCMakePresetsGraphInternal::ExpandMacros;
 
 void InheritString(std::string& child, const std::string& parent)
 {
@@ -81,17 +88,18 @@ void InheritVector(std::vector<T>& child, const std::vector<T>& parent)
  * inheritance.
  */
 template <class T>
-ReadFileResult VisitPreset(
+bool VisitPreset(
   T& preset,
   std::map<std::string, cmCMakePresetsGraph::PresetPair<T>>& presets,
-  std::map<std::string, CycleStatus> cycleStatus,
-  const cmCMakePresetsGraph& graph)
+  std::map<std::string, CycleStatus> cycleStatus, cmCMakePresetsGraph& graph)
 {
   switch (cycleStatus[preset.Name]) {
     case CycleStatus::InProgress:
-      return ReadFileResult::CYCLIC_PRESET_INHERITANCE;
+      cmCMakePresetsErrors::CYCLIC_PRESET_INHERITANCE(preset.Name,
+                                                      &graph.parseState);
+      return false;
     case CycleStatus::Verified:
-      return ReadFileResult::READ_OK;
+      return true;
     default:
       break;
   }
@@ -99,28 +107,41 @@ ReadFileResult VisitPreset(
   cycleStatus[preset.Name] = CycleStatus::InProgress;
 
   if (preset.Environment.count("") != 0) {
-    return ReadFileResult::INVALID_PRESET;
+    cmCMakePresetsErrors::INVALID_PRESET_NAMED(preset.Name, &graph.parseState);
+    return false;
   }
 
-  CHECK_OK(preset.VisitPresetBeforeInherit());
+  bool result = preset.VisitPresetBeforeInherit();
+  if (!result) {
+    cmCMakePresetsErrors::INVALID_PRESET_NAMED(preset.Name, &graph.parseState);
+    return false;
+  }
 
   for (auto const& i : preset.Inherits) {
     auto parent = presets.find(i);
     if (parent == presets.end()) {
-      return ReadFileResult::INVALID_PRESET;
+      cmCMakePresetsErrors::INVALID_PRESET_NAMED(preset.Name,
+                                                 &graph.parseState);
+      return false;
     }
 
     auto& parentPreset = parent->second.Unexpanded;
     if (!preset.OriginFile->ReachableFiles.count(parentPreset.OriginFile)) {
-      return ReadFileResult::INHERITED_PRESET_UNREACHABLE_FROM_FILE;
+      cmCMakePresetsErrors::INHERITED_PRESET_UNREACHABLE_FROM_FILE(
+        preset.Name, &graph.parseState);
+      return false;
     }
 
-    auto result = VisitPreset(parentPreset, presets, cycleStatus, graph);
-    if (result != ReadFileResult::READ_OK) {
-      return result;
+    if (!VisitPreset(parentPreset, presets, cycleStatus, graph)) {
+      return false;
     }
 
-    CHECK_OK(preset.VisitPresetInherit(parentPreset));
+    result = preset.VisitPresetInherit(parentPreset);
+    if (!result) {
+      cmCMakePresetsErrors::INVALID_PRESET_NAMED(preset.Name,
+                                                 &graph.parseState);
+      return false;
+    }
 
     for (auto const& v : parentPreset.Environment) {
       preset.Environment.insert(v);
@@ -135,16 +156,21 @@ ReadFileResult VisitPreset(
     preset.ConditionEvaluator.reset();
   }
 
-  CHECK_OK(preset.VisitPresetAfterInherit(graph.GetVersion(preset)));
+  result = preset.VisitPresetAfterInherit(graph.GetVersion(preset),
+                                          &graph.parseState);
+  if (!result) {
+    cmCMakePresetsErrors::INVALID_PRESET_NAMED(preset.Name, &graph.parseState);
+    return false;
+  }
 
   cycleStatus[preset.Name] = CycleStatus::Verified;
-  return ReadFileResult::READ_OK;
+  return true;
 }
 
 template <class T>
-ReadFileResult ComputePresetInheritance(
+bool ComputePresetInheritance(
   std::map<std::string, cmCMakePresetsGraph::PresetPair<T>>& presets,
-  const cmCMakePresetsGraph& graph)
+  cmCMakePresetsGraph& graph)
 {
   std::map<std::string, CycleStatus> cycleStatus;
   for (auto const& it : presets) {
@@ -153,13 +179,12 @@ ReadFileResult ComputePresetInheritance(
 
   for (auto& it : presets) {
     auto& preset = it.second.Unexpanded;
-    auto result = VisitPreset<T>(preset, presets, cycleStatus, graph);
-    if (result != ReadFileResult::READ_OK) {
-      return result;
+    if (!VisitPreset<T>(preset, presets, cycleStatus, graph)) {
+      return false;
     }
   }
 
-  return ReadFileResult::READ_OK;
+  return true;
 }
 
 constexpr const char* ValidPrefixes[] = {
@@ -184,21 +209,61 @@ bool IsValidMacroNamespace(const std::string& str)
 }
 
 ExpandMacroResult VisitEnv(std::string& value, CycleStatus& status,
-                           const std::vector<MacroExpander>& macroExpanders,
+                           MacroExpanderVector const& macroExpanders,
                            int version);
-ExpandMacroResult ExpandMacros(
-  std::string& out, const std::vector<MacroExpander>& macroExpanders,
-  int version);
-ExpandMacroResult ExpandMacro(std::string& out,
-                              const std::string& macroNamespace,
-                              const std::string& macroName,
-                              const std::vector<MacroExpander>& macroExpanders,
-                              int version);
+template <class T>
+class EnvironmentMacroExpander : public MacroExpander
+{
+  std::map<std::string, CycleStatus>& EnvCycles;
+  cm::optional<T>& Out;
+  MacroExpanderVector& MacroExpanders;
+
+public:
+  EnvironmentMacroExpander(MacroExpanderVector& macroExpanders,
+                           cm::optional<T>& out,
+                           std::map<std::string, CycleStatus>& envCycles)
+    : EnvCycles(envCycles)
+    , Out(out)
+    , MacroExpanders(macroExpanders)
+  {
+  }
+  ExpandMacroResult operator()(const std::string& macroNamespace,
+                               const std::string& macroName,
+                               std::string& macroOut,
+                               int version) const override
+  {
+    if (macroNamespace == "env" && !macroName.empty() && Out) {
+      auto v = Out->Environment.find(macroName);
+      if (v != Out->Environment.end() && v->second) {
+        auto e =
+          VisitEnv(*v->second, EnvCycles[macroName], MacroExpanders, version);
+        if (e != ExpandMacroResult::Ok) {
+          return e;
+        }
+        macroOut += *v->second;
+        return ExpandMacroResult::Ok;
+      }
+    }
+
+    if (macroNamespace == "env" || macroNamespace == "penv") {
+      if (macroName.empty()) {
+        return ExpandMacroResult::Error;
+      }
+      if (cm::optional<std::string> value =
+            cmSystemTools::GetEnvVar(macroName)) {
+        macroOut += *value;
+      }
+      return ExpandMacroResult::Ok;
+    }
+
+    return ExpandMacroResult::Ignore;
+  }
+};
 
 bool ExpandMacros(const cmCMakePresetsGraph& graph,
                   const ConfigurePreset& preset,
                   cm::optional<ConfigurePreset>& out,
-                  const std::vector<MacroExpander>& macroExpanders)
+                  MacroExpanderVector const& macroExpanders)
 {
   std::string binaryDir = preset.BinaryDir;
   CHECK_EXPAND(out, binaryDir, macroExpanders, graph.GetVersion(preset));
@@ -228,6 +293,12 @@ bool ExpandMacros(const cmCMakePresetsGraph& graph,
     out->ToolchainFile = toolchain;
   }
 
+  if (!preset.GraphVizFile.empty()) {
+    std::string graphVizFile = preset.GraphVizFile;
+    CHECK_EXPAND(out, graphVizFile, macroExpanders, graph.GetVersion(preset));
+    out->GraphVizFile = graphVizFile;
+  }
+
   for (auto& variable : out->CacheVariables) {
     if (variable.second) {
       CHECK_EXPAND(out, variable.second->Value, macroExpanders,
@@ -240,7 +311,7 @@ bool ExpandMacros(const cmCMakePresetsGraph& graph,
 
 bool ExpandMacros(const cmCMakePresetsGraph& graph, const BuildPreset& preset,
                   cm::optional<BuildPreset>& out,
-                  const std::vector<MacroExpander>& macroExpanders)
+                  MacroExpanderVector const& macroExpanders)
 {
   for (auto& target : out->Targets) {
     CHECK_EXPAND(out, target, macroExpanders, graph.GetVersion(preset));
@@ -256,7 +327,7 @@ bool ExpandMacros(const cmCMakePresetsGraph& graph, const BuildPreset& preset,
 
 bool ExpandMacros(const cmCMakePresetsGraph& graph, const TestPreset& preset,
                   cm::optional<TestPreset>& out,
-                  const std::vector<MacroExpander>& macroExpanders)
+                  MacroExpanderVector const& macroExpanders)
 {
   for (auto& overwrite : out->OverwriteConfigurationFile) {
     CHECK_EXPAND(out, overwrite, macroExpanders, graph.GetVersion(preset));
@@ -310,7 +381,7 @@ bool ExpandMacros(const cmCMakePresetsGraph& graph, const TestPreset& preset,
 bool ExpandMacros(const cmCMakePresetsGraph& graph,
                   const PackagePreset& preset,
                   cm::optional<PackagePreset>& out,
-                  const std::vector<MacroExpander>& macroExpanders)
+                  MacroExpanderVector const& macroExpanders)
 {
   for (auto& variable : out->Variables) {
     CHECK_EXPAND(out, variable.second, macroExpanders,
@@ -332,13 +403,13 @@ bool ExpandMacros(const cmCMakePresetsGraph& graph,
 bool ExpandMacros(const cmCMakePresetsGraph& /*graph*/,
                   const WorkflowPreset& /*preset*/,
                   cm::optional<WorkflowPreset>& /*out*/,
-                  const std::vector<MacroExpander>& /*macroExpanders*/)
+                  MacroExpanderVector const& /*macroExpanders*/)
 {
   return true;
 }
 
 template <class T>
-bool ExpandMacros(const cmCMakePresetsGraph& graph, const T& preset,
+bool ExpandMacros(cmCMakePresetsGraph& graph, const T& preset,
                   cm::optional<T>& out)
 {
   out.emplace(preset);
@@ -348,106 +419,21 @@ bool ExpandMacros(const cmCMakePresetsGraph& graph, const T& preset,
     envCycles[v.first] = CycleStatus::Unvisited;
   }
 
-  std::vector<MacroExpander> macroExpanders;
+  MacroExpanderVector macroExpanders{};
 
-  MacroExpander defaultMacroExpander =
-    [&graph, &preset](const std::string& macroNamespace,
-                      const std::string& macroName, std::string& macroOut,
-                      int version) -> ExpandMacroResult {
-    if (macroNamespace.empty()) {
-      if (macroName == "sourceDir") {
-        macroOut += graph.SourceDir;
-        return ExpandMacroResult::Ok;
-      }
-      if (macroName == "sourceParentDir") {
-        macroOut += cmSystemTools::GetParentDirectory(graph.SourceDir);
-        return ExpandMacroResult::Ok;
-      }
-      if (macroName == "sourceDirName") {
-        macroOut += cmSystemTools::GetFilenameName(graph.SourceDir);
-        return ExpandMacroResult::Ok;
-      }
-      if (macroName == "presetName") {
-        macroOut += preset.Name;
-        return ExpandMacroResult::Ok;
-      }
-      if (macroName == "generator") {
-        // Generator only makes sense if preset is not hidden.
-        if (!preset.Hidden) {
-          macroOut += graph.GetGeneratorForPreset(preset.Name);
-        }
-        return ExpandMacroResult::Ok;
-      }
-      if (macroName == "dollar") {
-        macroOut += '$';
-        return ExpandMacroResult::Ok;
-      }
-      if (macroName == "hostSystemName") {
-        if (version < 3) {
-          return ExpandMacroResult::Error;
-        }
-        macroOut += cmSystemTools::GetSystemName();
-        return ExpandMacroResult::Ok;
-      }
-      if (macroName == "fileDir") {
-        if (version < 4) {
-          return ExpandMacroResult::Error;
-        }
-        macroOut +=
-          cmSystemTools::GetParentDirectory(preset.OriginFile->Filename);
-        return ExpandMacroResult::Ok;
-      }
-      if (macroName == "pathListSep") {
-        if (version < 5) {
-          return ExpandMacroResult::Error;
-        }
-        macroOut += cmSystemTools::GetSystemPathlistSeparator();
-        return ExpandMacroResult::Ok;
-      }
-    }
-
-    return ExpandMacroResult::Ignore;
-  };
-
-  MacroExpander environmentMacroExpander =
-    [&macroExpanders, &out, &envCycles](
-      const std::string& macroNamespace, const std::string& macroName,
-      std::string& result, int version) -> ExpandMacroResult {
-    if (macroNamespace == "env" && !macroName.empty() && out) {
-      auto v = out->Environment.find(macroName);
-      if (v != out->Environment.end() && v->second) {
-        auto e =
-          VisitEnv(*v->second, envCycles[macroName], macroExpanders, version);
-        if (e != ExpandMacroResult::Ok) {
-          return e;
-        }
-        result += *v->second;
-        return ExpandMacroResult::Ok;
-      }
-    }
-
-    if (macroNamespace == "env" || macroNamespace == "penv") {
-      if (macroName.empty()) {
-        return ExpandMacroResult::Error;
-      }
-      const char* value = std::getenv(macroName.c_str());
-      if (value) {
-        result += value;
-      }
-      return ExpandMacroResult::Ok;
-    }
-
-    return ExpandMacroResult::Ignore;
-  };
-
-  macroExpanders.push_back(defaultMacroExpander);
-  macroExpanders.push_back(environmentMacroExpander);
+  macroExpanders.push_back(cm::make_unique<BaseMacroExpander>(graph));
+  macroExpanders.push_back(
+    cm::make_unique<PresetMacroExpander<T>>(graph, preset));
+  macroExpanders.push_back(cm::make_unique<EnvironmentMacroExpander<T>>(
+    macroExpanders, out, envCycles));
 
   for (auto& v : out->Environment) {
     if (v.second) {
       switch (VisitEnv(*v.second, envCycles[v.first], macroExpanders,
                        graph.GetVersion(preset))) {
         case ExpandMacroResult::Error:
+          cmCMakePresetsErrors::INVALID_PRESET_NAMED(preset.Name,
+                                                     &graph.parseState);
           return false;
         case ExpandMacroResult::Ignore:
           out.reset();
@@ -462,6 +448,8 @@ bool ExpandMacros(const cmCMakePresetsGraph& graph, const T& preset,
     cm::optional<bool> result;
     if (!preset.ConditionEvaluator->Evaluate(
           macroExpanders, graph.GetVersion(preset), result)) {
+      cmCMakePresetsErrors::INVALID_PRESET_NAMED(preset.Name,
+                                                 &graph.parseState);
       return false;
     }
     if (!result) {
@@ -475,7 +463,7 @@ bool ExpandMacros(const cmCMakePresetsGraph& graph, const T& preset,
 }
 
 ExpandMacroResult VisitEnv(std::string& value, CycleStatus& status,
-                           const std::vector<MacroExpander>& macroExpanders,
+                           MacroExpanderVector const& macroExpanders,
                            int version)
 {
   if (status == CycleStatus::Verified) {
@@ -493,10 +481,10 @@ ExpandMacroResult VisitEnv(std::string& value, CycleStatus& status,
   status = CycleStatus::Verified;
   return ExpandMacroResult::Ok;
 }
+}
 
-ExpandMacroResult ExpandMacros(
-  std::string& out, const std::vector<MacroExpander>& macroExpanders,
-  int version)
+ExpandMacroResult cmCMakePresetsGraphInternal::ExpandMacros(
+  std::string& out, MacroExpanderVector const& macroExpanders, int version)
 {
   std::string result;
   std::string macroNamespace;
@@ -573,14 +561,13 @@ ExpandMacroResult ExpandMacros(
   return ExpandMacroResult::Ok;
 }
 
-ExpandMacroResult ExpandMacro(std::string& out,
-                              const std::string& macroNamespace,
-                              const std::string& macroName,
-                              const std::vector<MacroExpander>& macroExpanders,
-                              int version)
+ExpandMacroResult cmCMakePresetsGraphInternal::ExpandMacro(
+  std::string& out, const std::string& macroNamespace,
+  const std::string& macroName, MacroExpanderVector const& macroExpanders,
+  int version)
 {
   for (auto const& macroExpander : macroExpanders) {
-    auto result = macroExpander(macroNamespace, macroName, out, version);
+    auto result = (*macroExpander)(macroNamespace, macroName, out, version);
     if (result != ExpandMacroResult::Ignore) {
       return result;
     }
@@ -593,45 +580,99 @@ ExpandMacroResult ExpandMacro(std::string& out,
   return ExpandMacroResult::Error;
 }
 
+namespace {
 template <typename T>
-ReadFileResult SetupWorkflowConfigurePreset(
-  const T& preset, const ConfigurePreset*& configurePreset)
+bool SetupWorkflowConfigurePreset(const T& preset,
+                                  const ConfigurePreset*& configurePreset,
+                                  cmJSONState* state)
 {
   if (preset.ConfigurePreset != configurePreset->Name) {
-    return ReadFileResult::INVALID_WORKFLOW_STEPS;
+    cmCMakePresetsErrors::INVALID_WORKFLOW_STEPS(configurePreset->Name, state);
+    return false;
   }
-  return ReadFileResult::READ_OK;
+  return true;
 }
 
 template <>
-ReadFileResult SetupWorkflowConfigurePreset<ConfigurePreset>(
-  const ConfigurePreset& preset, const ConfigurePreset*& configurePreset)
+bool SetupWorkflowConfigurePreset<ConfigurePreset>(
+  const ConfigurePreset& preset, const ConfigurePreset*& configurePreset,
+  cmJSONState*)
 {
   configurePreset = &preset;
-  return ReadFileResult::READ_OK;
+  return true;
 }
 
 template <typename T>
-ReadFileResult TryReachPresetFromWorkflow(
+bool TryReachPresetFromWorkflow(
   const WorkflowPreset& origin,
   const std::map<std::string, PresetPair<T>>& presets, const std::string& name,
-  const ConfigurePreset*& configurePreset)
+  const ConfigurePreset*& configurePreset, cmJSONState* state)
 {
   auto it = presets.find(name);
   if (it == presets.end()) {
-    return ReadFileResult::INVALID_WORKFLOW_STEPS;
+    cmCMakePresetsErrors::INVALID_WORKFLOW_STEPS(name, state);
+    return false;
   }
   if (!origin.OriginFile->ReachableFiles.count(
         it->second.Unexpanded.OriginFile)) {
-    return ReadFileResult::WORKFLOW_STEP_UNREACHABLE_FROM_FILE;
+    cmCMakePresetsErrors::WORKFLOW_STEP_UNREACHABLE_FROM_FILE(name, state);
+    return false;
   }
   return SetupWorkflowConfigurePreset<T>(it->second.Unexpanded,
-                                         configurePreset);
+                                         configurePreset, state);
 }
 }
 
+ExpandMacroResult BaseMacroExpander::operator()(
+  const std::string& macroNamespace, const std::string& macroName,
+  std::string& macroOut, int version) const
+{
+  if (macroNamespace.empty()) {
+    if (macroName == "sourceDir") {
+      macroOut += Graph.SourceDir;
+      return ExpandMacroResult::Ok;
+    }
+    if (macroName == "sourceParentDir") {
+      macroOut += cmSystemTools::GetParentDirectory(Graph.SourceDir);
+      return ExpandMacroResult::Ok;
+    }
+    if (macroName == "sourceDirName") {
+      macroOut += cmSystemTools::GetFilenameName(Graph.SourceDir);
+      return ExpandMacroResult::Ok;
+    }
+    if (macroName == "dollar") {
+      macroOut += '$';
+      return ExpandMacroResult::Ok;
+    }
+    if (macroName == "hostSystemName") {
+      if (version < 3) {
+        return ExpandMacroResult::Error;
+      }
+      macroOut += cmSystemTools::GetSystemName();
+      return ExpandMacroResult::Ok;
+    }
+    // Enable fileDir macro expansion for non-preset expanders
+    if (macroName == "fileDir" && File) {
+      if (version < 4) {
+        return ExpandMacroResult::Error;
+      }
+      macroOut += cmSystemTools::GetParentDirectory(File.value());
+      return ExpandMacroResult::Ok;
+    }
+    if (macroName == "pathListSep") {
+      if (version < 5) {
+        return ExpandMacroResult::Error;
+      }
+      macroOut += cmSystemTools::GetSystemPathlistSeparator();
+      return ExpandMacroResult::Ok;
+    }
+  }
+
+  return ExpandMacroResult::Ignore;
+}
+
 bool cmCMakePresetsGraphInternal::EqualsCondition::Evaluate(
-  const std::vector<MacroExpander>& expanders, int version,
+  MacroExpanderVector const& expanders, int version,
   cm::optional<bool>& out) const
 {
   std::string lhs = this->Lhs;
@@ -645,7 +686,7 @@ bool cmCMakePresetsGraphInternal::EqualsCondition::Evaluate(
 }
 
 bool cmCMakePresetsGraphInternal::InListCondition::Evaluate(
-  const std::vector<MacroExpander>& expanders, int version,
+  MacroExpanderVector const& expanders, int version,
   cm::optional<bool>& out) const
 {
   std::string str = this->String;
@@ -664,7 +705,7 @@ bool cmCMakePresetsGraphInternal::InListCondition::Evaluate(
 }
 
 bool cmCMakePresetsGraphInternal::MatchesCondition::Evaluate(
-  const std::vector<MacroExpander>& expanders, int version,
+  MacroExpanderVector const& expanders, int version,
   cm::optional<bool>& out) const
 {
   std::string str = this->String;
@@ -682,7 +723,7 @@ bool cmCMakePresetsGraphInternal::MatchesCondition::Evaluate(
 }
 
 bool cmCMakePresetsGraphInternal::AnyAllOfCondition::Evaluate(
-  const std::vector<MacroExpander>& expanders, int version,
+  MacroExpanderVector const& expanders, int version,
   cm::optional<bool>& out) const
 {
   for (auto const& condition : this->Conditions) {
@@ -708,7 +749,7 @@ bool cmCMakePresetsGraphInternal::AnyAllOfCondition::Evaluate(
 }
 
 bool cmCMakePresetsGraphInternal::NotCondition::Evaluate(
-  const std::vector<MacroExpander>& expanders, int version,
+  MacroExpanderVector const& expanders, int version,
   cm::optional<bool>& out) const
 {
   out.reset();
@@ -722,8 +763,7 @@ bool cmCMakePresetsGraphInternal::NotCondition::Evaluate(
   return true;
 }
 
-cmCMakePresetsGraph::ReadFileResult
-cmCMakePresetsGraph::ConfigurePreset::VisitPresetInherit(
+bool cmCMakePresetsGraph::ConfigurePreset::VisitPresetInherit(
   const cmCMakePresetsGraph::Preset& parentPreset)
 {
   auto& preset = *this;
@@ -741,6 +781,7 @@ cmCMakePresetsGraph::ConfigurePreset::VisitPresetInherit(
   InheritString(preset.BinaryDir, parent.BinaryDir);
   InheritString(preset.InstallDir, parent.InstallDir);
   InheritString(preset.ToolchainFile, parent.ToolchainFile);
+  InheritString(preset.GraphVizFile, parent.GraphVizFile);
   InheritOptionalValue(preset.WarnDev, parent.WarnDev);
   InheritOptionalValue(preset.ErrorDev, parent.ErrorDev);
   InheritOptionalValue(preset.WarnDeprecated, parent.WarnDeprecated);
@@ -753,50 +794,52 @@ cmCMakePresetsGraph::ConfigurePreset::VisitPresetInherit(
     preset.CacheVariables.insert(v);
   }
 
-  return ReadFileResult::READ_OK;
+  return true;
 }
 
-cmCMakePresetsGraph::ReadFileResult
-cmCMakePresetsGraph::ConfigurePreset::VisitPresetBeforeInherit()
+bool cmCMakePresetsGraph::ConfigurePreset::VisitPresetBeforeInherit()
 {
   auto& preset = *this;
   if (preset.Environment.count("") != 0) {
-    return ReadFileResult::INVALID_PRESET;
+    return false;
   }
 
-  return ReadFileResult::READ_OK;
+  return true;
 }
 
-cmCMakePresetsGraph::ReadFileResult
-cmCMakePresetsGraph::ConfigurePreset::VisitPresetAfterInherit(int version)
+bool cmCMakePresetsGraph::ConfigurePreset::VisitPresetAfterInherit(
+  int version, cmJSONState* state)
 {
   auto& preset = *this;
   if (!preset.Hidden) {
     if (version < 3) {
       if (preset.Generator.empty()) {
-        return ReadFileResult::INVALID_PRESET;
+        cmCMakePresetsErrors::PRESET_MISSING_FIELD(preset.Name, "generator",
+                                                   state);
+        return false;
       }
       if (preset.BinaryDir.empty()) {
-        return ReadFileResult::INVALID_PRESET;
+        cmCMakePresetsErrors::PRESET_MISSING_FIELD(preset.Name, "binaryDir",
+                                                   state);
+        return false;
       }
     }
 
     if (preset.WarnDev == false && preset.ErrorDev == true) {
-      return ReadFileResult::INVALID_PRESET;
+      return false;
     }
     if (preset.WarnDeprecated == false && preset.ErrorDeprecated == true) {
-      return ReadFileResult::INVALID_PRESET;
+      return false;
     }
     if (preset.CacheVariables.count("") != 0) {
-      return ReadFileResult::INVALID_PRESET;
+      return false;
     }
   }
 
-  return ReadFileResult::READ_OK;
+  return true;
 }
 
-cmCMakePresetsGraph::ReadFileResult
-cmCMakePresetsGraph::BuildPreset::VisitPresetInherit(
+bool cmCMakePresetsGraph::BuildPreset::VisitPresetInherit(
   const cmCMakePresetsGraph::Preset& parentPreset)
 {
   auto& preset = *this;
@@ -815,21 +858,20 @@ cmCMakePresetsGraph::BuildPreset::VisitPresetInherit(
     preset.ResolvePackageReferences = parent.ResolvePackageReferences;
   }
 
-  return ReadFileResult::READ_OK;
+  return true;
 }
 
-cmCMakePresetsGraph::ReadFileResult
-cmCMakePresetsGraph::BuildPreset::VisitPresetAfterInherit(int /* version */)
+bool cmCMakePresetsGraph::BuildPreset::VisitPresetAfterInherit(
+  int /* version */, cmJSONState* /*stat*/)
 {
   auto& preset = *this;
   if (!preset.Hidden && preset.ConfigurePreset.empty()) {
-    return ReadFileResult::INVALID_PRESET;
+    return false;
   }
-  return ReadFileResult::READ_OK;
+  return true;
 }
 
-cmCMakePresetsGraph::ReadFileResult
-cmCMakePresetsGraph::TestPreset::VisitPresetInherit(
+bool cmCMakePresetsGraph::TestPreset::VisitPresetInherit(
   const cmCMakePresetsGraph::Preset& parentPreset)
 {
   auto& preset = *this;
@@ -928,21 +970,20 @@ cmCMakePresetsGraph::TestPreset::VisitPresetInherit(
     }
   }
 
-  return ReadFileResult::READ_OK;
+  return true;
 }
 
-cmCMakePresetsGraph::ReadFileResult
-cmCMakePresetsGraph::TestPreset::VisitPresetAfterInherit(int /* version */)
+bool cmCMakePresetsGraph::TestPreset::VisitPresetAfterInherit(
+  int /* version */, cmJSONState* /*state*/)
 {
   auto& preset = *this;
   if (!preset.Hidden && preset.ConfigurePreset.empty()) {
-    return ReadFileResult::INVALID_PRESET;
+    return false;
   }
-  return ReadFileResult::READ_OK;
+  return true;
 }
 
-cmCMakePresetsGraph::ReadFileResult
-cmCMakePresetsGraph::PackagePreset::VisitPresetInherit(
+bool cmCMakePresetsGraph::PackagePreset::VisitPresetInherit(
   const cmCMakePresetsGraph::Preset& parentPreset)
 {
   auto& preset = *this;
@@ -966,30 +1007,29 @@ cmCMakePresetsGraph::PackagePreset::VisitPresetInherit(
   InheritString(preset.PackageDirectory, parent.PackageDirectory);
   InheritString(preset.VendorName, parent.VendorName);
 
-  return ReadFileResult::READ_OK;
+  return true;
 }
 
-cmCMakePresetsGraph::ReadFileResult
-cmCMakePresetsGraph::PackagePreset::VisitPresetAfterInherit(int /* version */)
+bool cmCMakePresetsGraph::PackagePreset::VisitPresetAfterInherit(
+  int /* version */, cmJSONState* /*state*/)
 {
   auto& preset = *this;
   if (!preset.Hidden && preset.ConfigurePreset.empty()) {
-    return ReadFileResult::INVALID_PRESET;
+    return false;
   }
-  return ReadFileResult::READ_OK;
+  return true;
 }
 
-cmCMakePresetsGraph::ReadFileResult
-cmCMakePresetsGraph::WorkflowPreset::VisitPresetInherit(
+bool cmCMakePresetsGraph::WorkflowPreset::VisitPresetInherit(
   const cmCMakePresetsGraph::Preset& /*parentPreset*/)
 {
-  return ReadFileResult::READ_OK;
+  return true;
 }
 
-cmCMakePresetsGraph::ReadFileResult
-cmCMakePresetsGraph::WorkflowPreset::VisitPresetAfterInherit(int /* version */)
+bool cmCMakePresetsGraph::WorkflowPreset::VisitPresetAfterInherit(
+  int /* version */, cmJSONState* /*state*/)
 {
-  return ReadFileResult::READ_OK;
+  return true;
 }
 
 std::string cmCMakePresetsGraph::GetFilename(const std::string& sourceDir)
@@ -1002,22 +1042,21 @@ std::string cmCMakePresetsGraph::GetUserFilename(const std::string& sourceDir)
   return cmStrCat(sourceDir, "/CMakeUserPresets.json");
 }
 
-cmCMakePresetsGraph::ReadFileResult cmCMakePresetsGraph::ReadProjectPresets(
-  const std::string& sourceDir, bool allowNoFiles)
+bool cmCMakePresetsGraph::ReadProjectPresets(const std::string& sourceDir,
+                                             bool allowNoFiles)
 {
   this->SourceDir = sourceDir;
   this->ClearPresets();
 
-  auto result = this->ReadProjectPresetsInternal(allowNoFiles);
-  if (result != ReadFileResult::READ_OK) {
+  if (!this->ReadProjectPresetsInternal(allowNoFiles)) {
     this->ClearPresets();
+    return false;
   }
 
-  return result;
+  return true;
 }
 
-cmCMakePresetsGraph::ReadFileResult
-cmCMakePresetsGraph::ReadProjectPresetsInternal(bool allowNoFiles)
+bool cmCMakePresetsGraph::ReadProjectPresetsInternal(bool allowNoFiles)
 {
   bool haveOneFile = false;
 
@@ -1025,21 +1064,17 @@ cmCMakePresetsGraph::ReadProjectPresetsInternal(bool allowNoFiles)
   std::string filename = GetUserFilename(this->SourceDir);
   std::vector<File*> inProgressFiles;
   if (cmSystemTools::FileExists(filename)) {
-    auto result =
-      this->ReadJSONFile(filename, RootType::User, ReadReason::Root,
-                         inProgressFiles, file, this->errors);
-    if (result != ReadFileResult::READ_OK) {
-      return result;
+    if (!this->ReadJSONFile(filename, RootType::User, ReadReason::Root,
+                            inProgressFiles, file, this->errors)) {
+      return false;
     }
     haveOneFile = true;
   } else {
     filename = GetFilename(this->SourceDir);
     if (cmSystemTools::FileExists(filename)) {
-      auto result =
-        this->ReadJSONFile(filename, RootType::Project, ReadReason::Root,
-                           inProgressFiles, file, this->errors);
-      if (result != ReadFileResult::READ_OK) {
-        return result;
+      if (!this->ReadJSONFile(filename, RootType::Project, ReadReason::Root,
+                              inProgressFiles, file, this->errors)) {
+        return false;
       }
       haveOneFile = true;
     }
@@ -1047,19 +1082,28 @@ cmCMakePresetsGraph::ReadProjectPresetsInternal(bool allowNoFiles)
   assert(inProgressFiles.empty());
 
   if (!haveOneFile) {
-    return allowNoFiles ? ReadFileResult::READ_OK
-                        : ReadFileResult::FILE_NOT_FOUND;
+    if (allowNoFiles) {
+      return true;
+    }
+    cmCMakePresetsErrors::FILE_NOT_FOUND(filename, &this->parseState);
+    return false;
   }
 
-  CHECK_OK(ComputePresetInheritance(this->ConfigurePresets, *this));
-  CHECK_OK(ComputePresetInheritance(this->BuildPresets, *this));
-  CHECK_OK(ComputePresetInheritance(this->TestPresets, *this));
-  CHECK_OK(ComputePresetInheritance(this->PackagePresets, *this));
-  CHECK_OK(ComputePresetInheritance(this->WorkflowPresets, *this));
+  bool result = ComputePresetInheritance(this->ConfigurePresets, *this) &&
+    ComputePresetInheritance(this->ConfigurePresets, *this) &&
+    ComputePresetInheritance(this->BuildPresets, *this) &&
+    ComputePresetInheritance(this->TestPresets, *this) &&
+    ComputePresetInheritance(this->PackagePresets, *this) &&
+    ComputePresetInheritance(this->WorkflowPresets, *this);
+  if (!result) {
+    return false;
+  }
 
   for (auto& it : this->ConfigurePresets) {
     if (!ExpandMacros(*this, it.second.Unexpanded, it.second.Expanded)) {
-      return ReadFileResult::INVALID_MACRO_EXPANSION;
+      cmCMakePresetsErrors::INVALID_MACRO_EXPANSION(it.first,
+                                                    &this->parseState);
+      return false;
     }
   }
 
@@ -1068,11 +1112,15 @@ cmCMakePresetsGraph::ReadProjectPresetsInternal(bool allowNoFiles)
       const auto configurePreset =
         this->ConfigurePresets.find(it.second.Unexpanded.ConfigurePreset);
       if (configurePreset == this->ConfigurePresets.end()) {
-        return ReadFileResult::INVALID_CONFIGURE_PRESET;
+        cmCMakePresetsErrors::INVALID_CONFIGURE_PRESET(it.first,
+                                                       &this->parseState);
+        return false;
       }
       if (!it.second.Unexpanded.OriginFile->ReachableFiles.count(
             configurePreset->second.Unexpanded.OriginFile)) {
-        return ReadFileResult::CONFIGURE_PRESET_UNREACHABLE_FROM_FILE;
+        cmCMakePresetsErrors::CONFIGURE_PRESET_UNREACHABLE_FROM_FILE(
+          it.first, &this->parseState);
+        return false;
       }
 
       if (it.second.Unexpanded.InheritConfigureEnvironment.value_or(true)) {
@@ -1083,7 +1131,9 @@ cmCMakePresetsGraph::ReadProjectPresetsInternal(bool allowNoFiles)
     }
 
     if (!ExpandMacros(*this, it.second.Unexpanded, it.second.Expanded)) {
-      return ReadFileResult::INVALID_MACRO_EXPANSION;
+      cmCMakePresetsErrors::INVALID_MACRO_EXPANSION(it.first,
+                                                    &this->parseState);
+      return false;
     }
   }
 
@@ -1092,11 +1142,15 @@ cmCMakePresetsGraph::ReadProjectPresetsInternal(bool allowNoFiles)
       const auto configurePreset =
         this->ConfigurePresets.find(it.second.Unexpanded.ConfigurePreset);
       if (configurePreset == this->ConfigurePresets.end()) {
-        return ReadFileResult::INVALID_CONFIGURE_PRESET;
+        cmCMakePresetsErrors::INVALID_CONFIGURE_PRESET(it.first,
+                                                       &this->parseState);
+        return false;
       }
       if (!it.second.Unexpanded.OriginFile->ReachableFiles.count(
             configurePreset->second.Unexpanded.OriginFile)) {
-        return ReadFileResult::CONFIGURE_PRESET_UNREACHABLE_FROM_FILE;
+        cmCMakePresetsErrors::CONFIGURE_PRESET_UNREACHABLE_FROM_FILE(
+          it.first, &this->parseState);
+        return false;
       }
 
       if (it.second.Unexpanded.InheritConfigureEnvironment.value_or(true)) {
@@ -1107,7 +1161,9 @@ cmCMakePresetsGraph::ReadProjectPresetsInternal(bool allowNoFiles)
     }
 
     if (!ExpandMacros(*this, it.second.Unexpanded, it.second.Expanded)) {
-      return ReadFileResult::INVALID_MACRO_EXPANSION;
+      cmCMakePresetsErrors::INVALID_MACRO_EXPANSION(it.first,
+                                                    &this->parseState);
+      return false;
     }
   }
 
@@ -1116,11 +1172,15 @@ cmCMakePresetsGraph::ReadProjectPresetsInternal(bool allowNoFiles)
       const auto configurePreset =
         this->ConfigurePresets.find(it.second.Unexpanded.ConfigurePreset);
       if (configurePreset == this->ConfigurePresets.end()) {
-        return ReadFileResult::INVALID_CONFIGURE_PRESET;
+        cmCMakePresetsErrors::INVALID_CONFIGURE_PRESET(it.first,
+                                                       &this->parseState);
+        return false;
       }
       if (!it.second.Unexpanded.OriginFile->ReachableFiles.count(
             configurePreset->second.Unexpanded.OriginFile)) {
-        return ReadFileResult::CONFIGURE_PRESET_UNREACHABLE_FROM_FILE;
+        cmCMakePresetsErrors::CONFIGURE_PRESET_UNREACHABLE_FROM_FILE(
+          it.first, &this->parseState);
+        return false;
       }
 
       if (it.second.Unexpanded.InheritConfigureEnvironment.value_or(true)) {
@@ -1131,7 +1191,9 @@ cmCMakePresetsGraph::ReadProjectPresetsInternal(bool allowNoFiles)
     }
 
     if (!ExpandMacros(*this, it.second.Unexpanded, it.second.Expanded)) {
-      return ReadFileResult::INVALID_MACRO_EXPANSION;
+      cmCMakePresetsErrors::INVALID_MACRO_EXPANSION(it.first,
+                                                    &this->parseState);
+      return false;
     }
   }
 
@@ -1140,127 +1202,57 @@ cmCMakePresetsGraph::ReadProjectPresetsInternal(bool allowNoFiles)
 
     const ConfigurePreset* configurePreset = nullptr;
     for (auto const& step : it.second.Unexpanded.Steps) {
-      if (configurePreset == nullptr && step.PresetType != Type::Configure) {
-        return ReadFileResult::INVALID_WORKFLOW_STEPS;
+      if (!configurePreset && step.PresetType != Type::Configure) {
+        cmCMakePresetsErrors::FIRST_WORKFLOW_STEP_NOT_CONFIGURE(
+          step.PresetName, &this->parseState);
+        return false;
       }
-      if (configurePreset != nullptr && step.PresetType == Type::Configure) {
-        return ReadFileResult::INVALID_WORKFLOW_STEPS;
+      if (configurePreset && step.PresetType == Type::Configure) {
+        cmCMakePresetsErrors::CONFIGURE_WORKFLOW_STEP_NOT_FIRST(
+          step.PresetName, &this->parseState);
+        return false;
       }
 
-      ReadFileResult result;
       switch (step.PresetType) {
         case Type::Configure:
           result = TryReachPresetFromWorkflow(
             it.second.Unexpanded, this->ConfigurePresets, step.PresetName,
-            configurePreset);
+            configurePreset, &this->parseState);
           break;
         case Type::Build:
           result = TryReachPresetFromWorkflow(
             it.second.Unexpanded, this->BuildPresets, step.PresetName,
-            configurePreset);
+            configurePreset, &this->parseState);
           break;
         case Type::Test:
-          result =
-            TryReachPresetFromWorkflow(it.second.Unexpanded, this->TestPresets,
-                                       step.PresetName, configurePreset);
+          result = TryReachPresetFromWorkflow(
+            it.second.Unexpanded, this->TestPresets, step.PresetName,
+            configurePreset, &this->parseState);
           break;
         case Type::Package:
           result = TryReachPresetFromWorkflow(
             it.second.Unexpanded, this->PackagePresets, step.PresetName,
-            configurePreset);
+            configurePreset, &this->parseState);
           break;
       }
-      if (result != ReadFileResult::READ_OK) {
-        return result;
+      if (!result) {
+        return false;
       }
     }
 
-    if (configurePreset == nullptr) {
-      return ReadFileResult::INVALID_WORKFLOW_STEPS;
+    if (!configurePreset) {
+      cmCMakePresetsErrors::NO_WORKFLOW_STEPS(it.first, &this->parseState);
+      return false;
     }
 
     if (!ExpandMacros(*this, it.second.Unexpanded, it.second.Expanded)) {
-      return ReadFileResult::INVALID_MACRO_EXPANSION;
+      cmCMakePresetsErrors::INVALID_MACRO_EXPANSION(it.first,
+                                                    &this->parseState);
+      return false;
     }
   }
 
-  return ReadFileResult::READ_OK;
-}
-
-const char* cmCMakePresetsGraph::ResultToString(ReadFileResult result)
-{
-  switch (result) {
-    case ReadFileResult::READ_OK:
-      return "OK";
-    case ReadFileResult::FILE_NOT_FOUND:
-      return "File not found";
-    case ReadFileResult::JSON_PARSE_ERROR:
-      return "JSON parse error";
-    case ReadFileResult::INVALID_ROOT:
-      return "Invalid root object";
-    case ReadFileResult::NO_VERSION:
-      return "No \"version\" field";
-    case ReadFileResult::INVALID_VERSION:
-      return "Invalid \"version\" field";
-    case ReadFileResult::UNRECOGNIZED_VERSION:
-      return "Unrecognized \"version\" field";
-    case ReadFileResult::INVALID_CMAKE_VERSION:
-      return "Invalid \"cmakeMinimumRequired\" field";
-    case ReadFileResult::UNRECOGNIZED_CMAKE_VERSION:
-      return "\"cmakeMinimumRequired\" version too new";
-    case ReadFileResult::INVALID_PRESETS:
-      return "Invalid \"configurePresets\" field";
-    case ReadFileResult::INVALID_PRESET:
-      return "Invalid preset";
-    case ReadFileResult::INVALID_VARIABLE:
-      return "Invalid CMake variable definition";
-    case ReadFileResult::DUPLICATE_PRESETS:
-      return "Duplicate presets";
-    case ReadFileResult::CYCLIC_PRESET_INHERITANCE:
-      return "Cyclic preset inheritance";
-    case ReadFileResult::INHERITED_PRESET_UNREACHABLE_FROM_FILE:
-      return "Inherited preset is unreachable from preset's file";
-    case ReadFileResult::CONFIGURE_PRESET_UNREACHABLE_FROM_FILE:
-      return "Configure preset is unreachable from preset's file";
-    case ReadFileResult::INVALID_MACRO_EXPANSION:
-      return "Invalid macro expansion";
-    case ReadFileResult::BUILD_TEST_PRESETS_UNSUPPORTED:
-      return "File version must be 2 or higher for build and test preset "
-             "support.";
-    case ReadFileResult::PACKAGE_PRESETS_UNSUPPORTED:
-      return "File version must be 6 or higher for package preset support";
-    case ReadFileResult::WORKFLOW_PRESETS_UNSUPPORTED:
-      return "File version must be 6 or higher for workflow preset support";
-    case ReadFileResult::INCLUDE_UNSUPPORTED:
-      return "File version must be 4 or higher for include support";
-    case ReadFileResult::INVALID_INCLUDE:
-      return "Invalid \"include\" field";
-    case ReadFileResult::INVALID_CONFIGURE_PRESET:
-      return "Invalid \"configurePreset\" field";
-    case ReadFileResult::INSTALL_PREFIX_UNSUPPORTED:
-      return "File version must be 3 or higher for installDir preset "
-             "support.";
-    case ReadFileResult::INVALID_CONDITION:
-      return "Invalid preset condition";
-    case ReadFileResult::CONDITION_UNSUPPORTED:
-      return "File version must be 3 or higher for condition support";
-    case ReadFileResult::TOOLCHAIN_FILE_UNSUPPORTED:
-      return "File version must be 3 or higher for toolchainFile preset "
-             "support.";
-    case ReadFileResult::CYCLIC_INCLUDE:
-      return "Cyclic include among preset files";
-    case ReadFileResult::TEST_OUTPUT_TRUNCATION_UNSUPPORTED:
-      return "File version must be 5 or higher for testOutputTruncation "
-             "preset support.";
-    case ReadFileResult::INVALID_WORKFLOW_STEPS:
-      return "Invalid workflow steps";
-    case ReadFileResult::WORKFLOW_STEP_UNREACHABLE_FROM_FILE:
-      return "Workflow step is unreachable from preset's file";
-    case ReadFileResult::CTEST_JUNIT_UNSUPPORTED:
-      return "File version must be 6 or higher for CTest JUnit output support";
-  }
-
-  return "Unknown error";
+  return true;
 }
 
 void cmCMakePresetsGraph::ClearPresets()

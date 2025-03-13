@@ -11,6 +11,7 @@
 #include "cmCTest.h"
 #include "cmCTestConfigureHandler.h"
 #include "cmGlobalGenerator.h"
+#include "cmList.h"
 #include "cmMakefile.h"
 #include "cmStringAlgorithms.h"
 #include "cmSystemTools.h"
@@ -25,10 +26,10 @@ void cmCTestConfigureCommand::BindArguments()
 
 cmCTestGenericHandler* cmCTestConfigureCommand::InitializeHandler()
 {
-  std::vector<std::string> options;
+  cmList options;
 
   if (!this->Options.empty()) {
-    cmExpandList(this->Options, options);
+    options.assign(this->Options);
   }
 
   if (this->CTest->GetCTestConfiguration("BuildDirectory").empty()) {
@@ -122,8 +123,13 @@ cmCTestGenericHandler* cmCTestConfigureCommand::InitializeHandler()
         cmakeConfigureCommand += "\"";
       }
 
-      cmakeConfigureCommand += " \"";
+      cmakeConfigureCommand += " \"-S";
       cmakeConfigureCommand += source_dir;
+      cmakeConfigureCommand += "\"";
+
+      cmakeConfigureCommand += " \"-B";
+      cmakeConfigureCommand +=
+        this->CTest->GetCTestConfiguration("BuildDirectory");
       cmakeConfigureCommand += "\"";
 
       this->CTest->SetCTestConfiguration("ConfigureCommand",

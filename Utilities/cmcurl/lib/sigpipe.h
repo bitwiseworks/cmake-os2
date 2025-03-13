@@ -7,7 +7,7 @@
  *                            | (__| |_| |  _ <| |___
  *                             \___|\___/|_| \_\_____|
  *
- * Copyright (C) 1998 - 2022, Daniel Stenberg, <daniel@haxx.se>, et al.
+ * Copyright (C) Daniel Stenberg, <daniel@haxx.se>, et al.
  *
  * This software is licensed as described in the file COPYING, which
  * you should have received as part of this distribution. The terms
@@ -25,7 +25,7 @@
  ***************************************************************************/
 #include "curl_setup.h"
 
-#if defined(HAVE_SIGNAL_H) && defined(HAVE_SIGACTION) &&        \
+#if defined(HAVE_SIGACTION) &&        \
   (defined(USE_OPENSSL) || defined(USE_MBEDTLS) || defined(USE_WOLFSSL))
 #include <signal.h>
 
@@ -35,6 +35,13 @@ struct sigpipe_ignore {
 };
 
 #define SIGPIPE_VARIABLE(x) struct sigpipe_ignore x
+#define SIGPIPE_MEMBER(x)   struct sigpipe_ignore x
+
+static void sigpipe_init(struct sigpipe_ignore *ig)
+{
+  memset(ig, 0, sizeof(*ig));
+  ig->no_signal = TRUE;
+}
 
 /*
  * sigpipe_ignore() makes sure we ignore SIGPIPE while running libcurl
@@ -50,7 +57,6 @@ static void sigpipe_ignore(struct Curl_easy *data,
   if(!data->set.no_signal) {
     struct sigaction action;
     /* first, extract the existing situation */
-    memset(&ig->old_pipe_act, 0, sizeof(struct sigaction));
     sigaction(SIGPIPE, NULL, &ig->old_pipe_act);
     action = ig->old_pipe_act;
     /* ignore this signal */
@@ -71,11 +77,23 @@ static void sigpipe_restore(struct sigpipe_ignore *ig)
     sigaction(SIGPIPE, &ig->old_pipe_act, NULL);
 }
 
+static void sigpipe_apply(struct Curl_easy *data,
+                          struct sigpipe_ignore *ig)
+{
+  if(data->set.no_signal != ig->no_signal) {
+    sigpipe_restore(ig);
+    sigpipe_ignore(data, ig);
+  }
+}
+
 #else
 /* for systems without sigaction */
 #define sigpipe_ignore(x,y) Curl_nop_stmt
+#define sigpipe_apply(x,y) Curl_nop_stmt
+#define sigpipe_init(x)  Curl_nop_stmt
 #define sigpipe_restore(x)  Curl_nop_stmt
 #define SIGPIPE_VARIABLE(x)
+#define SIGPIPE_MEMBER(x)   bool x
 #endif
 
 #endif /* HEADER_CURL_SIGPIPE_H */

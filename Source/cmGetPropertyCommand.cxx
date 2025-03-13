@@ -3,6 +3,10 @@
 #include "cmGetPropertyCommand.h"
 
 #include <cstddef>
+#include <functional>
+
+#include <cm/string_view>
+#include <cmext/string_view>
 
 #include "cmExecutionStatus.h"
 #include "cmGlobalGenerator.h"
@@ -49,7 +53,8 @@ bool HandleSourceMode(cmExecutionStatus& status, const std::string& name,
                       bool source_file_paths_should_be_absolute);
 bool HandleTestMode(cmExecutionStatus& status, const std::string& name,
                     OutType infoType, const std::string& variable,
-                    const std::string& propertyName);
+                    const std::string& propertyName,
+                    cmMakefile& directory_makefile);
 bool HandleVariableMode(cmExecutionStatus& status, const std::string& name,
                         OutType infoType, const std::string& variable,
                         const std::string& propertyName);
@@ -80,6 +85,9 @@ bool cmGetPropertyCommand(std::vector<std::string> const& args,
   std::vector<std::string> source_file_target_directories;
   bool source_file_directory_option_enabled = false;
   bool source_file_target_option_enabled = false;
+
+  std::string test_directory;
+  bool test_directory_option_enabled = false;
 
   // Get the scope from which to get the property.
   cmProperty::ScopeType scope;
@@ -116,7 +124,8 @@ bool cmGetPropertyCommand(std::vector<std::string> const& args,
     DoingProperty,
     DoingType,
     DoingSourceDirectory,
-    DoingSourceTargetDirectory
+    DoingSourceTargetDirectory,
+    DoingTestDirectory,
   };
   Doing doing = DoingName;
   for (unsigned int i = 2; i < args.size(); ++i) {
@@ -145,11 +154,18 @@ bool cmGetPropertyCommand(std::vector<std::string> const& args,
                args[i] == "TARGET_DIRECTORY") {
       doing = DoingSourceTargetDirectory;
       source_file_target_option_enabled = true;
+    } else if (doing == DoingNone && scope == cmProperty::TEST &&
+               args[i] == "DIRECTORY") {
+      doing = DoingTestDirectory;
+      test_directory_option_enabled = true;
     } else if (doing == DoingSourceDirectory) {
       source_file_directories.push_back(args[i]);
       doing = DoingNone;
     } else if (doing == DoingSourceTargetDirectory) {
       source_file_target_directories.push_back(args[i]);
+      doing = DoingNone;
+    } else if (doing == DoingTestDirectory) {
+      test_directory = args[i];
       doing = DoingNone;
     } else if (doing == DoingProperty) {
       doing = DoingNone;
@@ -167,12 +183,17 @@ bool cmGetPropertyCommand(std::vector<std::string> const& args,
   }
 
   std::vector<cmMakefile*> source_file_directory_makefiles;
-  bool file_scopes_handled =
+  bool source_file_scopes_handled =
     SetPropertyCommand::HandleAndValidateSourceFileDirectoryScopes(
       status, source_file_directory_option_enabled,
       source_file_target_option_enabled, source_file_directories,
       source_file_target_directories, source_file_directory_makefiles);
-  if (!file_scopes_handled) {
+  cmMakefile* test_directory_makefile;
+  bool test_scopes_handled =
+    SetPropertyCommand::HandleAndValidateTestDirectoryScopes(
+      status, test_directory_option_enabled, test_directory,
+      test_directory_makefile);
+  if (!(source_file_scopes_handled && test_scopes_handled)) {
     return false;
   }
 
@@ -231,7 +252,8 @@ bool cmGetPropertyCommand(std::vector<std::string> const& args,
                                 directory_scope_mf,
                                 source_file_paths_should_be_absolute);
       case cmProperty::TEST:
-        return HandleTestMode(status, name, infoType, variable, propertyName);
+        return HandleTestMode(status, name, infoType, variable, propertyName,
+                              *test_directory_makefile);
       case cmProperty::VARIABLE:
         return HandleVariableMode(status, name, infoType, variable,
                                   propertyName);
@@ -247,6 +269,38 @@ bool cmGetPropertyCommand(std::vector<std::string> const& args,
   }
 
   return true;
+}
+
+namespace GetPropertyCommand {
+bool GetSourceFilePropertyGENERATED(
+  const std::string& name, cmMakefile& mf,
+  const std::function<bool(bool)>& storeResult)
+{
+  // Globally set as generated?
+  // Note: If the given "name" only contains a filename or a relative path
+  //       the file's location is ambiguous. In general, one would expect
+  //       it in the source-directory, because that is where source files
+  //       are located normally. However, generated files are normally
+  //       generated in the build-directory. Therefore, we first check for
+  //       a generated file in the build-directory before we check for a
+  //       generated file in the source-directory.
+  {
+    auto file =
+      cmSystemTools::CollapseFullPath(name, mf.GetCurrentBinaryDirectory());
+    if (mf.GetGlobalGenerator()->IsGeneratedFile(file)) {
+      return storeResult(true);
+    }
+  }
+  {
+    auto file =
+      cmSystemTools::CollapseFullPath(name, mf.GetCurrentSourceDirectory());
+    if (mf.GetGlobalGenerator()->IsGeneratedFile(file)) {
+      return storeResult(true);
+    }
+  }
+  // Skip checking the traditional/local property.
+  return storeResult(false);
+}
 }
 
 namespace {
@@ -387,12 +441,32 @@ bool HandleSourceMode(cmExecutionStatus& status, const std::string& name,
     return false;
   }
 
+  // Special handling for GENERATED property.
+  // Note: Only, if CMP0163 is set to NEW!
+  if (propertyName == "GENERATED"_s) {
+    auto& mf = status.GetMakefile();
+    auto cmp0163 = directory_makefile.GetPolicyStatus(cmPolicies::CMP0163);
+    bool const cmp0163new =
+      cmp0163 != cmPolicies::OLD && cmp0163 != cmPolicies::WARN;
+    if (cmp0163new) {
+      return GetPropertyCommand::GetSourceFilePropertyGENERATED(
+        name, mf, [infoType, &variable, &mf](bool isGenerated) -> bool {
+          // Set the value on the original Makefile scope, not the scope of the
+          // requested directory.
+          return StoreResult(infoType, mf, variable,
+                             (isGenerated) ? cmValue("1") : cmValue("0"));
+        });
+    }
+  }
+
   // Get the source file.
   const std::string source_file_absolute_path =
     SetPropertyCommand::MakeSourceFilePathAbsoluteIfNeeded(
       status, name, source_file_paths_should_be_absolute);
   if (cmSourceFile* sf =
         directory_makefile.GetOrCreateSource(source_file_absolute_path)) {
+    // Set the value on the original Makefile scope, not the scope of the
+    // requested directory.
     return StoreResult(infoType, status.GetMakefile(), variable,
                        sf->GetPropertyForUser(propertyName));
   }
@@ -404,7 +478,7 @@ bool HandleSourceMode(cmExecutionStatus& status, const std::string& name,
 
 bool HandleTestMode(cmExecutionStatus& status, const std::string& name,
                     OutType infoType, const std::string& variable,
-                    const std::string& propertyName)
+                    const std::string& propertyName, cmMakefile& test_makefile)
 {
   if (name.empty()) {
     status.SetError("not given name for TEST scope.");
@@ -412,7 +486,7 @@ bool HandleTestMode(cmExecutionStatus& status, const std::string& name,
   }
 
   // Loop over all tests looking for matching names.
-  if (cmTest* test = status.GetMakefile().GetTest(name)) {
+  if (cmTest* test = test_makefile.GetTest(name)) {
     return StoreResult(infoType, status.GetMakefile(), variable,
                        test->GetProperty(propertyName));
   }

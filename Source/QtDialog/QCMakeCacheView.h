@@ -28,12 +28,13 @@ public:
 
   QSize sizeHint() const { return QSize(200, 200); }
 
+  // set the search filter string.  any property key or value not matching will
+  // be filtered out
+  bool setSearchFilter(const QString&);
+
 public slots:
   // set whether to show advanced entries
   void setShowAdvanced(bool);
-  // set the search filter string.  any property key or value not matching will
-  // be filtered out
-  void setSearchFilter(const QString&);
 
 protected:
   QModelIndex moveCursor(CursorAction, Qt::KeyboardModifiers);
@@ -90,10 +91,6 @@ public slots:
                       const QString& description, const QVariant& value,
                       bool advanced);
 
-  // set the view type
-  void setViewType(ViewType t);
-  ViewType viewType() const;
-
 public:
   // get the properties
   QCMakePropertyList properties() const;
@@ -110,6 +107,10 @@ public:
 
   // get the data in the model for this property
   void getPropertyData(const QModelIndex& idx1, QCMakeProperty& prop) const;
+
+  // set the view type
+  void setViewType(ViewType t);
+  ViewType viewType() const;
 
 protected:
   bool EditEnabled;

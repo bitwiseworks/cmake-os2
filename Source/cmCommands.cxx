@@ -94,9 +94,11 @@
 #  include "cmAuxSourceDirectoryCommand.h"
 #  include "cmBuildNameCommand.h"
 #  include "cmCMakeHostSystemInformationCommand.h"
+#  include "cmCMakePkgConfigCommand.h"
 #  include "cmExportCommand.h"
 #  include "cmExportLibraryDependenciesCommand.h"
 #  include "cmFLTKWrapUICommand.h"
+#  include "cmFileAPICommand.h"
 #  include "cmIncludeExternalMSProjectCommand.h"
 #  include "cmInstallProgramsCommand.h"
 #  include "cmLinkLibrariesCommand.h"
@@ -134,7 +136,6 @@ void GetScriptingCommands(cmState* state)
   state->AddBuiltinCommand("cmake_path", cmCMakePathCommand);
   state->AddBuiltinCommand("cmake_policy", cmCMakePolicyCommand);
   state->AddBuiltinCommand("configure_file", cmConfigureFileCommand);
-  state->AddBuiltinCommand("exec_program", cmExecProgramCommand);
   state->AddBuiltinCommand("execute_process", cmExecuteProcessCommand);
   state->AddBuiltinCommand("file", cmFileCommand);
   state->AddBuiltinCommand("find_file", cmFindFile);
@@ -208,6 +209,7 @@ void GetScriptingCommands(cmState* state)
 #if !defined(CMAKE_BOOTSTRAP)
   state->AddBuiltinCommand("cmake_host_system_information",
                            cmCMakeHostSystemInformationCommand);
+  state->AddBuiltinCommand("cmake_pkg_config", cmCMakePkgConfigCommand);
   state->AddBuiltinCommand("load_cache", cmLoadCacheCommand);
   state->AddBuiltinCommand("remove", cmRemoveCommand);
   state->AddBuiltinCommand("variable_watch", cmVariableWatchCommand);
@@ -219,6 +221,11 @@ void GetScriptingCommands(cmState* state)
   state->AddDisallowedCommand(
     "use_mangled_mesa", cmUseMangledMesaCommand, cmPolicies::CMP0030,
     "The use_mangled_mesa command should not be called; see CMP0030.");
+  state->AddDisallowedCommand("exec_program", cmExecProgramCommand,
+                              cmPolicies::CMP0153,
+                              "The exec_program command should not be called; "
+                              "see CMP0153. Use execute_process() instead.",
+                              "Use execute_process() instead.");
 
 #endif
 }
@@ -293,6 +300,7 @@ void GetProjectCommands(cmState* state)
   state->AddBuiltinCommand("qt_wrap_ui", cmQTWrapUICommand);
   state->AddBuiltinCommand("remove_definitions", cmRemoveDefinitionsCommand);
   state->AddBuiltinCommand("source_group", cmSourceGroupCommand);
+  state->AddBuiltinCommand("cmake_file_api", cmFileAPICommand);
 
   state->AddDisallowedCommand(
     "export_library_dependencies", cmExportLibraryDependenciesCommand,
@@ -333,6 +341,7 @@ void GetProjectCommandsInScriptMode(cmState* state)
   CM_UNEXPECTED_PROJECT_COMMAND("add_test");
   CM_UNEXPECTED_PROJECT_COMMAND("aux_source_directory");
   CM_UNEXPECTED_PROJECT_COMMAND("build_command");
+  CM_UNEXPECTED_PROJECT_COMMAND("cmake_file_api");
   CM_UNEXPECTED_PROJECT_COMMAND("create_test_sourcelist");
   CM_UNEXPECTED_PROJECT_COMMAND("define_property");
   CM_UNEXPECTED_PROJECT_COMMAND("enable_language");

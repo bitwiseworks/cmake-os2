@@ -50,7 +50,7 @@ public:
 
   enum
   {
-    NSUBEXP = 10
+    NSUBEXP = 32
   };
 
 private:
@@ -86,7 +86,7 @@ inline RegularExpressionMatch::RegularExpressionMatch()
  */
 inline bool RegularExpressionMatch::isValid() const
 {
-  return (this->startp[0] != nullptr);
+  return (this->startp[0]);
 }
 
 /**
@@ -140,7 +140,7 @@ inline std::string::size_type RegularExpressionMatch::end(int n) const
  */
 inline std::string RegularExpressionMatch::match(int n) const
 {
-  if (this->startp[n] == nullptr) {
+  if (!this->startp[n]) {
     return std::string();
   } else {
     return std::string(
@@ -456,9 +456,9 @@ inline RegularExpression::RegularExpression(const std::string& s)
  */
 inline RegularExpression::~RegularExpression()
 {
-  //#ifndef _WIN32
+  // #ifndef _WIN32
   delete[] this->program;
-  //#endif
+  // #endif
 }
 
 /**
@@ -551,14 +551,14 @@ inline bool RegularExpression::operator!=(const RegularExpression& r) const
  */
 inline bool RegularExpression::is_valid() const
 {
-  return (this->program != nullptr);
+  return (this->program);
 }
 
 inline void RegularExpression::set_invalid()
 {
-  //#ifndef _WIN32
+  // #ifndef _WIN32
   delete[] this->program;
-  //#endif
+  // #endif
   this->program = nullptr;
 }
 

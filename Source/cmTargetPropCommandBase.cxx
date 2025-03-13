@@ -8,7 +8,6 @@
 #include "cmStateTypes.h"
 #include "cmTarget.h"
 #include "cmValue.h"
-#include "cmake.h"
 
 cmTargetPropCommandBase::cmTargetPropCommandBase(cmExecutionStatus& status)
   : Makefile(&status.GetMakefile())
@@ -23,7 +22,7 @@ void cmTargetPropCommandBase::SetError(std::string const& e)
 
 bool cmTargetPropCommandBase::HandleArguments(
   std::vector<std::string> const& args, const std::string& prop,
-  ArgumentFlags flags)
+  unsigned int flags)
 {
   if (args.size() < 2) {
     this->SetError("called with incorrect number of arguments");
@@ -35,9 +34,7 @@ bool cmTargetPropCommandBase::HandleArguments(
     return false;
   }
   // Lookup the target for which property-values are specified.
-  this->Target =
-    this->Makefile->GetCMakeInstance()->GetGlobalGenerator()->FindTarget(
-      args[0]);
+  this->Target = this->Makefile->GetGlobalGenerator()->FindTarget(args[0]);
   if (!this->Target) {
     this->Target = this->Makefile->FindTargetToUse(args[0]);
   }

@@ -4,6 +4,9 @@
 
 #include <utility>
 
+#include <cm/memory>
+#include <cmext/string_view>
+
 #include "windows.h"
 
 #include "cmCustomCommand.h"
@@ -24,9 +27,7 @@ cmLocalVisualStudioGenerator::cmLocalVisualStudioGenerator(
 {
 }
 
-cmLocalVisualStudioGenerator::~cmLocalVisualStudioGenerator()
-{
-}
+cmLocalVisualStudioGenerator::~cmLocalVisualStudioGenerator() = default;
 
 cmGlobalVisualStudioGenerator::VSVersion
 cmLocalVisualStudioGenerator::GetVersion() const
@@ -107,7 +108,7 @@ cmLocalVisualStudioGenerator::MaybeCreateImplibDir(cmGeneratorTarget* target,
   // Add a pre-build event to create the directory.
   cmCustomCommandLines commands = cmMakeSingleCommandLine(
     { cmSystemTools::GetCMakeCommand(), "-E", "make_directory", impDir });
-  pcc.reset(new cmCustomCommand());
+  pcc = cm::make_unique<cmCustomCommand>();
   pcc->SetCommandLines(commands);
   pcc->SetStdPipesUTF8(true);
   pcc->SetEscapeOldStyle(false);
@@ -204,7 +205,7 @@ std::string cmLocalVisualStudioGenerator::ConstructScript(
     std::string suffix;
     if (cmd.size() > 4) {
       suffix = cmSystemTools::LowerCase(cmd.substr(cmd.size() - 4));
-      if (suffix == ".bat" || suffix == ".cmd") {
+      if (suffix == ".bat"_s || suffix == ".cmd"_s) {
         script += "call ";
       }
     }

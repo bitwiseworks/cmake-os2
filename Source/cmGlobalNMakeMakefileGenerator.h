@@ -7,7 +7,7 @@
 #include <string>
 #include <vector>
 
-#include "cm_codecvt.hxx"
+#include "cm_codecvt_Encoding.hxx"
 
 #include "cmGlobalGeneratorFactory.h"
 #include "cmGlobalUnixMakefileGenerator3.h"
@@ -15,7 +15,6 @@
 
 class cmMakefile;
 class cmake;
-struct cmDocumentationEntry;
 
 /** \class cmGlobalNMakeMakefileGenerator
  * \brief Write a NMake makefiles.
@@ -39,13 +38,14 @@ public:
   static std::string GetActualName() { return "NMake Makefiles"; }
 
   /** Get encoding used by generator for makefile files */
-  codecvt::Encoding GetMakefileEncoding() const override
+  codecvt_Encoding GetMakefileEncoding() const override
   {
-    return this->NMakeSupportsUTF8 ? codecvt::UTF8_WITH_BOM : codecvt::ANSI;
+    return this->NMakeSupportsUTF8 ? codecvt_Encoding::UTF8_WITH_BOM
+                                   : codecvt_Encoding::ANSI;
   }
 
   /** Get the documentation entry for this generator.  */
-  static void GetDocumentation(cmDocumentationEntry& entry);
+  static cmDocumentationEntry GetDocumentation();
 
   /**
    * Try to determine system information such as shared library
@@ -53,6 +53,8 @@ public:
    */
   void EnableLanguage(std::vector<std::string> const& languages, cmMakefile*,
                       bool optional) override;
+
+  bool IsGNUMakeJobServerAware() const override { return false; }
 
 protected:
   std::vector<GeneratedMakeCommand> GenerateBuildCommand(

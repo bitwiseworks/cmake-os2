@@ -23,19 +23,9 @@ set(LibrarySources ${LibrarySources}
 remove(LibrarySources create_file.cxx GENERATED nonexisting_file)
 add_library(CMakeTestLibrary ${LibrarySources})
 
-if(WIN32)
-  if(NOT CYGWIN)
-    if(NOT BORLAND)
-      if(NOT MINGW)
-        target_link_libraries(CMakeTestLibrary
-          debug
-          user32.lib)
-        target_link_libraries(CMakeTestLibrary
-          optimized
-          kernel32.lib)
-      endif()
-    endif()
-  endif()
+if(WIN32 AND NOT CYGWIN AND NOT BORLAND AND NOT MINGW AND NOT CMAKE_C_COMPILER_ID STREQUAL "OrangeC")
+  target_link_libraries(CMakeTestLibrary debug user32.lib)
+  target_link_libraries(CMakeTestLibrary optimized kernel32.lib)
 endif()
 
 #
@@ -131,7 +121,7 @@ if("${CMAKE_GENERATOR}" MATCHES "Makefile" AND CMAKE_MAKE_PROGRAM)
 
     # Custom target to try preprocessing invocation.
     add_custom_target(test_preprocess ${MAYBE_ALL}
-      COMMAND ${CMAKE_COMMAND} -E rm -f CMakeFiles/create_file.dir/create_file.i
+      COMMAND ${CMAKE_COMMAND} -E rm -f CMakeFiles/create_file.dir/create_file.cxx.i
       COMMAND ${CMAKE_MAKE_PROGRAM} create_file.i
       COMMAND ${CMAKE_COMMAND} -P ${CMAKE_CURRENT_SOURCE_DIR}/test_preprocess.cmake
       WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}

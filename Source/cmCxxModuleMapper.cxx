@@ -17,16 +17,150 @@
 #include "cmStringAlgorithms.h"
 #include "cmSystemTools.h"
 
-cm::optional<std::string> CxxModuleLocations::BmiGeneratorPathForModule(
-  std::string const& logical_name) const
+CxxBmiLocation::CxxBmiLocation() = default;
+
+CxxBmiLocation::CxxBmiLocation(std::string path)
+  : BmiLocation(std::move(path))
 {
-  if (auto l = this->BmiLocationForModule(logical_name)) {
-    return this->PathForGenerator(*l);
-  }
+}
+
+CxxBmiLocation CxxBmiLocation::Unknown()
+{
   return {};
 }
 
+CxxBmiLocation CxxBmiLocation::Private()
+{
+  return { std::string{} };
+}
+
+CxxBmiLocation CxxBmiLocation::Known(std::string path)
+{
+  return { std::move(path) };
+}
+
+bool CxxBmiLocation::IsKnown() const
+{
+  return this->BmiLocation.has_value();
+}
+
+bool CxxBmiLocation::IsPrivate() const
+{
+  if (auto const& loc = this->BmiLocation) {
+    return loc->empty();
+  }
+  return false;
+}
+
+std::string const& CxxBmiLocation::Location() const
+{
+  if (auto const& loc = this->BmiLocation) {
+    return *loc;
+  }
+  static std::string empty;
+  return empty;
+}
+
+CxxBmiLocation CxxModuleLocations::BmiGeneratorPathForModule(
+  std::string const& logical_name) const
+{
+  auto bmi_loc = this->BmiLocationForModule(logical_name);
+  if (bmi_loc.IsKnown() && !bmi_loc.IsPrivate()) {
+    bmi_loc =
+      CxxBmiLocation::Known(this->PathForGenerator(bmi_loc.Location()));
+  }
+  return bmi_loc;
+}
+
 namespace {
+
+struct TransitiveUsage
+{
+  TransitiveUsage(std::string name, std::string location, LookupMethod method)
+    : LogicalName(std::move(name))
+    , Location(std::move(location))
+    , Method(method)
+  {
+  }
+
+  std::string LogicalName;
+  std::string Location;
+  LookupMethod Method;
+};
+
+std::vector<TransitiveUsage> GetTransitiveUsages(
+  CxxModuleLocations const& loc, std::vector<cmSourceReqInfo> const& required,
+  CxxModuleUsage const& usages)
+{
+  std::set<std::string> transitive_usage_directs;
+  std::set<std::string> transitive_usage_names;
+
+  std::vector<TransitiveUsage> all_usages;
+
+  for (auto const& r : required) {
+    auto bmi_loc = loc.BmiGeneratorPathForModule(r.LogicalName);
+    if (bmi_loc.IsKnown()) {
+      all_usages.emplace_back(r.LogicalName, bmi_loc.Location(), r.Method);
+      transitive_usage_directs.insert(r.LogicalName);
+
+      // Insert transitive usages.
+      auto transitive_usages = usages.Usage.find(r.LogicalName);
+      if (transitive_usages != usages.Usage.end()) {
+        transitive_usage_names.insert(transitive_usages->second.begin(),
+                                      transitive_usages->second.end());
+      }
+    }
+  }
+
+  for (auto const& transitive_name : transitive_usage_names) {
+    if (transitive_usage_directs.count(transitive_name)) {
+      continue;
+    }
+
+    auto module_ref = usages.Reference.find(transitive_name);
+    if (module_ref != usages.Reference.end()) {
+      all_usages.emplace_back(transitive_name, module_ref->second.Path,
+                              module_ref->second.Method);
+    }
+  }
+
+  return all_usages;
+}
+
+std::string CxxModuleMapContentClang(CxxModuleLocations const& loc,
+                                     cmScanDepInfo const& obj,
+                                     CxxModuleUsage const& usages)
+{
+  std::stringstream mm;
+
+  // Clang's command line only supports a single output. If more than one is
+  // expected, we cannot make a useful module map file.
+  if (obj.Provides.size() > 1) {
+    return {};
+  }
+
+  // A series of flags which tell the compiler where to look for modules.
+
+  for (auto const& p : obj.Provides) {
+    auto bmi_loc = loc.BmiGeneratorPathForModule(p.LogicalName);
+    if (bmi_loc.IsKnown()) {
+      // Force the TU to be considered a C++ module source file regardless of
+      // extension.
+      mm << "-x c++-module\n";
+
+      mm << "-fmodule-output=" << bmi_loc.Location() << '\n';
+      break;
+    }
+  }
+
+  auto all_usages = GetTransitiveUsages(loc, obj.Requires, usages);
+  for (auto const& usage : all_usages) {
+    mm << "-fmodule-file=" << usage.LogicalName << '=' << usage.Location
+       << '\n';
+  }
+
+  return mm.str();
+}
 
 std::string CxxModuleMapContentGcc(CxxModuleLocations const& loc,
                                    cmScanDepInfo const& obj)
@@ -41,16 +175,18 @@ std::string CxxModuleMapContentGcc(CxxModuleLocations const& loc,
   // generate any).
 
   // Write the root directory to use for module paths.
-  mm << "$root " << loc.RootDirectory << "\n";
+  mm << "$root " << loc.RootDirectory << '\n';
 
   for (auto const& p : obj.Provides) {
-    if (auto bmi_loc = loc.BmiGeneratorPathForModule(p.LogicalName)) {
-      mm << p.LogicalName << ' ' << *bmi_loc << '\n';
+    auto bmi_loc = loc.BmiGeneratorPathForModule(p.LogicalName);
+    if (bmi_loc.IsKnown()) {
+      mm << p.LogicalName << ' ' << bmi_loc.Location() << '\n';
     }
   }
   for (auto const& r : obj.Requires) {
-    if (auto bmi_loc = loc.BmiGeneratorPathForModule(r.LogicalName)) {
-      mm << r.LogicalName << ' ' << *bmi_loc << '\n';
+    auto bmi_loc = loc.BmiGeneratorPathForModule(r.LogicalName);
+    if (bmi_loc.IsKnown()) {
+      mm << r.LogicalName << ' ' << bmi_loc.Location() << '\n';
     }
   }
 
@@ -91,41 +227,17 @@ std::string CxxModuleMapContentMsvc(CxxModuleLocations const& loc,
       mm << "-internalPartition\n";
     }
 
-    if (auto bmi_loc = loc.BmiGeneratorPathForModule(p.LogicalName)) {
-      mm << "-ifcOutput " << *bmi_loc << '\n';
+    auto bmi_loc = loc.BmiGeneratorPathForModule(p.LogicalName);
+    if (bmi_loc.IsKnown()) {
+      mm << "-ifcOutput " << bmi_loc.Location() << '\n';
     }
   }
 
-  std::set<std::string> transitive_usage_directs;
-  std::set<std::string> transitive_usage_names;
+  auto all_usages = GetTransitiveUsages(loc, obj.Requires, usages);
+  for (auto const& usage : all_usages) {
+    auto flag = flag_for_method(usage.Method);
 
-  for (auto const& r : obj.Requires) {
-    if (auto bmi_loc = loc.BmiGeneratorPathForModule(r.LogicalName)) {
-      auto flag = flag_for_method(r.Method);
-
-      mm << flag << ' ' << r.LogicalName << '=' << *bmi_loc << "\n";
-      transitive_usage_directs.insert(r.LogicalName);
-
-      // Insert transitive usages.
-      auto transitive_usages = usages.Usage.find(r.LogicalName);
-      if (transitive_usages != usages.Usage.end()) {
-        transitive_usage_names.insert(transitive_usages->second.begin(),
-                                      transitive_usages->second.end());
-      }
-    }
-  }
-
-  for (auto const& transitive_name : transitive_usage_names) {
-    if (transitive_usage_directs.count(transitive_name)) {
-      continue;
-    }
-
-    auto module_ref = usages.Reference.find(transitive_name);
-    if (module_ref != usages.Reference.end()) {
-      auto flag = flag_for_method(module_ref->second.Method);
-      mm << flag << ' ' << transitive_name << '=' << module_ref->second.Path
-         << "\n";
-    }
+    mm << flag << ' ' << usage.LogicalName << '=' << usage.Location << '\n';
   }
 
   return mm.str();
@@ -179,6 +291,8 @@ cm::static_string_view CxxModuleMapExtension(
 {
   if (format) {
     switch (*format) {
+      case CxxModuleMapFormat::Clang:
+        return ".pcm"_s;
       case CxxModuleMapFormat::Gcc:
         return ".gcm"_s;
       case CxxModuleMapFormat::Msvc:
@@ -191,7 +305,7 @@ cm::static_string_view CxxModuleMapExtension(
 
 std::set<std::string> CxxModuleUsageSeed(
   CxxModuleLocations const& loc, std::vector<cmScanDepInfo> const& objects,
-  CxxModuleUsage& usages)
+  CxxModuleUsage& usages, bool& private_usage_found)
 {
   // Track inner usages to populate usages from internal bits.
   //
@@ -203,19 +317,29 @@ std::set<std::string> CxxModuleUsageSeed(
   for (cmScanDepInfo const& object : objects) {
     // Add references for each of the provided modules.
     for (auto const& p : object.Provides) {
-      if (auto bmi_loc = loc.BmiGeneratorPathForModule(p.LogicalName)) {
+      auto bmi_loc = loc.BmiGeneratorPathForModule(p.LogicalName);
+      if (bmi_loc.IsKnown()) {
         // XXX(cxx-modules): How to support header units?
-        usages.AddReference(p.LogicalName, loc.PathForGenerator(*bmi_loc),
+        usages.AddReference(p.LogicalName, bmi_loc.Location(),
                             LookupMethod::ByName);
       }
     }
 
     // For each requires, pull in what is required.
     for (auto const& r : object.Requires) {
-      // Find transitive usages.
-      auto transitive_usages = usages.Usage.find(r.LogicalName);
       // Find the required name in the current target.
       auto bmi_loc = loc.BmiGeneratorPathForModule(r.LogicalName);
+      if (bmi_loc.IsPrivate()) {
+        cmSystemTools::Error(
+          cmStrCat("Unable to use module '", r.LogicalName,
+                   "' as it is 'PRIVATE' and therefore not accessible outside "
+                   "of its owning target."));
+        private_usage_found = true;
+        continue;
+      }
+
+      // Find transitive usages.
+      auto transitive_usages = usages.Usage.find(r.LogicalName);
 
       for (auto const& p : object.Provides) {
         auto& this_usages = usages.Usage[p.LogicalName];
@@ -223,19 +347,21 @@ std::set<std::string> CxxModuleUsageSeed(
         // Add the direct usage.
         this_usages.insert(r.LogicalName);
 
-        // Add the transitive usage.
-        if (transitive_usages != usages.Usage.end()) {
+        if (transitive_usages == usages.Usage.end() ||
+            internal_usages.find(r.LogicalName) != internal_usages.end()) {
+          // Mark that we need to update transitive usages later.
+          if (bmi_loc.IsKnown()) {
+            internal_usages[p.LogicalName].insert(r.LogicalName);
+          }
+        } else {
+          // Add the transitive usage.
           this_usages.insert(transitive_usages->second.begin(),
                              transitive_usages->second.end());
-        } else if (bmi_loc) {
-          // Mark that we need to update transitive usages later.
-          internal_usages[p.LogicalName].insert(r.LogicalName);
         }
       }
 
-      if (bmi_loc) {
-        usages.AddReference(r.LogicalName, loc.PathForGenerator(*bmi_loc),
-                            r.Method);
+      if (bmi_loc.IsKnown()) {
+        usages.AddReference(r.LogicalName, bmi_loc.Location(), r.Method);
       }
     }
   }
@@ -297,6 +423,8 @@ std::string CxxModuleMapContent(CxxModuleMapFormat format,
                                 CxxModuleUsage const& usages)
 {
   switch (format) {
+    case CxxModuleMapFormat::Clang:
+      return CxxModuleMapContentClang(loc, obj, usages);
     case CxxModuleMapFormat::Gcc:
       return CxxModuleMapContentGcc(loc, obj);
     case CxxModuleMapFormat::Msvc:
@@ -305,4 +433,18 @@ std::string CxxModuleMapContent(CxxModuleMapFormat format,
 
   assert(false);
   return {};
+}
+
+CxxModuleMapMode CxxModuleMapOpenMode(CxxModuleMapFormat format)
+{
+  switch (format) {
+    case CxxModuleMapFormat::Gcc:
+      return CxxModuleMapMode::Binary;
+    case CxxModuleMapFormat::Clang:
+    case CxxModuleMapFormat::Msvc:
+      return CxxModuleMapMode::Default;
+  }
+
+  assert(false);
+  return CxxModuleMapMode::Default;
 }

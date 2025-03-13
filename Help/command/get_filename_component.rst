@@ -4,9 +4,9 @@ get_filename_component
 Get a specific component of a full filename.
 
 .. versionchanged:: 3.20
-  This command has been superseded by :command:`cmake_path` command, except
-  ``REALPATH`` now offered by :ref:`file(REAL_PATH)<REAL_PATH>` command and
-  ``PROGRAM`` now available in :command:`separate_arguments(PROGRAM)` command.
+  This command has been superseded by the :command:`cmake_path` command, except
+  for ``REALPATH``, which is now offered by :command:`file(REAL_PATH)`, and
+  ``PROGRAM``, now available in :command:`separate_arguments(PROGRAM)`.
 
 .. versionchanged:: 3.24
   The undocumented feature offering the capability to query the ``Windows``
@@ -69,3 +69,8 @@ left as a full path.  If ``PROGRAM_ARGS`` is present with ``PROGRAM``, then
 any command-line arguments present in the ``<FileName>`` string are split
 from the program name and stored in ``<arg_var>``.  This is used to
 separate a program name from its arguments in a command line string.
+
+See Also
+^^^^^^^^
+
+* :command:`cmake_path`

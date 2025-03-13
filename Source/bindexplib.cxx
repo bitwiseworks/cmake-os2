@@ -281,6 +281,7 @@ public:
           // the symbol
           const char* scalarPrefix = "??_G";
           const char* vectorPrefix = "??_E";
+          const char* vftablePrefix = "??_7";
           // The original code had a check for
           //     symbol.find("real@") == std::string::npos)
           // but this disallows member functions with the name "real".
@@ -297,14 +298,20 @@ public:
                    symbol.find("$entry_thunk") == std::string::npos &&
                    symbol.find("$iexit_thunk") == std::string::npos &&
                    symbol.find("$exit_thunk") == std::string::npos)) {
-                if (!pSymbolTable->Type && (SectChar & IMAGE_SCN_MEM_WRITE)) {
-                  // Read only (i.e. constants) must be excluded
+                if ((!pSymbolTable->Type &&
+                     // Read only (i.e. constants) must be excluded
+                     (SectChar & IMAGE_SCN_MEM_WRITE)) ||
+                    (this->SymbolArch == Arch::ARM64EC &&
+                     // vftable symbols are DATA on ARM64EC
+                     symbol.compare(0, 4, vftablePrefix) == 0)) {
                   this->DataSymbols.insert(symbol);
-                } else {
-                  if (pSymbolTable->Type || !(SectChar & IMAGE_SCN_MEM_READ) ||
-                      (SectChar & IMAGE_SCN_MEM_EXECUTE)) {
-                    this->Symbols.insert(symbol);
-                  }
+                } else if (pSymbolTable->Type ||
+                           !(SectChar & IMAGE_SCN_MEM_READ) ||
+                           (SectChar & IMAGE_SCN_MEM_EXECUTE) ||
+                           (this->SymbolArch != Arch::ARM64EC &&
+                            // vftable symbols fail if marked as DATA
+                            symbol.compare(0, 4, vftablePrefix) == 0)) {
+                  this->Symbols.insert(symbol);
                 }
               }
             }
@@ -406,7 +413,7 @@ static bool DumpFile(std::string const& nmPath, const char* filename,
   LPVOID lpFileBase;
 
   hFile = CreateFileW(cmsys::Encoding::ToWide(filename).c_str(), GENERIC_READ,
-                      FILE_SHARE_READ, NULL, OPEN_EXISTING,
+                      FILE_SHARE_READ, nullptr, OPEN_EXISTING,
                       FILE_ATTRIBUTE_NORMAL, 0);
 
   if (hFile == INVALID_HANDLE_VALUE) {
@@ -414,7 +421,8 @@ static bool DumpFile(std::string const& nmPath, const char* filename,
     return false;
   }
 
-  hFileMapping = CreateFileMapping(hFile, NULL, PAGE_READONLY, 0, 0, NULL);
+  hFileMapping =
+    CreateFileMapping(hFile, nullptr, PAGE_READONLY, 0, 0, nullptr);
   if (hFileMapping == 0) {
     CloseHandle(hFile);
     fprintf(stderr, "Couldn't open file mapping with CreateFileMapping()\n");

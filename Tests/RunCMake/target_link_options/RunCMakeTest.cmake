@@ -30,7 +30,7 @@ if (NOT CMAKE_C_COMPILER_ID STREQUAL "Intel")
   run_cmake_target(LINK_OPTIONS shared LinkOptions_shared --config Release)
   run_cmake_target(LINK_OPTIONS mod LinkOptions_mod --config Release)
   run_cmake_target(LINK_OPTIONS exe LinkOptions_exe --config Release)
-
+  run_cmake_target(LINK_OPTIONS dollar-option LinkOptions_dollar_exe --config Release)
 
   run_cmake(genex_LINK_LANGUAGE)
 
@@ -76,6 +76,8 @@ if(RunCMake_GENERATOR MATCHES "(Ninja|Makefile)")
 
   run_cmake_target(LINKER_expansion LINKER linker)
   run_cmake_target(LINKER_expansion LINKER_SHELL linker_shell)
+  run_cmake_target(LINKER_expansion LINKER_NESTED linker_nested)
+  run_cmake_target(LINKER_expansion LINKER_NESTED_SHELL linker_nested_shell)
 endif()
 
 run_cmake(empty_keyword_args)

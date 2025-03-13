@@ -5,8 +5,8 @@
 #include <ostream>
 
 #include <cmext/algorithm>
+#include <cmext/string_view>
 
-#include "cmDocumentationEntry.h"
 #include "cmGlobalGenerator.h"
 #include "cmMakefile.h"
 #include "cmState.h"
@@ -36,18 +36,17 @@ void cmGlobalJOMMakefileGenerator::EnableLanguage(
   this->cmGlobalUnixMakefileGenerator3::EnableLanguage(l, mf, optional);
 }
 
-void cmGlobalJOMMakefileGenerator::GetDocumentation(
-  cmDocumentationEntry& entry)
+cmDocumentationEntry cmGlobalJOMMakefileGenerator::GetDocumentation()
 {
-  entry.Name = cmGlobalJOMMakefileGenerator::GetActualName();
-  entry.Brief = "Generates JOM makefiles.";
+  return { cmGlobalJOMMakefileGenerator::GetActualName(),
+           "Generates JOM makefiles." };
 }
 
 void cmGlobalJOMMakefileGenerator::PrintCompilerAdvice(std::ostream& os,
                                                        std::string const& lang,
                                                        cmValue envVar) const
 {
-  if (lang == "CXX" || lang == "C") {
+  if (lang == "CXX"_s || lang == "C"_s) {
     /* clang-format off */
     os <<
       "To use the JOM generator with Visual C++, cmake must be run from a "

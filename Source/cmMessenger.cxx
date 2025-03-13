@@ -4,6 +4,7 @@
 
 #include "cmDocumentationFormatter.h"
 #include "cmMessageMetadata.h"
+#include "cmMessageType.h"
 #include "cmStringAlgorithms.h"
 #include "cmSystemTools.h"
 
@@ -16,79 +17,35 @@
 
 #include "cmsys/Terminal.h"
 
-MessageType cmMessenger::ConvertMessageType(MessageType t) const
+#ifdef CMake_ENABLE_DEBUGGER
+#  include "cmDebuggerAdapter.h"
+#endif
+
+namespace {
+const char* getMessageTypeStr(MessageType t)
 {
-  bool warningsAsErrors;
-
-  if (t == MessageType::AUTHOR_WARNING || t == MessageType::AUTHOR_ERROR) {
-    warningsAsErrors = this->GetDevWarningsAsErrors();
-    if (warningsAsErrors && t == MessageType::AUTHOR_WARNING) {
-      t = MessageType::AUTHOR_ERROR;
-    } else if (!warningsAsErrors && t == MessageType::AUTHOR_ERROR) {
-      t = MessageType::AUTHOR_WARNING;
-    }
-  } else if (t == MessageType::DEPRECATION_WARNING ||
-             t == MessageType::DEPRECATION_ERROR) {
-    warningsAsErrors = this->GetDeprecatedWarningsAsErrors();
-    if (warningsAsErrors && t == MessageType::DEPRECATION_WARNING) {
-      t = MessageType::DEPRECATION_ERROR;
-    } else if (!warningsAsErrors && t == MessageType::DEPRECATION_ERROR) {
-      t = MessageType::DEPRECATION_WARNING;
-    }
+  switch (t) {
+    case MessageType::FATAL_ERROR:
+      return "Error";
+    case MessageType::INTERNAL_ERROR:
+      return "Internal Error (please report a bug)";
+    case MessageType::LOG:
+      return "Debug Log";
+    case MessageType::DEPRECATION_ERROR:
+      return "Deprecation Error";
+    case MessageType::DEPRECATION_WARNING:
+      return "Deprecation Warning";
+    case MessageType::AUTHOR_WARNING:
+      return "Warning (dev)";
+    case MessageType::AUTHOR_ERROR:
+      return "Error (dev)";
+    default:
+      break;
   }
-
-  return t;
+  return "Warning";
 }
 
-bool cmMessenger::IsMessageTypeVisible(MessageType t) const
-{
-  bool isVisible = true;
-
-  if (t == MessageType::DEPRECATION_ERROR) {
-    if (!this->GetDeprecatedWarningsAsErrors()) {
-      isVisible = false;
-    }
-  } else if (t == MessageType::DEPRECATION_WARNING) {
-    if (this->GetSuppressDeprecatedWarnings()) {
-      isVisible = false;
-    }
-  } else if (t == MessageType::AUTHOR_ERROR) {
-    if (!this->GetDevWarningsAsErrors()) {
-      isVisible = false;
-    }
-  } else if (t == MessageType::AUTHOR_WARNING) {
-    if (this->GetSuppressDevWarnings()) {
-      isVisible = false;
-    }
-  }
-
-  return isVisible;
-}
-
-static bool printMessagePreamble(MessageType t, std::ostream& msg)
-{
-  // Construct the message header.
-  if (t == MessageType::FATAL_ERROR) {
-    msg << "CMake Error";
-  } else if (t == MessageType::INTERNAL_ERROR) {
-    msg << "CMake Internal Error (please report a bug)";
-  } else if (t == MessageType::LOG) {
-    msg << "CMake Debug Log";
-  } else if (t == MessageType::DEPRECATION_ERROR) {
-    msg << "CMake Deprecation Error";
-  } else if (t == MessageType::DEPRECATION_WARNING) {
-    msg << "CMake Deprecation Warning";
-  } else if (t == MessageType::AUTHOR_WARNING) {
-    msg << "CMake Warning (dev)";
-  } else if (t == MessageType::AUTHOR_ERROR) {
-    msg << "CMake Error (dev)";
-  } else {
-    msg << "CMake Warning";
-  }
-  return true;
-}
-
-static int getMessageColor(MessageType t)
+int getMessageColor(MessageType t)
 {
   switch (t) {
     case MessageType::INTERNAL_ERROR:
@@ -103,15 +60,15 @@ static int getMessageColor(MessageType t)
   }
 }
 
-static void printMessageText(std::ostream& msg, std::string const& text)
+void printMessageText(std::ostream& msg, std::string const& text)
 {
   msg << ":\n";
   cmDocumentationFormatter formatter;
-  formatter.SetIndent("  ");
-  formatter.PrintFormatted(msg, text.c_str());
+  formatter.SetIndent(2u);
+  formatter.PrintFormatted(msg, text);
 }
 
-static void displayMessage(MessageType t, std::ostringstream& msg)
+void displayMessage(MessageType t, std::ostringstream& msg)
 {
   // Add a note about warning suppression.
   if (t == MessageType::AUTHOR_WARNING) {
@@ -123,7 +80,7 @@ static void displayMessage(MessageType t, std::ostringstream& msg)
   }
 
   // Add a terminating blank line.
-  msg << "\n";
+  msg << '\n';
 
 #if !defined(CMAKE_BOOTSTRAP)
   // Add a C++ stack trace to internal errors.
@@ -133,7 +90,7 @@ static void displayMessage(MessageType t, std::ostringstream& msg)
       if (cmHasLiteralPrefix(stack, "WARNING:")) {
         stack = "Note:" + stack.substr(8);
       }
-      msg << stack << "\n";
+      msg << stack << '\n';
     }
   }
 #endif
@@ -152,7 +109,6 @@ static void displayMessage(MessageType t, std::ostringstream& msg)
   }
 }
 
-namespace {
 void PrintCallStack(std::ostream& out, cmListFileBacktrace bt,
                     cm::optional<std::string> const& topSource)
 {
@@ -182,9 +138,46 @@ void PrintCallStack(std::ostream& out, cmListFileBacktrace bt,
     if (topSource) {
       lfc.FilePath = cmSystemTools::RelativeIfUnder(*topSource, lfc.FilePath);
     }
-    out << "  " << lfc << "\n";
+    out << "  " << lfc << '\n';
   }
 }
+
+} // anonymous namespace
+
+MessageType cmMessenger::ConvertMessageType(MessageType t) const
+{
+  if (t == MessageType::AUTHOR_WARNING || t == MessageType::AUTHOR_ERROR) {
+    if (this->GetDevWarningsAsErrors()) {
+      return MessageType::AUTHOR_ERROR;
+    }
+    return MessageType::AUTHOR_WARNING;
+  }
+  if (t == MessageType::DEPRECATION_WARNING ||
+      t == MessageType::DEPRECATION_ERROR) {
+    if (this->GetDeprecatedWarningsAsErrors()) {
+      return MessageType::DEPRECATION_ERROR;
+    }
+    return MessageType::DEPRECATION_WARNING;
+  }
+  return t;
+}
+
+bool cmMessenger::IsMessageTypeVisible(MessageType t) const
+{
+  if (t == MessageType::DEPRECATION_ERROR) {
+    return this->GetDeprecatedWarningsAsErrors();
+  }
+  if (t == MessageType::DEPRECATION_WARNING) {
+    return !this->GetSuppressDeprecatedWarnings();
+  }
+  if (t == MessageType::AUTHOR_ERROR) {
+    return this->GetDevWarningsAsErrors();
+  }
+  if (t == MessageType::AUTHOR_WARNING) {
+    return !this->GetSuppressDevWarnings();
+  }
+
+  return true;
 }
 
 void cmMessenger::IssueMessage(MessageType t, const std::string& text,
@@ -207,9 +200,9 @@ void cmMessenger::DisplayMessage(MessageType t, const std::string& text,
                                  const cmListFileBacktrace& backtrace) const
 {
   std::ostringstream msg;
-  if (!printMessagePreamble(t, msg)) {
-    return;
-  }
+
+  // Print the message preamble.
+  msg << "CMake " << getMessageTypeStr(t);
 
   // Add the immediate context.
   this->PrintBacktraceTitle(msg, backtrace);
@@ -220,6 +213,12 @@ void cmMessenger::DisplayMessage(MessageType t, const std::string& text,
   PrintCallStack(msg, backtrace, this->TopSource);
 
   displayMessage(t, msg);
+
+#ifdef CMake_ENABLE_DEBUGGER
+  if (DebuggerAdapter) {
+    DebuggerAdapter->OnMessageOutput(t, msg.str());
+  }
+#endif
 }
 
 void cmMessenger::PrintBacktraceTitle(std::ostream& out,

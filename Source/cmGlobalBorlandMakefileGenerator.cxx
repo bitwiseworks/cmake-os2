@@ -24,6 +24,7 @@ cmGlobalBorlandMakefileGenerator::cmGlobalBorlandMakefileGenerator(cmake* cm)
   this->ToolSupportsColor = true;
   this->UseLinkScript = false;
   cm->GetState()->SetWindowsShell(true);
+  cm->GetState()->SetBorlandMake(true);
   this->IncludeDirective = "!include";
   this->DefineWindowsNULL = true;
   this->PassMakeflags = true;
@@ -60,11 +61,10 @@ cmGlobalBorlandMakefileGenerator::CreateLocalGenerator(cmMakefile* mf)
   return std::unique_ptr<cmLocalGenerator>(std::move(lg));
 }
 
-void cmGlobalBorlandMakefileGenerator::GetDocumentation(
-  cmDocumentationEntry& entry)
+cmDocumentationEntry cmGlobalBorlandMakefileGenerator::GetDocumentation()
 {
-  entry.Name = cmGlobalBorlandMakefileGenerator::GetActualName();
-  entry.Brief = "Generates Borland makefiles.";
+  return { cmGlobalBorlandMakefileGenerator::GetActualName(),
+           "Generates Borland makefiles." };
 }
 
 std::vector<cmGlobalGenerator::GeneratedMakeCommand>

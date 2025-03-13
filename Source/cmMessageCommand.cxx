@@ -3,12 +3,15 @@
 #include "cmMessageCommand.h"
 
 #include <cassert>
+#include <memory>
 #include <utility>
 
 #include <cm/string_view>
 #include <cmext/string_view>
 
+#include "cmConfigureLog.h"
 #include "cmExecutionStatus.h"
+#include "cmList.h"
 #include "cmMakefile.h"
 #include "cmMessageType.h"
 #include "cmMessenger.h"
@@ -16,6 +19,10 @@
 #include "cmStringAlgorithms.h"
 #include "cmSystemTools.h"
 #include "cmake.h"
+
+#ifdef CMake_ENABLE_DEBUGGER
+#  include "cmDebuggerAdapter.h"
+#endif
 
 namespace {
 
@@ -30,13 +37,13 @@ enum class CheckingType
 std::string IndentText(std::string text, cmMakefile& mf)
 {
   auto indent =
-    cmJoin(cmExpandedList(mf.GetSafeDefinition("CMAKE_MESSAGE_INDENT")), "");
+    cmList{ mf.GetSafeDefinition("CMAKE_MESSAGE_INDENT") }.join("");
 
   const auto showContext = mf.GetCMakeInstance()->GetShowLogContext() ||
     mf.IsOn("CMAKE_MESSAGE_CONTEXT_SHOW");
   if (showContext) {
-    auto context = cmJoin(
-      cmExpandedList(mf.GetSafeDefinition("CMAKE_MESSAGE_CONTEXT")), ".");
+    auto context =
+      cmList{ mf.GetSafeDefinition("CMAKE_MESSAGE_CONTEXT") }.join(".");
     if (!context.empty()) {
       indent.insert(0u, cmStrCat("["_s, context, "] "_s));
     }
@@ -62,6 +69,23 @@ void ReportCheckResult(cm::string_view what, std::string result,
       cmStrCat("Ignored "_s, what, " without CHECK_START"_s),
       mf.GetBacktrace());
   }
+}
+
+namespace {
+#ifndef CMAKE_BOOTSTRAP
+void WriteMessageEvent(cmConfigureLog& log, cmMakefile const& mf,
+                       std::string const& message)
+{
+  // Keep in sync with cmFileAPIConfigureLog's DumpEventKindNames.
+  static const std::vector<unsigned long> LogVersionsWithMessageV1{ 1 };
+
+  if (log.IsAnyLogVersionEnabled(LogVersionsWithMessageV1)) {
+    log.BeginEvent("message-v1", mf);
+    log.WriteLiteralTextBlock("message"_s, message);
+    log.EndEvent();
+  }
+}
+#endif
 }
 
 } // anonymous namespace
@@ -121,6 +145,14 @@ bool cmMessageCommand(std::vector<std::string> const& args,
     level = Message::LogLevel::LOG_STATUS;
     checkingType = CheckingType::CHECK_FAIL;
     ++i;
+  } else if (*i == "CONFIGURE_LOG") {
+#ifndef CMAKE_BOOTSTRAP
+    if (cmConfigureLog* log = mf.GetCMakeInstance()->GetConfigureLog()) {
+      ++i;
+      WriteMessageEvent(*log, mf, cmJoin(cmMakeRange(i, args.cend()), ""_s));
+    }
+#endif
+    return true;
   } else if (*i == "STATUS") {
     level = Message::LogLevel::LOG_STATUS;
     ++i;
@@ -175,6 +207,12 @@ bool cmMessageCommand(std::vector<std::string> const& args,
 
     case Message::LogLevel::LOG_NOTICE:
       cmSystemTools::Message(IndentText(message, mf));
+#ifdef CMake_ENABLE_DEBUGGER
+      if (mf.GetCMakeInstance()->GetDebugAdapter()) {
+        mf.GetCMakeInstance()->GetDebugAdapter()->OnMessageOutput(type,
+                                                                  message);
+      }
+#endif
       break;
 
     case Message::LogLevel::LOG_STATUS:

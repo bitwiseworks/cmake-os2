@@ -7,37 +7,57 @@ CheckOBJCXXCompilerFlag
 
 .. versionadded:: 3.16
 
-Check whether the Objective-C++ compiler supports a given flag.
+Check once whether the Objective-C++ compiler supports a given flag.
 
 .. command:: check_objcxx_compiler_flag
 
   .. code-block:: cmake
 
-    check_objcxx_compiler_flag(<flag> <var>)
+    check_objcxx_compiler_flag(<flag> <resultVar>)
 
-  Check that the ``<flag>`` is accepted by the compiler without
-  a diagnostic.  Stores the result in an internal cache entry
-  named ``<var>``.
+Check once that the ``<flag>`` is accepted by the compiler without a diagnostic.
+The result is stored in the internal cache variable specified by
+``<resultVar>``, with boolean ``true`` for success and boolean ``false`` for
+failure.
 
-This command temporarily sets the ``CMAKE_REQUIRED_DEFINITIONS`` variable
-and calls the ``check_objcxx_source_compiles`` macro from the
-:module:`CheckOBJCXXSourceCompiles` module.  See documentation of that
-module for a listing of variables that can otherwise modify the build.
+``true`` indicates only that the compiler did not issue a diagnostic message
+when given the flag. Whether the flag has any effect is beyond the scope of
+this module.
 
-A positive result from this check indicates only that the compiler did not
-issue a diagnostic message when given the flag.  Whether the flag has any
-effect or even a specific one is beyond the scope of this module.
+Internally, :command:`try_compile` is used to perform the check. If
+:variable:`CMAKE_TRY_COMPILE_TARGET_TYPE` is set to ``EXECUTABLE`` (default),
+the check compiles and links an executable program. If set to
+``STATIC_LIBRARY``, the check is compiled but not linked.
 
-.. note::
-  Since the :command:`try_compile` command forwards flags from variables
-  like :variable:`CMAKE_OBJCXX_FLAGS <CMAKE_<LANG>_FLAGS>`, unknown flags
-  in such variables may cause a false negative for this check.
+See also :command:`check_compiler_flag` for a more general command syntax.
+
+The compile and link commands can be influenced by setting any of the
+following variables prior to calling ``check_objcxx_compiler_flag()``. Unknown
+flags in these variables can case a false negative result.
+
+.. include:: /module/CMAKE_REQUIRED_FLAGS.txt
+
+.. include:: /module/CMAKE_REQUIRED_DEFINITIONS.txt
+
+.. include:: /module/CMAKE_REQUIRED_INCLUDES.txt
+
+.. include:: /module/CMAKE_REQUIRED_LINK_OPTIONS.txt
+
+.. include:: /module/CMAKE_REQUIRED_LIBRARIES.txt
+
+.. include:: /module/CMAKE_REQUIRED_LINK_DIRECTORIES.txt
+
+.. include:: /module/CMAKE_REQUIRED_QUIET.txt
+
 #]=======================================================================]
 
 include_guard(GLOBAL)
-include(CheckOBJCXXSourceCompiles)
 include(Internal/CheckCompilerFlag)
 
 macro (CHECK_OBJCXX_COMPILER_FLAG _FLAG _RESULT)
   cmake_check_compiler_flag(OBJCXX "${_FLAG}" ${_RESULT})
 endmacro ()
+
+# FIXME(#24994): The following module is included only for compatibility
+# with projects that accidentally relied on it with CMake 3.26 and below.
+include(CheckOBJCXXSourceCompiles)

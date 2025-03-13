@@ -6,11 +6,11 @@ project(FortranCInterface C Fortran)
 include(${FortranCInterface_BINARY_DIR}/Input.cmake OPTIONAL)
 
 # Check if the C compiler supports '$' in identifiers.
-include(CheckCSourceCompiles)
-check_c_source_compiles("
-extern int dollar$(void);
-int main() { return 0; }
-" C_SUPPORTS_DOLLAR)
+include(CheckSourceCompiles)
+check_source_compiles(C
+"extern int dollar$(void);
+int main() { return 0; }"
+C_SUPPORTS_DOLLAR)
 
 # List manglings of global symbol names to try.
 set(global_symbols
@@ -100,6 +100,10 @@ target_link_libraries(symbols PUBLIC myfort)
 # the C compiler produces PIC even if it is not its default.
 set_property(TARGET symbols PROPERTY POSITION_INDEPENDENT_CODE 1)
 
+if(CMAKE_Fortran_COMPILER_ID STREQUAL "LFortran")
+  add_compile_options(--implicit-interface --generate-object-code)
+endif()
+
 # Require symbols through Fortran.
 add_executable(FortranCInterface main.F call_sub.f ${call_mod})
 target_link_libraries(FortranCInterface PUBLIC symbols)
@@ -113,11 +117,15 @@ target_link_libraries(FortranCInterface PUBLIC symbols)
 if(CMAKE_Fortran_COMPILER_ID STREQUAL "GNU" AND
   CMAKE_Fortran_COMPILER_VERSION VERSION_GREATER_EQUAL 12)
   target_compile_options(FortranCInterface PRIVATE "-fno-lto")
-  target_compile_options(myfort PRIVATE "-flto=auto" "-ffat-lto-objects")
+  if(NOT APPLE)
+    target_compile_options(myfort PRIVATE "-flto=auto" "-ffat-lto-objects")
+  endif()
 endif()
 if(CMAKE_C_COMPILER_ID STREQUAL "GNU" AND
   CMAKE_C_COMPILER_VERSION VERSION_GREATER_EQUAL 12)
-  target_compile_options(symbols PRIVATE "-flto=auto" "-ffat-lto-objects")
+  if(NOT APPLE)
+    target_compile_options(symbols PRIVATE "-flto=auto" "-ffat-lto-objects")
+  endif()
 endif()
 
 file(GENERATE OUTPUT exe-$<CONFIG>.cmake CONTENT [[

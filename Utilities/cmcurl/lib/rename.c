@@ -5,7 +5,7 @@
  *                            | (__| |_| |  _ <| |___
  *                             \___|\___/|_| \_\_____|
  *
- * Copyright (C) 2020 - 2022, Daniel Stenberg, <daniel@haxx.se>, et al.
+ * Copyright (C) Daniel Stenberg, <daniel@haxx.se>, et al.
  *
  * This software is licensed as described in the file COPYING, which
  * you should have received as part of this distribution. The terms
@@ -40,8 +40,8 @@
 /* return 0 on success, 1 on error */
 int Curl_rename(const char *oldpath, const char *newpath)
 {
-#ifdef WIN32
-  /* rename() on Windows doesn't overwrite, so we can't use it here.
+#ifdef _WIN32
+  /* rename() on Windows does not overwrite, so we cannot use it here.
      MoveFileEx() will overwrite and is usually atomic, however it fails
      when there are open handles to the file. */
   const int max_wait_ms = 1000;

@@ -40,12 +40,6 @@ public:
   cm::optional<std::string> const& GetTargetFrameworkIdentifier() const;
   cm::optional<std::string> const& GetTargetFrameworkTargetsVersion() const;
 
-  /**
-   * Override Configure and Generate to add the build-system check
-   * target.
-   */
-  void Configure() override;
-
   /** Return true if the target project file should have the option
       LinkLibraryDependencies and link to .sln dependencies. */
   bool NeedLinkLibraryDependencies(cmGeneratorTarget* target) override;
@@ -59,6 +53,9 @@ public:
 protected:
   cmGlobalVisualStudio8Generator(cmake* cm, const std::string& name,
                                  std::string const& platformInGeneratorName);
+
+  virtual bool ProcessGeneratorPlatformField(std::string const& key,
+                                             std::string const& value);
 
   void AddExtraIDETargets() override;
 
@@ -96,4 +93,7 @@ protected:
   cm::optional<std::string> DefaultTargetFrameworkVersion;
   cm::optional<std::string> DefaultTargetFrameworkIdentifier;
   cm::optional<std::string> DefaultTargetFrameworkTargetsVersion;
+
+private:
+  bool ParseGeneratorPlatform(std::string const& is, cmMakefile* mf);
 };

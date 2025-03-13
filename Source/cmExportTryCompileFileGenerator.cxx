@@ -6,29 +6,37 @@
 #include <utility>
 
 #include <cm/memory>
+#include <cm/string_view>
 
 #include "cmFileSet.h"
 #include "cmGeneratorExpression.h"
 #include "cmGeneratorExpressionDAGChecker.h"
 #include "cmGeneratorTarget.h"
 #include "cmGlobalGenerator.h"
-#include "cmListFileCache.h"
+#include "cmList.h"
 #include "cmLocalGenerator.h"
 #include "cmMakefile.h"
 #include "cmOutputConverter.h"
 #include "cmStateTypes.h"
 #include "cmStringAlgorithms.h"
+#include "cmSystemTools.h"
 #include "cmTarget.h"
 #include "cmValue.h"
 
 class cmTargetExport;
 
 cmExportTryCompileFileGenerator::cmExportTryCompileFileGenerator(
-  cmGlobalGenerator* gg, const std::vector<std::string>& targets,
+  cmGlobalGenerator* gg, std::vector<std::string> const& targets,
   cmMakefile* mf, std::set<std::string> const& langs)
   : Languages(langs.begin(), langs.end())
 {
   gg->CreateImportedGenerationObjects(mf, targets, this->Exports);
+}
+
+void cmExportTryCompileFileGenerator::ReportError(
+  std::string const& errorMessage) const
+{
+  cmSystemTools::Error(errorMessage);
 }
 
 bool cmExportTryCompileFileGenerator::GenerateMainFile(std::ostream& os)
@@ -45,12 +53,10 @@ bool cmExportTryCompileFileGenerator::GenerateMainFile(std::ostream& os)
       ImportPropertyMap properties;
 
       for (std::string const& lang : this->Languages) {
-#define FIND_TARGETS(PROPERTY)                                                \
-  this->FindTargets("INTERFACE_" #PROPERTY, te, lang, emittedDeps);
-
-        CM_FOR_EACH_TRANSITIVE_PROPERTY_NAME(FIND_TARGETS)
-
-#undef FIND_TARGETS
+        for (auto i : cmGeneratorTarget::BuiltinTransitiveProperties) {
+          this->FindTargets(std::string(i.second.InterfaceName), te, lang,
+                            emittedDeps);
+        }
       }
 
       this->PopulateProperties(te, properties, emittedDeps);
@@ -62,7 +68,7 @@ bool cmExportTryCompileFileGenerator::GenerateMainFile(std::ostream& os)
 }
 
 std::string cmExportTryCompileFileGenerator::FindTargets(
-  const std::string& propName, cmGeneratorTarget const* tgt,
+  std::string const& propName, cmGeneratorTarget const* tgt,
   std::string const& language, std::set<cmGeneratorTarget const*>& emitted)
 {
   cmValue prop = tgt->GetProperty(propName);
@@ -70,22 +76,29 @@ std::string cmExportTryCompileFileGenerator::FindTargets(
     return std::string();
   }
 
-  cmGeneratorExpression ge;
+  cmGeneratorExpression ge(*tgt->Makefile->GetCMakeInstance());
 
   std::unique_ptr<cmGeneratorExpressionDAGChecker> parentDagChecker;
   if (propName == "INTERFACE_LINK_OPTIONS") {
     // To please constraint checks of DAGChecker, this property must have
     // LINK_OPTIONS property as parent
     parentDagChecker = cm::make_unique<cmGeneratorExpressionDAGChecker>(
-      tgt, "LINK_OPTIONS", nullptr, nullptr);
+      tgt, "LINK_OPTIONS", nullptr, nullptr, tgt->GetLocalGenerator(),
+      this->Config);
   }
-  cmGeneratorExpressionDAGChecker dagChecker(tgt, propName, nullptr,
-                                             parentDagChecker.get());
+  cmGeneratorExpressionDAGChecker dagChecker{
+    tgt,
+    propName,
+    nullptr,
+    parentDagChecker.get(),
+    tgt->GetLocalGenerator(),
+    this->Config,
+  };
 
   std::unique_ptr<cmCompiledGeneratorExpression> cge = ge.Parse(*prop);
 
   cmTarget dummyHead("try_compile_dummy_exe", cmStateEnums::EXECUTABLE,
-                     cmTarget::VisibilityNormal, tgt->Target->GetMakefile(),
+                     cmTarget::Visibility::Normal, tgt->Target->GetMakefile(),
                      cmTarget::PerConfig::Yes);
 
   cmGeneratorTarget gDummyHead(&dummyHead, tgt->GetLocalGenerator());
@@ -93,7 +106,7 @@ std::string cmExportTryCompileFileGenerator::FindTargets(
   std::string result = cge->Evaluate(tgt->GetLocalGenerator(), this->Config,
                                      &gDummyHead, &dagChecker, tgt, language);
 
-  const std::set<cmGeneratorTarget const*>& allTargets =
+  std::set<cmGeneratorTarget const*> const& allTargets =
     cge->GetAllTargetsSeen();
   for (cmGeneratorTarget const* target : allTargets) {
     if (emitted.insert(target).second) {
@@ -104,7 +117,7 @@ std::string cmExportTryCompileFileGenerator::FindTargets(
 }
 
 void cmExportTryCompileFileGenerator::PopulateProperties(
-  const cmGeneratorTarget* target, ImportPropertyMap& properties,
+  cmGeneratorTarget const* target, ImportPropertyMap& properties,
   std::set<cmGeneratorTarget const*>& emitted)
 {
   // Look through all non-special properties.
@@ -126,7 +139,7 @@ void cmExportTryCompileFileGenerator::PopulateProperties(
       std::string evalResult =
         this->FindTargets(p, target, std::string(), emitted);
 
-      std::vector<std::string> depends = cmExpandedList(evalResult);
+      cmList depends{ evalResult };
       for (std::string const& li : depends) {
         cmGeneratorTarget* tgt =
           target->GetLocalGenerator()->FindGeneratorTargetToUse(li);
@@ -139,7 +152,7 @@ void cmExportTryCompileFileGenerator::PopulateProperties(
 }
 
 std::string cmExportTryCompileFileGenerator::InstallNameDir(
-  cmGeneratorTarget const* target, const std::string& config)
+  cmGeneratorTarget const* target, std::string const& config)
 {
   std::string install_name_dir;
 
@@ -152,15 +165,15 @@ std::string cmExportTryCompileFileGenerator::InstallNameDir(
 }
 
 std::string cmExportTryCompileFileGenerator::GetFileSetDirectories(
-  cmGeneratorTarget* /*gte*/, cmFileSet* fileSet, cmTargetExport* /*te*/)
+  cmGeneratorTarget* /*gte*/, cmFileSet* fileSet, cmTargetExport const* /*te*/)
 {
   return cmOutputConverter::EscapeForCMake(
-    cmJoin(fileSet->GetDirectoryEntries(), ";"));
+    cmList::to_string(fileSet->GetDirectoryEntries()));
 }
 
 std::string cmExportTryCompileFileGenerator::GetFileSetFiles(
-  cmGeneratorTarget* /*gte*/, cmFileSet* fileSet, cmTargetExport* /*te*/)
+  cmGeneratorTarget* /*gte*/, cmFileSet* fileSet, cmTargetExport const* /*te*/)
 {
   return cmOutputConverter::EscapeForCMake(
-    cmJoin(fileSet->GetFileEntries(), ";"));
+    cmList::to_string(fileSet->GetFileEntries()));
 }

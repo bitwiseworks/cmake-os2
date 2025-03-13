@@ -1,4 +1,12 @@
+# Distributed under the OSI-approved BSD 3-Clause License.  See accompanying
+# file Copyright.txt or https://cmake.org/licensing for details.
+
 include(RunCMake)
+
+# Isolate our ctest runs from external environment.
+unset(ENV{CTEST_PARALLEL_LEVEL})
+unset(ENV{CTEST_OUTPUT_ON_FAILURE})
+unset(ENV{CTEST_NO_TESTS_ACTION})
 
 function(run_ctest CASE_NAME)
   configure_file(${RunCMake_SOURCE_DIR}/test.cmake.in

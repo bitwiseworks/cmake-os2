@@ -6,8 +6,11 @@
 #include <memory>
 #include <ostream>
 #include <set>
+#include <type_traits>
 #include <utility>
 #include <vector>
+
+#include <cm/optional>
 
 #include "cmCustomCommand.h"
 #include "cmCustomCommandGenerator.h"
@@ -15,6 +18,7 @@
 #include "cmGeneratorTarget.h"
 #include "cmGlobalGhsMultiGenerator.h"
 #include "cmLinkLineComputer.h" // IWYU pragma: keep
+#include "cmList.h"
 #include "cmLocalGenerator.h"
 #include "cmLocalGhsMultiGenerator.h"
 #include "cmMakefile.h"
@@ -112,6 +116,19 @@ void cmGhsMultiTargetGenerator::Generate()
 
 void cmGhsMultiTargetGenerator::GenerateTarget()
 {
+  if (this->GeneratorTarget->GetType() == cmStateEnums::EXECUTABLE &&
+      !this->GeneratorTarget
+         ->GetLinkerTypeProperty(
+           this->GeneratorTarget->GetLinkerLanguage(this->ConfigName),
+           this->ConfigName)
+         .empty()) {
+    // Green Hill MULTI does not support this feature.
+    cmSystemTools::Message(
+      cmStrCat("'LINKER_TYPE' property, specified on target '",
+               this->GeneratorTarget->GetName(),
+               "', is not supported by this generator."));
+  }
+
   // Open the target file in copy-if-different mode.
   std::string fproj =
     cmStrCat(this->LocalGenerator->GetCurrentBinaryDirectory(), '/',
@@ -411,9 +428,10 @@ void cmGhsMultiTargetGenerator::WriteCustomCommandsHelper(
   cmdLines.push_back("@echo off");
 #endif
   // Echo the custom command's comment text.
-  const char* comment = ccg.GetComment();
-  if (comment && *comment) {
-    std::string echocmd = cmStrCat("echo ", comment);
+  if (cm::optional<std::string> comment = ccg.GetComment()) {
+    std::string escapedComment = this->LocalGenerator->EscapeForShell(
+      *comment, ccg.GetCC().GetEscapeAllowMakeVars());
+    std::string echocmd = cmStrCat("echo ", escapedComment);
     cmdLines.push_back(std::move(echocmd));
   }
 
@@ -483,7 +501,7 @@ void cmGhsMultiTargetGenerator::WriteSourceProperty(
 {
   cmValue prop = sf->GetProperty(propName);
   if (prop) {
-    std::vector<std::string> list = cmExpandedList(*prop);
+    cmList list{ *prop };
     for (const std::string& p : list) {
       fout << "    " << propFlag << p << '\n';
     }
@@ -575,7 +593,7 @@ void cmGhsMultiTargetGenerator::WriteSources(std::ostream& fout_proj)
   for (auto& sg : groupFilesList) {
     std::ostream* fout;
     bool useProjectFile =
-      cmIsOn(this->GeneratorTarget->GetProperty("GHS_NO_SOURCE_GROUP_FILE")) ||
+      this->GeneratorTarget->GetProperty("GHS_NO_SOURCE_GROUP_FILE").IsOn() ||
       this->Makefile->IsOn("CMAKE_GHS_NO_SOURCE_GROUP_FILE");
     if (useProjectFile || sg.empty()) {
       fout = &fout_proj;
@@ -746,7 +764,7 @@ std::string cmGhsMultiTargetGenerator::WriteObjectLangOverride(
 bool cmGhsMultiTargetGenerator::DetermineIfIntegrityApp()
 {
   if (cmValue p = this->GeneratorTarget->GetProperty("ghs_integrity_app")) {
-    return cmIsOn(*p);
+    return p.IsOn();
   }
   std::vector<cmSourceFile*> sources;
   this->GeneratorTarget->GetSourceFiles(sources, this->ConfigName);

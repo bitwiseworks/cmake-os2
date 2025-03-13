@@ -32,6 +32,11 @@ Commands are executed concurrently as a pipeline, with the standard
 output of each process piped to the standard input of the next.
 A single standard error pipe is used for all processes.
 
+``execute_process`` runs commands while CMake is configuring the project,
+prior to build system generation.  Use the :command:`add_custom_target` and
+:command:`add_custom_command` commands to create custom commands that run
+at build time.
+
 Options:
 
 ``COMMAND``
@@ -51,8 +56,8 @@ Options:
  (Use the ``INPUT_*``, ``OUTPUT_*``, and ``ERROR_*`` options to
  redirect stdin, stdout, and stderr.)
 
- If a sequential execution of multiple commands is required, use multiple
- :command:`execute_process` calls with a single ``COMMAND`` argument.
+ For **sequential execution** of multiple commands use multiple
+ ``execute_process`` calls each with a single ``COMMAND`` argument.
 
 ``WORKING_DIRECTORY``
  The named directory will be set as the current working directory of
@@ -76,22 +81,46 @@ Options:
  given ``COMMAND`` arguments.  Each entry will be an integer return code
  from the corresponding child or a string describing an error condition.
 
+``INPUT_FILE <file>``
+ ``<file>`` is attached to the standard input pipe of the *first* ``COMMAND``
+ process.
+
+``OUTPUT_FILE <file>``
+ ``<file>`` is attached to the standard output pipe of the *last* ``COMMAND``
+ process.
+
+``ERROR_FILE <file>``
+ ``<file>`` is attached to the standard error pipe of *all* ``COMMAND``
+ processes.
+
+.. versionadded:: 3.3
+  If the same ``<file>`` is named for both ``OUTPUT_FILE`` and ``ERROR_FILE``
+  then it will be used for both standard output and standard error pipes.
+
+``OUTPUT_QUIET``, ``ERROR_QUIET``
+ The standard output on ``OUTPUT_VARIABLE`` or standard error on
+ ``ERROR_VARIABLE`` are not connected (no variable content).
+ The  ``*_FILE`` and ``ECHO_*_VARIABLE`` options are not affected.
+
 ``OUTPUT_VARIABLE``, ``ERROR_VARIABLE``
  The variable named will be set with the contents of the standard output
  and standard error pipes, respectively.  If the same variable is named
  for both pipes their output will be merged in the order produced.
 
-``INPUT_FILE, OUTPUT_FILE``, ``ERROR_FILE``
- The file named will be attached to the standard input of the first
- process, standard output of the last process, or standard error of
- all processes, respectively.
+``ECHO_OUTPUT_VARIABLE``, ``ECHO_ERROR_VARIABLE``
+  .. versionadded:: 3.18
 
- .. versionadded:: 3.3
-  If the same file is named for both output and error then it will be used
-  for both.
+  The standard output or standard error will not be exclusively redirected to
+  the specified variables.
 
-``OUTPUT_QUIET``, ``ERROR_QUIET``
- The standard output or standard error results will be quietly ignored.
+  The output will be duplicated into the specified variables and also onto
+  standard output or standard error analogous to the ``tee`` Unix command.
+
+.. note::
+  If more than one ``OUTPUT_*`` or ``ERROR_*`` option is given for the
+  same pipe the precedence is *not specified*.
+  If no ``OUTPUT_*`` or ``ERROR_*`` options are given the output will
+  be shared with the corresponding pipes of the CMake process itself.
 
 ``COMMAND_ECHO <where>``
  .. versionadded:: 3.15
@@ -111,31 +140,33 @@ Options:
  ``NONE``
    Perform no decoding.  This assumes that the process output is encoded
    in the same way as CMake's internal encoding (UTF-8).
-   This is the default.
+
+   This was the default in CMake 3.14 and older.
+
  ``AUTO``
    Use the current active console's codepage or if that isn't
    available then use ANSI.
+
+   This was the default in CMake 3.15 through 3.30.
+
  ``ANSI``
    Use the ANSI codepage.
+
  ``OEM``
    Use the original equipment manufacturer (OEM) code page.
- ``UTF8`` or ``UTF-8``
+
+ ``UTF-8``
+   .. versionadded:: 3.11
+
    Use the UTF-8 codepage.
 
-   .. versionadded:: 3.11
-     Accept ``UTF-8`` spelling for consistency with the
-     `UTF-8 RFC <https://www.ietf.org/rfc/rfc3629>`_ naming convention.
+   This is the default since CMake 3.31.  See policy :policy:`CMP0176`.
 
-``ECHO_OUTPUT_VARIABLE``, ``ECHO_ERROR_VARIABLE``
-  .. versionadded:: 3.18
-
-  The standard output or standard error will not be exclusively redirected to
-  the configured variables.
-
-  The output will be duplicated, it will be sent into the configured variables
-  and also on standard output or standard error.
-
-  This is analogous to the ``tee`` Unix command.
+ ``UTF8``
+   Use the UTF-8 codepage.  Use of this name is discouraged in favor
+   of ``UTF-8`` to match the
+   `UTF-8 RFC <https://datatracker.ietf.org/doc/html/rfc3629>`_
+   naming convention.
 
 ``COMMAND_ERROR_IS_FATAL <ANY|LAST>``
   .. versionadded:: 3.19
@@ -151,15 +182,3 @@ Options:
     If the last command in the list of commands fails, the
     ``execute_process()`` command halts with an error.  Commands earlier in the
     list will not cause a fatal error.
-
-If more than one ``OUTPUT_*`` or ``ERROR_*`` option is given for the
-same pipe the precedence is not specified.
-If no ``OUTPUT_*`` or ``ERROR_*`` options are given the output will
-be shared with the corresponding pipes of the CMake process itself.
-
-The :command:`execute_process` command is a newer more powerful version of
-:command:`exec_program`, but the old command has been kept for compatibility.
-Both commands run while CMake is processing the project prior to build
-system generation.  Use :command:`add_custom_target` and
-:command:`add_custom_command` to create custom commands that run at
-build time.

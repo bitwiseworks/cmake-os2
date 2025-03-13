@@ -17,6 +17,7 @@ struct cmGeneratorExpressionDAGChecker;
 class cmGeneratorTarget;
 class cmLocalGenerator;
 class cmMakefile;
+class cmake;
 
 enum class cmFileSetVisibility
 {
@@ -30,15 +31,19 @@ cmFileSetVisibility cmFileSetVisibilityFromName(cm::string_view name,
 bool cmFileSetVisibilityIsForSelf(cmFileSetVisibility vis);
 bool cmFileSetVisibilityIsForInterface(cmFileSetVisibility vis);
 
+bool cmFileSetTypeCanBeIncluded(std::string const& type);
+
 class cmFileSet
 {
 public:
-  cmFileSet(std::string name, std::string type,
+  cmFileSet(cmake& cmakeInstance, std::string name, std::string type,
             cmFileSetVisibility visibility);
 
   const std::string& GetName() const { return this->Name; }
   const std::string& GetType() const { return this->Type; }
   cmFileSetVisibility GetVisibility() const { return this->Visibility; }
+
+  void CopyEntries(cmFileSet const* fs);
 
   void ClearDirectoryEntries();
   void AddDirectoryEntry(BT<std::string> directories);
@@ -77,6 +82,7 @@ public:
   static bool IsValidName(const std::string& name);
 
 private:
+  cmake& CMakeInstance;
   std::string Name;
   std::string Type;
   cmFileSetVisibility Visibility;

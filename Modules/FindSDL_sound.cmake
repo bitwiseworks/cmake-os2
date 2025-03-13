@@ -84,6 +84,9 @@ parses the error output for known symbol names to figure out which
 libraries are needed.
 #]]
 
+cmake_policy(PUSH)
+cmake_policy(SET CMP0159 NEW) # file(STRINGS) with REGEX updates CMAKE_MATCH_<n>
+
 set(SDL_SOUND_EXTRAS "" CACHE STRING "SDL_sound extra flags")
 mark_as_advanced(SDL_SOUND_EXTRAS)
 
@@ -196,7 +199,7 @@ if(SDL_FOUND AND SDL_SOUND_INCLUDE_DIR AND SDL_SOUND_LIBRARY)
 
     # I expect that MPGLIB, VOC, WAV, AIFF, and SHN are compiled in statically.
     # I think Timidity is also compiled in statically.
-    # I've never had to explcitly link against Quicktime, so I'll skip that for now.
+    # I've never had to explicitly link against Quicktime, so I'll skip that for now.
 
     set(SDL_SOUND_LIBRARIES_TMP ${SDL_SOUND_LIBRARY})
 
@@ -371,3 +374,5 @@ include(${CMAKE_CURRENT_LIST_DIR}/FindPackageHandleStandardArgs.cmake)
 FIND_PACKAGE_HANDLE_STANDARD_ARGS(SDL_sound
                                   REQUIRED_VARS SDL_SOUND_LIBRARY SDL_SOUND_INCLUDE_DIR
                                   VERSION_VAR SDL_SOUND_VERSION_STRING)
+
+cmake_policy(POP)

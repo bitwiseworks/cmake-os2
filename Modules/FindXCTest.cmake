@@ -13,7 +13,7 @@ An XCTest bundle is a CFBundle with a special product-type
 and bundle extension. The Mac Developer Library provides more
 information in the `Testing with Xcode`_ document.
 
-.. _Testing with Xcode: https://developer.apple.com/library/mac/documentation/DeveloperTools/Conceptual/testing_with_xcode/
+.. _Testing with Xcode: https://developer.apple.com/library/archive/documentation/DeveloperTools/Conceptual/testing_with_xcode/
 
 Module Functions
 ^^^^^^^^^^^^^^^^
@@ -74,7 +74,7 @@ if(CMAKE_EFFECTIVE_SYSTEM_NAME STREQUAL "Apple"
   # platform directory which is not added to the CMAKE_FIND_ROOT_PATH
   # (only to CMAKE_SYSTEM_FRAMEWORK_PATH) and therefore not searched.
   #
-  # Until this is properly addressed, temporaily add the platform
+  # Until this is properly addressed, temporarily add the platform
   # directory to CMAKE_FIND_ROOT_PATH.
   list(APPEND CMAKE_FIND_ROOT_PATH "${_CMAKE_OSX_SYSROOT_PATH}/../..")
 endif()
@@ -210,6 +210,8 @@ function(xctest_add_test name bundle)
 
   # register test
 
+  # There's no target used for this command, so we don't need to do anything
+  # here for CMP0178.
   add_test(
     NAME ${name}
     COMMAND ${XCTest_EXECUTABLE} $<TARGET_BUNDLE_DIR:${bundle}>)

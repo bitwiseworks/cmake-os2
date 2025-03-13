@@ -16,10 +16,21 @@ run_cmake(Debian6)
 
 run_cmake(UserFallbackScript)
 
-if(RunCMake_GENERATOR MATCHES "^Visual Studio " AND NOT RunCMake_GENERATOR STREQUAL "Visual Studio 9 2008")
+if(RunCMake_GENERATOR MATCHES "Visual Studio")
   run_cmake(VsMSBuild)
 else()
   run_cmake(VsMSBuildMissing)
+endif()
+
+if(CMAKE_HOST_WIN32)
+  run_cmake_script(MSYSTEM_PREFIX-Empty)
+  if("$ENV{MSYSTEM}" MATCHES "(MSYS|MINGW32|MINGW64|UCRT64)")
+    set(RunCMake_TEST_VARIANT_DESCRIPTION "-$ENV{MSYSTEM}")
+    run_cmake_script(MSYSTEM_PREFIX -DCMake_TEST_MSYSTEM_PREFIX=${CMake_TEST_MSYSTEM_PREFIX})
+    unset(RunCMake_TEST_VARIANT_DESCRIPTION)
+  endif()
+else()
+  run_cmake_script(MSYSTEM_PREFIX-Missing)
 endif()
 
 # WINDOWS_REGISTRY tests

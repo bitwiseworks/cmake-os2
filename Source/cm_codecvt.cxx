@@ -13,19 +13,21 @@
 #  include "cm_utf8.h"
 #endif
 
-codecvt::codecvt(Encoding e)
+#include "cm_codecvt_Encoding.hxx"
+
+codecvt::codecvt(codecvt_Encoding e)
 #if defined(_WIN32)
   : m_codepage(0)
 #endif
 {
   switch (e) {
-    case codecvt::ConsoleOutput:
+    case codecvt_Encoding::ConsoleOutput:
 #if defined(_WIN32)
       m_noconv = false;
       m_codepage = GetConsoleOutputCP();
       break;
 #endif
-    case codecvt::ANSI:
+    case codecvt_Encoding::ANSI:
 #if defined(_WIN32)
       m_noconv = false;
       m_codepage = CP_ACP;
@@ -33,10 +35,10 @@ codecvt::codecvt(Encoding e)
 #endif
     // We don't know which ANSI encoding to use for other platforms than
     // Windows so we don't do any conversion there
-    case codecvt::UTF8:
-    case codecvt::UTF8_WITH_BOM:
+    case codecvt_Encoding::UTF8:
+    case codecvt_Encoding::UTF8_WITH_BOM:
     // Assume internal encoding is UTF-8
-    case codecvt::None:
+    case codecvt_Encoding::None:
     // No encoding
     default:
       this->m_noconv = true;
@@ -171,7 +173,7 @@ std::codecvt_base::result codecvt::Decode(mbstate_t& state, int size,
   }
 
   int tlen = WideCharToMultiByte(m_codepage, 0, wbuf, wlen, to_next,
-                                 to_end - to_next, NULL, NULL);
+                                 to_end - to_next, nullptr, nullptr);
   if (tlen <= 0) {
     if (GetLastError() == ERROR_INSUFFICIENT_BUFFER) {
       return std::codecvt_base::partial;
@@ -206,7 +208,7 @@ std::codecvt_base::result codecvt::DecodePartial(mbstate_t& state,
   }
 
   int tlen = WideCharToMultiByte(m_codepage, 0, wbuf, wlen, to_next,
-                                 to_end - to_next, NULL, NULL);
+                                 to_end - to_next, nullptr, nullptr);
   if (tlen <= 0) {
     if (GetLastError() == ERROR_INSUFFICIENT_BUFFER) {
       return std::codecvt_base::partial;

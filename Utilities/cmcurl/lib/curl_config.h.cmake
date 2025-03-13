@@ -5,7 +5,7 @@
  *                            | (__| |_| |  _ <| |___
  *                             \___|\___/|_| \_\_____|
  *
- * Copyright (C) 1998 - 2022, Daniel Stenberg, <daniel@haxx.se>, et al.
+ * Copyright (C) Daniel Stenberg, <daniel@haxx.se>, et al.
  *
  * This software is licensed as described in the file COPYING, which
  * you should have received as part of this distribution. The terms
@@ -21,9 +21,12 @@
  * SPDX-License-Identifier: curl
  *
  ***************************************************************************/
-/* lib/curl_config.h.in.  Generated somehow by cmake.  */
+/* lib/curl_config.h.in. Generated somehow by cmake.  */
 
 #include <cm3p/kwiml/abi.h>
+
+/* Default SSL backend */
+#cmakedefine CURL_DEFAULT_SSL_BACKEND "${CURL_DEFAULT_SSL_BACKEND}"
 
 /* disables alt-svc */
 #cmakedefine CURL_DISABLE_ALTSVC 1
@@ -31,8 +34,23 @@
 /* disables cookies support */
 #cmakedefine CURL_DISABLE_COOKIES 1
 
-/* disables cryptographic authentication */
-#cmakedefine CURL_DISABLE_CRYPTO_AUTH 1
+/* disables Basic authentication */
+#cmakedefine CURL_DISABLE_BASIC_AUTH 1
+
+/* disables Bearer authentication */
+#cmakedefine CURL_DISABLE_BEARER_AUTH 1
+
+/* disables Digest authentication */
+#cmakedefine CURL_DISABLE_DIGEST_AUTH 1
+
+/* disables Kerberos authentication */
+#cmakedefine CURL_DISABLE_KERBEROS_AUTH 1
+
+/* disables negotiate authentication */
+#cmakedefine CURL_DISABLE_NEGOTIATE_AUTH 1
+
+/* disables AWS-SIG4 */
+#cmakedefine CURL_DISABLE_AWS 1
 
 /* disables DICT */
 #cmakedefine CURL_DISABLE_DICT 1
@@ -43,17 +61,29 @@
 /* disables FILE */
 #cmakedefine CURL_DISABLE_FILE 1
 
+/* disables form api */
+#cmakedefine CURL_DISABLE_FORM_API 1
+
 /* disables FTP */
 #cmakedefine CURL_DISABLE_FTP 1
 
+/* disables curl_easy_options API for existing options to curl_easy_setopt */
+#cmakedefine CURL_DISABLE_GETOPTIONS 1
+
 /* disables GOPHER */
 #cmakedefine CURL_DISABLE_GOPHER 1
+
+/* disables headers-api support */
+#cmakedefine CURL_DISABLE_HEADERS_API 1
 
 /* disables HSTS support */
 #cmakedefine CURL_DISABLE_HSTS 1
 
 /* disables HTTP */
 #cmakedefine CURL_DISABLE_HTTP 1
+
+/* disabled all HTTP authentication methods */
+#cmakedefine CURL_DISABLE_HTTP_AUTH 1
 
 /* disables IMAP */
 #cmakedefine CURL_DISABLE_IMAP 1
@@ -69,6 +99,9 @@
 
 /* disables MIME support */
 #cmakedefine CURL_DISABLE_MIME 1
+
+/* disables local binding support */
+#cmakedefine CURL_DISABLE_BINDLOCAL 1
 
 /* disables MQTT */
 #cmakedefine CURL_DISABLE_MQTT 1
@@ -93,6 +126,12 @@
 
 /* disables RTSP */
 #cmakedefine CURL_DISABLE_RTSP 1
+
+/* disables SHA-512/256 hash algorithm */
+#cmakedefine CURL_DISABLE_SHA512_256 1
+
+/* disabled shuffle DNS feature */
+#cmakedefine CURL_DISABLE_SHUFFLE_DNS 1
 
 /* disables SMB */
 #cmakedefine CURL_DISABLE_SMB 1
@@ -125,32 +164,23 @@
 /* Use Windows LDAP implementation */
 #cmakedefine USE_WIN32_LDAP 1
 
-/* when not building a shared library */
-#cmakedefine CURL_STATICLIB 1
-
-/* your Entropy Gathering Daemon socket pathname */
-#cmakedefine EGD_SOCKET ${EGD_SOCKET}
-
 /* Define if you want to enable IPv6 support */
-#cmakedefine ENABLE_IPV6 1
+#cmakedefine USE_IPV6 1
 
 /* Define to 1 if you have the alarm function. */
 #cmakedefine HAVE_ALARM 1
 
+/* Define to 1 if you have the arc4random function. */
+#cmakedefine HAVE_ARC4RANDOM 1
+
 /* Define to 1 if you have the <arpa/inet.h> header file. */
 #cmakedefine HAVE_ARPA_INET_H 1
-
-/* Define to 1 if you have the <arpa/tftp.h> header file. */
-#cmakedefine HAVE_ARPA_TFTP_H 1
-
-/* Define to 1 if you have the <assert.h> header file. */
-#cmakedefine HAVE_ASSERT_H 1
 
 /* Define to 1 if you have _Atomic support. */
 #cmakedefine HAVE_ATOMIC 1
 
-/* Define to 1 if you have the `fchmod' function. */
-#cmakedefine HAVE_FCHMOD 1
+/* Define to 1 if you have the `fnmatch' function. */
+#cmakedefine HAVE_FNMATCH 1
 
 /* Define to 1 if you have the `basename' function. */
 #cmakedefine HAVE_BASENAME 1
@@ -164,11 +194,18 @@
 /* Define to 1 if you have the clock_gettime function and monotonic timer. */
 #cmakedefine HAVE_CLOCK_GETTIME_MONOTONIC 1
 
+/* Define to 1 if you have the clock_gettime function and raw monotonic timer.
+   */
+#cmakedefine HAVE_CLOCK_GETTIME_MONOTONIC_RAW 1
+
 /* Define to 1 if you have the `closesocket' function. */
 #cmakedefine HAVE_CLOSESOCKET 1
 
-/* Define to 1 if you have the <errno.h> header file. */
-#cmakedefine HAVE_ERRNO_H 1
+/* Define to 1 if you have the <dirent.h> header file. */
+#cmakedefine HAVE_DIRENT_H 1
+
+/* Define to 1 if you have the `opendir' function. */
+#cmakedefine HAVE_OPENDIR 1
 
 /* Define to 1 if you have the fcntl function. */
 #cmakedefine HAVE_FCNTL 1
@@ -181,6 +218,15 @@
 
 /* Define to 1 if you have the freeaddrinfo function. */
 #cmakedefine HAVE_FREEADDRINFO 1
+
+/* Define to 1 if you have the fseeko function. */
+#cmakedefine HAVE_FSEEKO 1
+
+/* Define to 1 if you have the fseeko declaration. */
+#cmakedefine HAVE_DECL_FSEEKO 1
+
+/* Define to 1 if you have the _fseeki64 function. */
+#cmakedefine HAVE__FSEEKI64 1
 
 /* Define to 1 if you have the ftruncate function. */
 #cmakedefine HAVE_FTRUNCATE 1
@@ -217,9 +263,6 @@
 
 /* Define to 1 if you have the `getpass_r' function. */
 #cmakedefine HAVE_GETPASS_R 1
-
-/* Define to 1 if you have the `getppid' function. */
-#cmakedefine HAVE_GETPPID 1
 
 /* Define to 1 if you have the `getpeername' function. */
 #cmakedefine HAVE_GETPEERNAME 1
@@ -263,15 +306,6 @@
 /* if you have the GNU gssapi libraries */
 #cmakedefine HAVE_GSSGNU 1
 
-/* if you have the Heimdal gssapi libraries */
-#cmakedefine HAVE_GSSHEIMDAL 1
-
-/* if you have the MIT gssapi libraries */
-#cmakedefine HAVE_GSSMIT 1
-
-/* Define to 1 if you have the `idna_strerror' function. */
-#cmakedefine HAVE_IDNA_STRERROR 1
-
 /* Define to 1 if you have the <ifaddrs.h> header file. */
 #cmakedefine HAVE_IFADDRS_H 1
 
@@ -286,9 +320,6 @@
 
 /* Define to 1 if symbol `ADDRESS_FAMILY' exists */
 #cmakedefine HAVE_ADDRESS_FAMILY 1
-
-/* Define to 1 if you have the <inttypes.h> header file. */
-#cmakedefine HAVE_INTTYPES_H 1
 
 /* Define to 1 if you have the ioctlsocket function. */
 #cmakedefine HAVE_IOCTLSOCKET 1
@@ -336,12 +367,6 @@
 /* Define to 1 if you have the idn2.h header file. */
 #cmakedefine HAVE_IDN2_H 1
 
-/* Define to 1 if you have the `socket' library (-lsocket). */
-#cmakedefine HAVE_LIBSOCKET 1
-
-/* Define to 1 if you have the `ssh2' library (-lssh2). */
-#cmakedefine HAVE_LIBSSH2 1
-
 /* if zlib is available */
 #cmakedefine HAVE_LIBZ 1
 
@@ -359,6 +384,9 @@
 #  define HAVE_LONGLONG 1
 #endif
 
+/* Define to 1 if you have the 'suseconds_t' data type. */
+#cmakedefine HAVE_SUSECONDS_T 1
+
 /* Define to 1 if you have the MSG_NOSIGNAL flag. */
 #cmakedefine HAVE_MSG_NOSIGNAL 1
 
@@ -371,6 +399,9 @@
 /* Define to 1 if you have the <netinet/tcp.h> header file. */
 #cmakedefine HAVE_NETINET_TCP_H 1
 
+/* Define to 1 if you have the <netinet/udp.h> header file. */
+#cmakedefine HAVE_NETINET_UDP_H 1
+
 /* Define to 1 if you have the <linux/tcp.h> header file. */
 #cmakedefine HAVE_LINUX_TCP_H 1
 
@@ -382,6 +413,9 @@
 
 /* Define to 1 if you have the `pipe' function. */
 #cmakedefine HAVE_PIPE 1
+
+/* Define to 1 if you have the `eventfd' function. */
+#cmakedefine HAVE_EVENTFD 1
 
 /* If you have a fine poll */
 #cmakedefine HAVE_POLL_FINE 1
@@ -398,8 +432,8 @@
 /* Define to 1 if you have the <pwd.h> header file. */
 #cmakedefine HAVE_PWD_H 1
 
-/* Define to 1 if you have the `RAND_egd' function. */
-#cmakedefine HAVE_RAND_EGD 1
+/* Define to 1 if OpenSSL has the `SSL_set0_wbio` function. */
+#cmakedefine HAVE_SSL_SET0_WBIO 1
 
 /* Define to 1 if you have the recv function. */
 #cmakedefine HAVE_RECV 1
@@ -407,8 +441,14 @@
 /* Define to 1 if you have the select function. */
 #cmakedefine HAVE_SELECT 1
 
+/* Define to 1 if you have the sched_yield function. */
+#cmakedefine HAVE_SCHED_YIELD 1
+
 /* Define to 1 if you have the send function. */
 #cmakedefine HAVE_SEND 1
+
+/* Define to 1 if you have the sendmsg function. */
+#cmakedefine HAVE_SENDMSG 1
 
 /* Define to 1 if you have the 'fsetxattr' function. */
 #cmakedefine HAVE_FSETXATTR 1
@@ -418,9 +458,6 @@
 
 /* fsetxattr() takes 6 args */
 #cmakedefine HAVE_FSETXATTR_6 1
-
-/* Define to 1 if you have the <setjmp.h> header file. */
-#cmakedefine HAVE_SETJMP_H 1
 
 /* Define to 1 if you have the `setlocale' function. */
 #cmakedefine HAVE_SETLOCALE 1
@@ -443,11 +480,11 @@
 /* Define to 1 if you have the signal function. */
 #cmakedefine HAVE_SIGNAL 1
 
-/* Define to 1 if you have the <signal.h> header file. */
-#cmakedefine HAVE_SIGNAL_H 1
-
 /* Define to 1 if you have the sigsetjmp function or macro. */
 #cmakedefine HAVE_SIGSETJMP 1
+
+/* Define to 1 if you have the `snprintf' function. */
+#cmakedefine HAVE_SNPRINTF 1
 
 /* Define to 1 if struct sockaddr_in6 has the sin6_scope_id member */
 #cmakedefine HAVE_SOCKADDR_IN6_SIN6_SCOPE_ID 1
@@ -458,20 +495,11 @@
 /* Define to 1 if you have the socketpair function. */
 #cmakedefine HAVE_SOCKETPAIR 1
 
-/* Define to 1 if you have the <ssl.h> header file. */
-#cmakedefine HAVE_SSL_H 1
-
 /* Define to 1 if you have the <stdatomic.h> header file. */
 #cmakedefine HAVE_STDATOMIC_H 1
 
 /* Define to 1 if you have the <stdbool.h> header file. */
 #cmakedefine HAVE_STDBOOL_H 1
-
-/* Define to 1 if you have the <stdint.h> header file. */
-#cmakedefine HAVE_STDINT_H 1
-
-/* Define to 1 if you have the <stdlib.h> header file. */
-#cmakedefine HAVE_STDLIB_H 1
 
 /* Define to 1 if you have the strcasecmp function. */
 #cmakedefine HAVE_STRCASECMP 1
@@ -491,9 +519,6 @@
 /* Define to 1 if you have the <strings.h> header file. */
 #cmakedefine HAVE_STRINGS_H 1
 
-/* Define to 1 if you have the <string.h> header file. */
-#cmakedefine HAVE_STRING_H 1
-
 /* Define to 1 if you have the <stropts.h> header file. */
 #cmakedefine HAVE_STROPTS_H 1
 
@@ -503,14 +528,23 @@
 /* Define to 1 if you have the strtoll function. */
 #cmakedefine HAVE_STRTOLL 1
 
+/* Define to 1 if you have the memrchr function. */
+#cmakedefine HAVE_MEMRCHR 1
+
 /* if struct sockaddr_storage is defined */
 #cmakedefine HAVE_STRUCT_SOCKADDR_STORAGE 1
 
 /* Define to 1 if you have the timeval struct. */
 #cmakedefine HAVE_STRUCT_TIMEVAL 1
 
+/* Define to 1 if you have the <sys/eventfd.h> header file. */
+#cmakedefine HAVE_SYS_EVENTFD_H 1
+
 /* Define to 1 if you have the <sys/filio.h> header file. */
 #cmakedefine HAVE_SYS_FILIO_H 1
+
+/* Define to 1 if you have the <sys/wait.h> header file. */
+#cmakedefine HAVE_SYS_WAIT_H 1
 
 /* Define to 1 if you have the <sys/ioctl.h> header file. */
 #cmakedefine HAVE_SYS_IOCTL_H 1
@@ -554,9 +588,6 @@
 /* Define to 1 if you have the <termio.h> header file. */
 #cmakedefine HAVE_TERMIO_H 1
 
-/* Define to 1 if you have the <time.h> header file. */
-#cmakedefine HAVE_TIME_H 1
-
 /* Define to 1 if you have the <unistd.h> header file. */
 #cmakedefine HAVE_UNISTD_H 1
 
@@ -569,29 +600,8 @@
 /* Define to 1 if you have the <utime.h> header file. */
 #cmakedefine HAVE_UTIME_H 1
 
-/* Define to 1 if compiler supports C99 variadic macro style. */
-#cmakedefine HAVE_VARIADIC_MACROS_C99 1
-
-/* Define to 1 if compiler supports old gcc variadic macro style. */
-#cmakedefine HAVE_VARIADIC_MACROS_GCC 1
-
-/* Define to 1 if you have the windows.h header file. */
-#cmakedefine HAVE_WINDOWS_H 1
-
-/* Define to 1 if you have the winldap.h header file. */
-#cmakedefine HAVE_WINLDAP_H 1
-
-/* Define to 1 if you have the winsock2.h header file. */
-#cmakedefine HAVE_WINSOCK2_H 1
-
 /* Define this symbol if your OS supports changing the contents of argv */
 #cmakedefine HAVE_WRITABLE_ARGV 1
-
-/* Define to 1 if you have the ws2tcpip.h header file. */
-#cmakedefine HAVE_WS2TCPIP_H 1
-
-/* Define if you have the <process.h> header file. */
-#cmakedefine HAVE_PROCESS_H 1
 
 /* Define to 1 if you need the lber.h header file even with ldap.h */
 #cmakedefine NEED_LBER_H 1
@@ -623,9 +633,6 @@
 /* Define to the version of this package. */
 #cmakedefine PACKAGE_VERSION ${PACKAGE_VERSION}
 
-/* a suitable file to read random data from */
-#cmakedefine RANDOM_FILE "${RANDOM_FILE}"
-
 /*
  Note: SIZEOF_* variables are fetched with CMake through check_type_size().
  As per CMake documentation on CheckTypeSize, C preprocessor code is
@@ -652,11 +659,17 @@
 #  define SIZEOF___INT64 KWIML_ABI_SIZEOF___INT64
 #endif
 
+/* The size of `long long', as computed by sizeof. */
+${SIZEOF_LONG_LONG_CODE}
+
 /* The size of `off_t', as computed by sizeof. */
 ${SIZEOF_OFF_T_CODE}
 
 /* The size of `curl_off_t', as computed by sizeof. */
 ${SIZEOF_CURL_OFF_T_CODE}
+
+/* The size of `curl_socket_t', as computed by sizeof. */
+${SIZEOF_CURL_SOCKET_T_CODE}
 
 /* The size of `size_t', as computed by sizeof. */
 ${SIZEOF_SIZE_T_CODE}
@@ -670,16 +683,13 @@ ${SIZEOF_TIME_T_CODE}
 /* Define to 1 if you have the ANSI C header files. */
 #cmakedefine STDC_HEADERS 1
 
-/* Define to 1 if you can safely include both <sys/time.h> and <time.h>. */
-#cmakedefine TIME_WITH_SYS_TIME 1
-
 /* Define if you want to enable c-ares support */
 #cmakedefine USE_ARES 1
 
 /* Define if you want to enable POSIX threaded DNS lookup */
 #cmakedefine USE_THREADS_POSIX 1
 
-/* Define if you want to enable WIN32 threaded DNS lookup */
+/* Define if you want to enable Win32 threaded DNS lookup */
 #cmakedefine USE_THREADS_WIN32 1
 
 /* if GnuTLS is enabled */
@@ -694,26 +704,29 @@ ${SIZEOF_TIME_T_CODE}
 /* if BearSSL is enabled */
 #cmakedefine USE_BEARSSL 1
 
-/* if WolfSSL is enabled */
+/* if Rustls is enabled */
+#cmakedefine USE_RUSTLS 1
+
+/* if wolfSSL is enabled */
 #cmakedefine USE_WOLFSSL 1
 
-/* if libSSH is in use */
+/* if wolfSSL has the wolfSSL_DES_ecb_encrypt function. */
+#cmakedefine HAVE_WOLFSSL_DES_ECB_ENCRYPT 1
+
+/* if wolfSSL has the wolfSSL_BIO_set_shutdown function. */
+#cmakedefine HAVE_WOLFSSL_FULL_BIO 1
+
+/* if libssh is in use */
 #cmakedefine USE_LIBSSH 1
 
-/* if libSSH2 is in use */
+/* if libssh2 is in use */
 #cmakedefine USE_LIBSSH2 1
 
-/* if libPSL is in use */
+/* if wolfssh is in use */
+#cmakedefine USE_WOLFSSH 1
+
+/* if libpsl is in use */
 #cmakedefine USE_LIBPSL 1
-
-/* If you want to build curl with the built-in manual */
-#cmakedefine USE_MANUAL 1
-
-/* if NSS is enabled */
-#cmakedefine USE_NSS 1
-
-/* if you have the PK11_CreateManagedGenericObject function */
-#cmakedefine HAVE_PK11_CREATEMANAGEDGENERICOBJECT 1
 
 /* if you want to use OpenLDAP code instead of legacy ldap implementation */
 #cmakedefine USE_OPENLDAP 1
@@ -721,7 +734,19 @@ ${SIZEOF_TIME_T_CODE}
 /* if OpenSSL is in use */
 #cmakedefine USE_OPENSSL 1
 
-/* Define to 1 if you don't want the OpenSSL configuration to be loaded
+/* if librtmp/rtmpdump is in use */
+#cmakedefine USE_LIBRTMP 1
+
+/* if GSASL is in use */
+#cmakedefine USE_GSASL 1
+
+/* if libuv is in use */
+#cmakedefine USE_LIBUV 1
+
+/* Define to 1 if you have the <uv.h> header file. */
+#cmakedefine HAVE_UV_H 1
+
+/* Define to 1 if you do not want the OpenSSL configuration to be loaded
    automatically */
 #cmakedefine CURL_DISABLE_OPENSSL_AUTO_LOAD_CONFIG 1
 
@@ -737,6 +762,9 @@ ${SIZEOF_TIME_T_CODE}
 /* to enable quiche */
 #cmakedefine USE_QUICHE 1
 
+/* to enable openssl + nghttp3 */
+#cmakedefine USE_OPENSSL_QUIC 1
+
 /* Define to 1 if you have the quiche_conn_set_qlog_fd function. */
 #cmakedefine HAVE_QUICHE_CONN_SET_QLOG_FD 1
 
@@ -744,7 +772,7 @@ ${SIZEOF_TIME_T_CODE}
 #cmakedefine USE_MSH3 1
 
 /* if Unix domain sockets are enabled  */
-#cmakedefine USE_UNIX_SOCKETS
+#cmakedefine USE_UNIX_SOCKETS 1
 
 /* to enable SSPI support */
 #cmakedefine USE_WINDOWS_SSPI 1
@@ -757,11 +785,6 @@ ${SIZEOF_TIME_T_CODE}
 
 /* Version number of package */
 #cmakedefine VERSION ${VERSION}
-
-/* Define to 1 if OS is AIX. */
-#ifndef _ALL_SOURCE
-#  undef _ALL_SOURCE
-#endif
 
 /* Number of bits in a file offset, on hosts where this is settable. */
 #cmakedefine _FILE_OFFSET_BITS ${_FILE_OFFSET_BITS}
@@ -777,12 +800,6 @@ ${SIZEOF_TIME_T_CODE}
 
 /* Type to use in place of in_addr_t when system does not provide it. */
 #cmakedefine in_addr_t ${in_addr_t}
-
-/* Define to `__inline__' or `__inline' if that's what the C compiler
-   calls it, or to nothing if 'inline' is not supported under any name.  */
-#ifndef __cplusplus
-#undef inline
-#endif
 
 /* Define to `unsigned int' if <sys/types.h> does not define. */
 #cmakedefine size_t ${size_t}
@@ -806,8 +823,23 @@ ${SIZEOF_TIME_T_CODE}
 /* to enable Windows IDN */
 #cmakedefine USE_WIN32_IDN 1
 
-/* to make the compiler know the prototypes of Windows IDN APIs */
-#cmakedefine WANT_IDN_PROTOTYPES 1
+/* to enable Apple IDN */
+#cmakedefine USE_APPLE_IDN 1
 
 /* Define to 1 to enable websocket support. */
 #cmakedefine USE_WEBSOCKETS 1
+
+/* Define to 1 if OpenSSL has the SSL_CTX_set_srp_username function. */
+#cmakedefine HAVE_OPENSSL_SRP 1
+
+/* Define to 1 if GnuTLS has the gnutls_srp_verifier function. */
+#cmakedefine HAVE_GNUTLS_SRP 1
+
+/* Define to 1 to enable TLS-SRP support. */
+#cmakedefine USE_TLS_SRP 1
+
+/* Define to 1 to query for HTTPSRR when using DoH */
+#cmakedefine USE_HTTPSRR 1
+
+/* if ECH support is available */
+#cmakedefine USE_ECH 1

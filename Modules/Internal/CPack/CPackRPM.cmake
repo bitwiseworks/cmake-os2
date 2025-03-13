@@ -54,6 +54,15 @@ macro(set_spec_scripts PACKAGE_NAME)
     "${CPACK_RPM_SPEC_PREUNINSTALL}")
 endmacro()
 
+function(make_rpm_spec_path var path)
+  # RPM supports either whitespace with quoting or globbing without quoting.
+  if(path MATCHES "[ \t]")
+    set("${var}" "\"${path}\"" PARENT_SCOPE)
+  else()
+    set("${var}" "${path}" PARENT_SCOPE)
+  endif()
+endfunction()
+
 function(get_file_permissions FILE RETURN_VAR)
   execute_process(COMMAND ls -l ${FILE}
           OUTPUT_VARIABLE permissions_
@@ -596,7 +605,8 @@ function(cpack_rpm_prepare_install_files INSTALL_FILES_LIST WDIR PACKAGE_PREFIXE
       set(DIRECTIVE "%dir ")
     endif()
 
-    string(APPEND INSTALL_FILES "${DIRECTIVE}\"${F}\"\n")
+    make_rpm_spec_path(F_SPEC "${F}")
+    string(APPEND INSTALL_FILES "${DIRECTIVE}${F_SPEC}\n")
   endforeach()
 
   if(REQUIRES_SYMLINK_RELOCATION_SCRIPT)
@@ -701,7 +711,7 @@ function(cpack_rpm_debugsymbol_check INSTALL_FILES WORKING_DIR)
       endif()
 
       get_file_permissions("${WORKING_DIR}/${F}" permissions_)
-      if(NOT "USER_EXECUTE" IN_LIST permissions_ AND
+      if(NOT "OWNER_EXECUTE" IN_LIST permissions_ AND
          NOT "GROUP_EXECUTE" IN_LIST permissions_ AND
          NOT "WORLD_EXECUTE" IN_LIST permissions_)
         if(CPACK_RPM_INSTALL_WITH_EXEC)
@@ -851,7 +861,7 @@ function(cpack_rpm_generate_package)
 
   # If rpmbuild is found
   # we try to discover alien since we may be on non RPM distro like Debian.
-  # In this case we may try to to use more advanced features
+  # In this case we may try to use more advanced features
   # like generating RPM directly from DEB using alien.
   # FIXME feature not finished (yet)
   find_program(ALIEN_EXECUTABLE alien)
@@ -906,7 +916,7 @@ function(cpack_rpm_generate_package)
       CPACK_RPM_MAIN_COMPONENT_UPPER)
 
     if(NOT CPACK_RPM_MAIN_COMPONENT_UPPER STREQUAL CPACK_RPM_PACKAGE_COMPONENT_UPPER)
-      string(APPEND CPACK_RPM_PACKAGE_NAME "-${CPACK_RPM_PACKAGE_COMPONENT}")
+      string(APPEND CPACK_RPM_PACKAGE_NAME "-${CPACK_RPM_PACKAGE_COMPONENT_PART_NAME}")
 
       cpack_rpm_variable_fallback("CPACK_RPM_PACKAGE_NAME"
         "CPACK_RPM_${CPACK_RPM_PACKAGE_COMPONENT}_PACKAGE_NAME"
@@ -1024,23 +1034,32 @@ function(cpack_rpm_generate_package)
   # CPACK_RPM_COMPRESSION_TYPE
   #
   if (CPACK_RPM_COMPRESSION_TYPE)
-     if(CPACK_RPM_PACKAGE_DEBUG)
-       message("CPackRPM:Debug: User Specified RPM compression type: ${CPACK_RPM_COMPRESSION_TYPE}")
-     endif()
-     if(CPACK_RPM_COMPRESSION_TYPE STREQUAL "lzma")
-       set(CPACK_RPM_COMPRESSION_TYPE_TMP "%define _binary_payload w9.lzdio")
-     endif()
-     if(CPACK_RPM_COMPRESSION_TYPE STREQUAL "xz")
-       set(CPACK_RPM_COMPRESSION_TYPE_TMP "%define _binary_payload w7.xzdio")
-     endif()
-     if(CPACK_RPM_COMPRESSION_TYPE STREQUAL "bzip2")
-       set(CPACK_RPM_COMPRESSION_TYPE_TMP "%define _binary_payload w9.bzdio")
-     endif()
-     if(CPACK_RPM_COMPRESSION_TYPE STREQUAL "gzip")
-       set(CPACK_RPM_COMPRESSION_TYPE_TMP "%define _binary_payload w9.gzdio")
-     endif()
+    if(CPACK_RPM_PACKAGE_DEBUG)
+      message("CPackRPM:Debug: User Specified RPM compression type: ${CPACK_RPM_COMPRESSION_TYPE}")
+    endif()
+    if(CPACK_RPM_COMPRESSION_TYPE STREQUAL "lzma")
+      set(CPACK_RPM_COMPRESSION_TYPE_TMP "%define _binary_payload w9.lzdio")
+    elseif(CPACK_RPM_COMPRESSION_TYPE STREQUAL "xz")
+      if(CPACK_THREADS GREATER "0")
+        set(CPACK_RPM_COMPRESSION_TYPE_TMP "%define _binary_payload w7T${CPACK_THREADS}.xzdio")
+      else()
+        set(CPACK_RPM_COMPRESSION_TYPE_TMP "%define _binary_payload w7T.xzdio")
+      endif()
+    elseif(CPACK_RPM_COMPRESSION_TYPE STREQUAL "bzip2")
+      set(CPACK_RPM_COMPRESSION_TYPE_TMP "%define _binary_payload w9.bzdio")
+    elseif(CPACK_RPM_COMPRESSION_TYPE STREQUAL "gzip")
+      set(CPACK_RPM_COMPRESSION_TYPE_TMP "%define _binary_payload w9.gzdio")
+    elseif(CPACK_RPM_COMPRESSION_TYPE STREQUAL "zstd")
+      if(CPACK_THREADS GREATER "0")
+        set(CPACK_RPM_COMPRESSION_TYPE_TMP "%define _binary_payload w19T${CPACK_THREADS}.zstdio")
+      else()
+        set(CPACK_RPM_COMPRESSION_TYPE_TMP "%define _binary_payload w19T0.zstdio")
+      endif()
+    else()
+      message(FATAL_ERROR "Specified CPACK_RPM_COMPRESSION_TYPE value is not supported: ${CPACK_RPM_COMPRESSION_TYPE}")
+    endif()
   else()
-     set(CPACK_RPM_COMPRESSION_TYPE_TMP "")
+    set(CPACK_RPM_COMPRESSION_TYPE_TMP "")
   endif()
 
   if(NOT CPACK_RPM_PACKAGE_SOURCES)
@@ -1150,7 +1169,7 @@ function(cpack_rpm_generate_package)
   endforeach()
 
   # CPACK_RPM_SPEC_INSTALL_POST
-  # May be used to define a RPM post intallation script
+  # May be used to define a RPM post installation script
   # for example setting it to "/bin/true" may prevent
   # rpmbuild from stripping binaries.
   if(CPACK_RPM_SPEC_INSTALL_POST)
@@ -1200,7 +1219,7 @@ function(cpack_rpm_generate_package)
           file(READ ${CPACK_RPM_${RPM_SCRIPT_FILE_TIME_}_${RPM_SCRIPT_FILE_TYPE_}_READ_FILE}
             "CPACK_RPM_SPEC_${RPM_SCRIPT_FILE_TIME_}${RPM_SCRIPT_FILE_TYPE_}")
         else()
-          message("CPackRPM:Warning: CPACK_RPM_${RPM_SCRIPT_FILE_TIME_}_${RPM_SCRIPT_FILE_TYPE_}_SCRIPT_FILE <${CPACK_RPM_${RPM_SCRIPT_FILE_TIME_}_${RPM_SCRIPT_FILE_TYPE_}_READ_FILE}> does not exists - ignoring")
+          message("CPackRPM:Warning: CPACK_RPM_${RPM_SCRIPT_FILE_TIME_}_${RPM_SCRIPT_FILE_TYPE_}_SCRIPT_FILE <${CPACK_RPM_${RPM_SCRIPT_FILE_TIME_}_${RPM_SCRIPT_FILE_TYPE_}_READ_FILE}> does not exist - ignoring")
         endif()
       else()
         # reset SPEC var value if no file has been specified
@@ -1217,7 +1236,7 @@ function(cpack_rpm_generate_package)
     if(EXISTS ${CPACK_RPM_CHANGELOG_FILE})
       file(READ ${CPACK_RPM_CHANGELOG_FILE} CPACK_RPM_SPEC_CHANGELOG)
     else()
-      message(SEND_ERROR "CPackRPM:Warning: CPACK_RPM_CHANGELOG_FILE <${CPACK_RPM_CHANGELOG_FILE}> does not exists - ignoring")
+      message(SEND_ERROR "CPackRPM:Warning: CPACK_RPM_CHANGELOG_FILE <${CPACK_RPM_CHANGELOG_FILE}> does not exist - ignoring")
     endif()
   else()
     set(CPACK_RPM_SPEC_CHANGELOG "* Sun Jul 4 2010 Eric Noulard <eric.noulard@gmail.com> - ${CPACK_RPM_PACKAGE_VERSION}-${CPACK_RPM_PACKAGE_RELEASE}\n  Generated by CPack RPM (no Changelog file were provided)")
@@ -1317,7 +1336,8 @@ function(cpack_rpm_generate_package)
         string(APPEND F_PREFIX " ")
       endif()
       # Rebuild the user list file
-      string(APPEND CPACK_RPM_USER_INSTALL_FILES "${F_PREFIX}\"${F_PATH}\"\n")
+      make_rpm_spec_path(F_SPEC "${F_PATH}")
+      string(APPEND CPACK_RPM_USER_INSTALL_FILES "${F_PREFIX}${F_SPEC}\n")
 
       # Remove from CPACK_RPM_INSTALL_FILES and CPACK_ABSOLUTE_DESTINATION_FILES_INTERNAL
       list(REMOVE_ITEM CPACK_RPM_INSTALL_FILES_LIST ${F_PATH})
@@ -1330,7 +1350,8 @@ function(cpack_rpm_generate_package)
     # Rebuild CPACK_RPM_INSTALL_FILES
     set(CPACK_RPM_INSTALL_FILES "")
     foreach(F IN LISTS CPACK_RPM_INSTALL_FILES_LIST)
-      string(APPEND CPACK_RPM_INSTALL_FILES "\"${F}\"\n")
+      make_rpm_spec_path(F_SPEC "${F}")
+      string(APPEND CPACK_RPM_INSTALL_FILES "${F_SPEC}\n")
     endforeach()
   else()
     set(CPACK_RPM_USER_INSTALL_FILES "")
@@ -1351,12 +1372,14 @@ function(cpack_rpm_generate_package)
     # Rebuild INSTALL_FILES
     set(CPACK_RPM_INSTALL_FILES "")
     foreach(F IN LISTS CPACK_RPM_INSTALL_FILES_LIST)
-      string(APPEND CPACK_RPM_INSTALL_FILES "\"${F}\"\n")
+      make_rpm_spec_path(F_SPEC "${F}")
+      string(APPEND CPACK_RPM_INSTALL_FILES "${F_SPEC}\n")
     endforeach()
     # Build ABSOLUTE_INSTALL_FILES
     set(CPACK_RPM_ABSOLUTE_INSTALL_FILES "")
     foreach(F IN LISTS CPACK_ABSOLUTE_DESTINATION_FILES_INTERNAL)
-      string(APPEND CPACK_RPM_ABSOLUTE_INSTALL_FILES "%config \"${F}\"\n")
+      make_rpm_spec_path(F_SPEC "${F}")
+      string(APPEND CPACK_RPM_ABSOLUTE_INSTALL_FILES "%config ${F_SPEC}\n")
     endforeach()
     if(CPACK_RPM_PACKAGE_DEBUG)
       message("CPackRPM:Debug: CPACK_RPM_ABSOLUTE_INSTALL_FILES=${CPACK_RPM_ABSOLUTE_INSTALL_FILES}")
@@ -1563,7 +1586,7 @@ ${TMP_DEBUGINFO_ADDITIONAL_SOURCES}
   if(NOT CPACK_RPM_FILE_NAME STREQUAL "RPM-DEFAULT")
     if(CPACK_RPM_FILE_NAME)
       if(NOT CPACK_RPM_FILE_NAME MATCHES ".*\\.rpm")
-        message(FATAL_ERROR "'${CPACK_RPM_FILE_NAME}' is not a valid RPM package file name as it must end with '.rpm'!")
+        set(CPACK_RPM_FILE_NAME "${CPACK_RPM_FILE_NAME}.rpm")
       endif()
     else()
       # old file name format for back compatibility

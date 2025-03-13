@@ -10,8 +10,8 @@
 include(Compiler/IAR)
 include(Compiler/CMakeCommonCompilerMacros)
 
-if(NOT DEFINED CMAKE_CXX_COMPILER_VERSION)
-  message(FATAL_ERROR "CMAKE_CXX_COMPILER_VERSION not detected. This should be automatic.")
+if(NOT CMAKE_CXX_COMPILER_VERSION)
+  message(FATAL_ERROR "Could not detect CMAKE_CXX_COMPILER_VERSION. This should be automatic. Check your product license.\n")
 endif()
 
 # Whenever needed, override this default behavior using CMAKE_IAR_CXX_FLAG in your toolchain file.
@@ -56,7 +56,7 @@ elseif("${CMAKE_CXX_COMPILER_ARCHITECTURE_ID}" STREQUAL "RH850")
 
 elseif("${CMAKE_CXX_COMPILER_ARCHITECTURE_ID}" STREQUAL "RL78")
   if(CMAKE_CXX_COMPILER_VERSION VERSION_LESS 2)
-    # # IAR C++ Compiler for RL78 prior version 2.xx uses XLINK. Support in CMake is not implemented.
+    # IAR C++ Compiler for RL78 prior version 2.xx uses XLINK. Support in CMake is not implemented.
     message(FATAL_ERROR "IAR C++ Compiler for RL78 version ${CMAKE_CXX_COMPILER_VERSION} not supported by CMake.")
   endif()
   __compiler_iar_ilink(CXX)
@@ -68,7 +68,8 @@ elseif("${CMAKE_CXX_COMPILER_ARCHITECTURE_ID}" STREQUAL "RISCV")
 
 elseif("${CMAKE_CXX_COMPILER_ARCHITECTURE_ID}" STREQUAL "AVR")
   __compiler_iar_xlink(CXX)
-  __compiler_check_default_language_standard(CXX 7.10 98)
+  __compiler_check_default_language_standard(CXX 7.10 98 8.10 17)
+  set(CMAKE_CXX_OUTPUT_EXTENSION ".r90")
 
 elseif("${CMAKE_CXX_COMPILER_ARCHITECTURE_ID}" STREQUAL "MSP430")
   __compiler_iar_xlink(CXX)
@@ -78,12 +79,12 @@ elseif("${CMAKE_CXX_COMPILER_ARCHITECTURE_ID}" STREQUAL "MSP430")
 elseif("${CMAKE_CXX_COMPILER_ARCHITECTURE_ID}" STREQUAL "V850")
   __compiler_iar_xlink(CXX)
   __compiler_check_default_language_standard(CXX 1.10 98)
-  set(CMAKE_C_OUTPUT_EXTENSION ".r85")
+  set(CMAKE_CXX_OUTPUT_EXTENSION ".r85")
 
 elseif("${CMAKE_CXX_COMPILER_ARCHITECTURE_ID}" STREQUAL "8051")
   __compiler_iar_xlink(CXX)
   __compiler_check_default_language_standard(CXX 6.10 98)
-  set(CMAKE_C_OUTPUT_EXTENSION ".r51")
+  set(CMAKE_CXX_OUTPUT_EXTENSION ".r51")
 
 elseif("${CMAKE_CXX_COMPILER_ARCHITECTURE_ID}" STREQUAL "STM8")
   __compiler_iar_ilink(CXX)

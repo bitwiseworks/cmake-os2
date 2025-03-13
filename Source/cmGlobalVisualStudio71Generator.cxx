@@ -8,6 +8,7 @@
 #include "cmGeneratorTarget.h"
 #include "cmGlobalGenerator.h"
 #include "cmGlobalVisualStudioGenerator.h"
+#include "cmList.h"
 #include "cmListFileCache.h"
 #include "cmLocalGenerator.h"
 #include "cmMakefile.h"
@@ -85,7 +86,7 @@ void cmGlobalVisualStudio71Generator::WriteSolutionConfigurations(
 {
   fout << "\tGlobalSection(SolutionConfiguration) = preSolution\n";
   for (std::string const& i : configs) {
-    fout << "\t\t" << i << " = " << i << "\n";
+    fout << "\t\t" << i << " = " << i << '\n';
   }
   fout << "\tEndGlobalSection\n";
 }
@@ -101,14 +102,14 @@ void cmGlobalVisualStudio71Generator::WriteProject(std::ostream& fout,
   // check to see if this is a fortran build
   std::string ext = ".vcproj";
   const char* project =
-    "Project(\"{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}\") = \"";
+    R"(Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = ")";
   if (this->TargetIsFortranOnly(t)) {
     ext = ".vfproj";
-    project = "Project(\"{6989167D-11E4-40FE-8C1A-2192A86A7E90}\") = \"";
+    project = R"(Project("{6989167D-11E4-40FE-8C1A-2192A86A7E90}") = ")";
   }
   if (t->IsCSharpOnly()) {
     ext = ".csproj";
-    project = "Project(\"{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}\") = \"";
+    project = R"(Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = ")";
   }
   cmValue targetExt = t->GetProperty("GENERATOR_FILE_NAME_EXT");
   if (targetExt) {
@@ -125,19 +126,19 @@ void cmGlobalVisualStudio71Generator::WriteProject(std::ostream& fout,
 
   fout << "EndProject\n";
 
-  UtilityDependsMap::iterator ui = this->UtilityDepends.find(t);
+  auto ui = this->UtilityDepends.find(t);
   if (ui != this->UtilityDepends.end()) {
     const char* uname = ui->second.c_str();
     /* clang-format off */
-    fout << "Project(\"{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}\") = \""
+    fout << R"(Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = ")"
          << uname << "\", \""
          << this->ConvertToSolutionPath(dir) << (dir[0]? "\\":"")
          << uname << ".vcproj" << "\", \"{"
          << this->GetGUID(uname) << "}\"\n"
          << "\tProjectSection(ProjectDependencies) = postProject\n"
-         << "\t\t{" << guid << "} = {" << guid << "}\n"
-         << "\tEndProjectSection\n"
-         << "EndProject\n";
+            "\t\t{" << guid << "} = {" << guid << "}\n"
+            "\tEndProjectSection\n"
+            "EndProject\n";
     /* clang-format on */
   }
 }
@@ -168,8 +169,10 @@ void cmGlobalVisualStudio71Generator::WriteExternalProject(
   cmValue typeGuid, const std::set<BT<std::pair<std::string, bool>>>& depends)
 {
   fout << "Project(\"{"
-       << (typeGuid ? typeGuid
-                    : std::string(this->ExternalProjectType(location)))
+       << (typeGuid ? *typeGuid
+                    : std::string(
+                        cmGlobalVisualStudio71Generator::ExternalProjectType(
+                          location)))
        << "}\") = \"" << name << "\", \""
        << this->ConvertToSolutionPath(location) << "\", \"{"
        << this->GetGUID(name) << "}\"\n";
@@ -203,23 +206,22 @@ void cmGlobalVisualStudio71Generator::WriteProjectConfigurations(
     !platformMapping.empty() ? platformMapping : this->GetPlatformName();
   std::string guid = this->GetGUID(name);
   for (std::string const& i : configs) {
-    std::vector<std::string> mapConfig;
+    cmList mapConfig;
     const char* dstConfig = i.c_str();
     if (target.GetProperty("EXTERNAL_MSPROJECT")) {
-      if (cmValue m = target.GetProperty("MAP_IMPORTED_CONFIG_" +
-                                         cmSystemTools::UpperCase(i))) {
-        cmExpandList(*m, mapConfig);
+      if (cmValue m = target.GetProperty(
+            cmStrCat("MAP_IMPORTED_CONFIG_", cmSystemTools::UpperCase(i)))) {
+        mapConfig.assign(*m);
         if (!mapConfig.empty()) {
           dstConfig = mapConfig[0].c_str();
         }
       }
     }
-    fout << "\t\t{" << guid << "}." << i << ".ActiveCfg = " << dstConfig << "|"
+    fout << "\t\t{" << guid << "}." << i << ".ActiveCfg = " << dstConfig << '|'
          << platformName << std::endl;
-    std::set<std::string>::const_iterator ci =
-      configsPartOfDefaultBuild.find(i);
+    auto ci = configsPartOfDefaultBuild.find(i);
     if (!(ci == configsPartOfDefaultBuild.end())) {
-      fout << "\t\t{" << guid << "}." << i << ".Build.0 = " << dstConfig << "|"
+      fout << "\t\t{" << guid << "}." << i << ".Build.0 = " << dstConfig << '|'
            << platformName << std::endl;
     }
   }

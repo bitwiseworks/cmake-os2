@@ -1,4 +1,4 @@
-cmake_minimum_required (VERSION 3.1)
+cmake_minimum_required(VERSION 3.10)
 if(POLICY CMP0129)
   cmake_policy(SET CMP0129 NEW)
 endif()
@@ -29,12 +29,16 @@ endif()
 # Pick a module .def file with the properly mangled symbol name.
 set(world_def "")
 if(WIN32 AND NOT CYGWIN)
-  if(CMAKE_Fortran_COMPILER_ID MATCHES "GNU|LCC")
+  if(CMAKE_Fortran_COMPILER_ID MATCHES "GNU|LCC|LLVMFlang")
     set(world_def world_gnu.def)
   elseif(CMAKE_Fortran_COMPILER_ID MATCHES "Intel" OR
       CMAKE_GENERATOR MATCHES "Visual Studio") # Intel plugin
     set(world_def world_icl.def)
   endif()
+endif()
+
+if(CMAKE_Fortran_COMPILER_ID STREQUAL "LFortran")
+  add_compile_options("$<$<COMPILE_LANGUAGE:Fortran>:--implicit-interface;--generate-object-code>")
 endif()
 
 add_library(hello STATIC hello.f)
@@ -49,7 +53,7 @@ function(test_fortran_c_interface_module)
   FortranCInterface_VERIFY()
   FortranCInterface_VERIFY(CXX)
   if(CMAKE_Fortran_COMPILER_SUPPORTS_F90)
-    if(NOT CMAKE_Fortran_COMPILER_ID MATCHES "SunPro|PathScale|Absoft|Fujitsu")
+    if(NOT CMAKE_Fortran_COMPILER_ID MATCHES "SunPro|PathScale|Absoft|Fujitsu|LCC|LFortran")
       set(module_expected 1)
     endif()
     if(FortranCInterface_MODULE_FOUND OR module_expected)
@@ -123,7 +127,7 @@ endfunction()
 # if the id's match or the compilers are compatible, then
 # call the test_fortran_c_interface_module function
 if("${CMAKE_Fortran_COMPILER_ID}:${CMAKE_C_COMPILER_ID}" MATCHES
-    "(Intel(LLVM)?:MSVC|Absoft:GNU|LLVMFlang:(GNU|Clang))"
+    "(Intel(LLVM)?:MSVC|Absoft:GNU|(LLVMFlang|LFortran):(GNU|Clang))"
     OR ("${CMAKE_Fortran_COMPILER_ID}" STREQUAL "${CMAKE_C_COMPILER_ID}" ))
   test_fortran_c_interface_module()
 else()

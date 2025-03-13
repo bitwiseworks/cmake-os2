@@ -10,6 +10,25 @@ set(__WINDOWS_GNU 1)
 
 set(MINGW 1)
 
+# On Windows hosts, in MSYSTEM environments, search standard prefixes.
+if(CMAKE_HOST_WIN32)
+  # Bootstrap CMake does not have cmake_host_system_information.
+  if(COMMAND cmake_host_system_information)
+    cmake_host_system_information(RESULT _MSYSTEM_PREFIX QUERY MSYSTEM_PREFIX)
+  elseif(IS_DIRECTORY "$ENV{MSYSTEM_PREFIX}")
+    set(_MSYSTEM_PREFIX "$ENV{MSYSTEM_PREFIX}")
+  endif()
+
+  # Search this MSYSTEM environment's equivalent to /usr/local and /usr.
+  if(_MSYSTEM_PREFIX)
+    list(PREPEND CMAKE_SYSTEM_PREFIX_PATH "${_MSYSTEM_PREFIX}")
+    if(IS_DIRECTORY "${_MSYSTEM_PREFIX}/local")
+      list(PREPEND CMAKE_SYSTEM_PREFIX_PATH "${_MSYSTEM_PREFIX}/local")
+    endif()
+  endif()
+  unset(_MSYSTEM_PREFIX)
+endif()
+
 set(CMAKE_IMPORT_LIBRARY_PREFIX "lib")
 set(CMAKE_SHARED_LIBRARY_PREFIX "lib")
 set(CMAKE_SHARED_MODULE_PREFIX  "lib")
@@ -45,31 +64,6 @@ if("${_help}" MATCHES "GNU ld .* 2\\.1[1-6]")
 endif()
 
 
-# Features for LINK_LIBRARY generator expression
-## check linker capabilities
-if(NOT DEFINED _CMAKE_LINKER_PUSHPOP_STATE_SUPPORTED)
-  execute_process(COMMAND "${CMAKE_LINKER}" --help
-                  OUTPUT_VARIABLE __linker_help
-                  ERROR_VARIABLE __linker_help)
-  if(__linker_help MATCHES "--push-state" AND __linker_help MATCHES "--pop-state")
-    set(_CMAKE_LINKER_PUSHPOP_STATE_SUPPORTED TRUE CACHE INTERNAL "linker supports push/pop state")
-  else()
-    set(_CMAKE_LINKER_PUSHPOP_STATE_SUPPORTED FALSE CACHE INTERNAL "linker supports push/pop state")
-  endif()
-  unset(__linker_help)
-endif()
-## WHOLE_ARCHIVE: Force loading all members of an archive
-if(_CMAKE_LINKER_PUSHPOP_STATE_SUPPORTED)
-  set(CMAKE_LINK_LIBRARY_USING_WHOLE_ARCHIVE "LINKER:--push-state,--whole-archive"
-                                             "<LINK_ITEM>"
-                                             "LINKER:--pop-state")
-else()
-  set(CMAKE_LINK_LIBRARY_USING_WHOLE_ARCHIVE "LINKER:--whole-archive"
-                                             "<LINK_ITEM>"
-                                             "LINKER:--no-whole-archive")
-endif()
-set(CMAKE_LINK_LIBRARY_USING_WHOLE_ARCHIVE_SUPPORTED TRUE)
-
 # Features for LINK_GROUP generator expression
 ## RESCAN: request the linker to rescan static libraries until there is
 ## no pending undefined symbols
@@ -92,6 +86,13 @@ macro(__windows_compiler_gnu lang)
     set(CMAKE_${type}_LINK_STATIC_${lang}_FLAGS "-Wl,-Bstatic")
     set(CMAKE_${type}_LINK_DYNAMIC_${lang}_FLAGS "-Wl,-Bdynamic")
   endforeach()
+
+  set(CMAKE_${lang}_VERBOSE_LINK_FLAG "-Wl,-v")
+
+  # linker selection
+  set(CMAKE_${lang}_USING_LINKER_SYSTEM "")
+  set(CMAKE_${lang}_USING_LINKER_BFD "-fuse-ld=bfd")
+  set(CMAKE_${lang}_USING_LINKER_LLD "-fuse-ld=lld")
 
   # No -fPIC on Windows
   set(CMAKE_${lang}_COMPILE_OPTIONS_PIC "")

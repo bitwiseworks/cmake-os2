@@ -56,6 +56,13 @@
     "flags": []
   },
   {
+    "name": "CLRSupport",
+    "switch": "clr:netcore",
+    "comment": ".NET Core Runtime Support",
+    "value": "NetCore",
+    "flags": []
+  },
+  {
     "name": "WarningLevel",
     "switch": "W0",
     "comment": "Turn Off All Warnings",
@@ -400,7 +407,7 @@
   },
   {
     "name": "EnableEnhancedInstructionSet",
-    "switch": "",
+    "switch": "arch:NotSet",
     "comment": "Not Set",
     "value": "NotSet",
     "flags": []
@@ -1083,7 +1090,7 @@
   {
     "name": "GenerateModuleDependencies",
     "switch": "sourceDependencies:directives",
-    "comment": "Generate Module Dependenices File",
+    "comment": "Generate Module Dependencies File",
     "value": "true",
     "flags": [
       "Continue"
@@ -1401,7 +1408,16 @@
     "comment": "Module Output File Name",
     "value": "",
     "flags": [
-      "UserValue"
+      "UserFollowing"
+    ]
+  },
+  {
+    "name": "ModuleDependenciesFile",
+    "switch": "scanDependencies",
+    "comment": "Module Dependencies File Name",
+    "value": "",
+    "flags": [
+      "UserFollowing"
     ]
   },
   {

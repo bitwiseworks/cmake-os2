@@ -27,10 +27,6 @@
 #define ARCHIVE_OPTIONS_PRIVATE_H_INCLUDED
 
 #include "archive_platform.h"
-#ifndef __OS2__
-__FBSDID("$FreeBSD$");
-#endif
-
 #include "archive_private.h"
 
 typedef int (*option_handler)(struct archive *a,

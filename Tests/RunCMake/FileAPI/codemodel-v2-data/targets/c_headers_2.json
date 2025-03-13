@@ -5,10 +5,19 @@
   "projectName": "codemodel-v2",
   "type": "STATIC_LIBRARY",
   "isGeneratorProvided": null,
+  "fileSets": [
+    {
+      "name": "HEADERS",
+      "type": "HEADERS",
+      "visibility": "INTERFACE",
+      "baseDirectories": ["^fileset$"]
+    }
+  ],
   "sources": [
     {
       "path": "^fileset/empty\\.c$",
       "isGenerated": null,
+      "fileSetName": null,
       "sourceGroupName": "Source Files",
       "compileGroupLanguage": "C",
       "backtrace": [
@@ -42,6 +51,7 @@
         "^fileset/empty\\.c$"
       ],
       "includes": null,
+      "frameworks": null,
       "defines": null,
       "compileCommandFragments": null
     }
@@ -61,10 +71,10 @@
     }
   ],
   "folder": null,
-  "nameOnDisk": "^(lib)?c_headers_2\\.(a|lib)$",
+  "nameOnDisk": "^(lib)?c_headers_2\\.(a|lib|l)$",
   "artifacts": [
     {
-      "path": "^fileset/((Debug|Release|RelWithDebInfo|MinSizeRel)/)?(lib)?c_headers_2\\.(a|lib)$",
+      "path": "^fileset/((Debug|Release|RelWithDebInfo|MinSizeRel)/)?(lib)?c_headers_2\\.(a|lib|l)$",
       "_dllExtra": false
     }
   ],

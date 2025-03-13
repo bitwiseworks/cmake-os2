@@ -150,9 +150,6 @@ macro(_ipo_run_language_check language)
   unset(_IPO_LANGUAGE_CHECK_RESULT CACHE)
 
   if(NOT _IPO_LANGUAGE_CHECK_RESULT)
-    file(APPEND ${CMAKE_BINARY_DIR}${CMAKE_FILES_DIRECTORY}/CMakeError.log
-      "${language} compiler IPO check failed with the following output:\n"
-      "${output}\n")
     _ipo_not_supported("check failed to compile")
     if(X_OUTPUT)
       set("${X_OUTPUT}" "${output}" PARENT_SCOPE)
@@ -259,11 +256,6 @@ function(check_ipo_supported)
       return()
     endif()
   endforeach()
-
-  if(CMAKE_GENERATOR MATCHES "^Visual Studio 9 ")
-    _ipo_not_supported("CMake doesn't support IPO for current generator")
-    return()
-  endif()
 
   foreach(x ${languages})
     _ipo_run_language_check(${x})

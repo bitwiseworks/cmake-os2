@@ -14,6 +14,13 @@ macro(__apple_compiler_gnu lang)
   if(NOT CMAKE_${lang}_COMPILER_VERSION VERSION_LESS 4.3)
     set(CMAKE_${lang}_SYSTEM_FRAMEWORK_SEARCH_FLAG "-iframework ")
   endif()
+
+  set(CMAKE_${lang}_LINK_LIBRARY_USING_FRAMEWORK "-framework <LIBRARY>")
+  set(CMAKE_${lang}_LINK_LIBRARY_USING_FRAMEWORK_SUPPORTED TRUE)
+  set(CMAKE_LINK_LIBRARY_FRAMEWORK_ATTRIBUTES LIBRARY_TYPE=STATIC,SHARED DEDUPLICATION=DEFAULT OVERRIDE=DEFAULT)
+
+  set(CMAKE_${lang}_USING_LINKER_SYSTEM "")
+  set(CMAKE_${lang}_USING_LINKER_APPLE_CLASSIC "LINKER:-ld_classic")
 endmacro()
 
 macro(cmake_gnu_set_sysroot_flag lang)

@@ -3,13 +3,13 @@
 
 include_guard(GLOBAL)
 
-cmake_policy(PUSH)
+block(SCOPE_FOR POLICIES)
 cmake_policy(SET CMP0054 NEW) # if() quoted variables not dereferenced
 cmake_policy(SET CMP0057 NEW) # if() supports IN_LIST
 
 function(CMAKE_CHECK_SOURCE_COMPILES _lang _source _var)
   if(NOT DEFINED "${_var}")
-
+    set(_lang_filename "src")
     if(_lang STREQUAL "C")
       set(_lang_textual "C")
       set(_lang_ext "c")
@@ -34,6 +34,13 @@ function(CMAKE_CHECK_SOURCE_COMPILES _lang _source _var)
     elseif(_lang STREQUAL "OBJCXX")
       set(_lang_textual "Objective-C++")
       set(_lang_ext "mm")
+    elseif(_lang STREQUAL "Swift")
+      set(_lang_textual "Swift")
+      set(_lang_ext "swift")
+      if (NOT DEFINED CMAKE_TRY_COMPILE_TARGET_TYPE
+          OR CMAKE_TRY_COMPILE_TARGET_TYPE STREQUAL "EXECUTABLE")
+        set(_lang_filename "main")
+      endif()
     else()
       message (SEND_ERROR "check_source_compiles: ${_lang}: unknown language.")
       return()
@@ -80,6 +87,13 @@ function(CMAKE_CHECK_SOURCE_COMPILES _lang _source _var)
     else()
       set(CHECK_${LANG}_SOURCE_COMPILES_ADD_LIBRARIES)
     endif()
+    if(CMAKE_REQUIRED_LINK_DIRECTORIES)
+      set(_CSC_LINK_DIRECTORIES
+        "-DLINK_DIRECTORIES:STRING=${CMAKE_REQUIRED_LINK_DIRECTORIES}")
+    else()
+      set(_CSC_LINK_DIRECTORIES)
+    endif()
+
     if(CMAKE_REQUIRED_INCLUDES)
       set(CHECK_${LANG}_SOURCE_COMPILES_ADD_INCLUDES
         "-DINCLUDE_DIRECTORIES:STRING=${CMAKE_REQUIRED_INCLUDES}")
@@ -92,13 +106,15 @@ function(CMAKE_CHECK_SOURCE_COMPILES _lang _source _var)
     endif()
     string(APPEND _source "\n")
     try_compile(${_var}
-      SOURCE_FROM_VAR "src.${_SRC_EXT}" _source
+      SOURCE_FROM_VAR "${_lang_filename}.${_SRC_EXT}" _source
       COMPILE_DEFINITIONS -D${_var} ${CMAKE_REQUIRED_DEFINITIONS}
       ${CHECK_${LANG}_SOURCE_COMPILES_ADD_LINK_OPTIONS}
       ${CHECK_${LANG}_SOURCE_COMPILES_ADD_LIBRARIES}
       CMAKE_FLAGS -DCOMPILE_DEFINITIONS:STRING=${CMAKE_REQUIRED_FLAGS}
       "${CHECK_${LANG}_SOURCE_COMPILES_ADD_INCLUDES}"
+      "${_CSC_LINK_DIRECTORIES}"
       OUTPUT_VARIABLE OUTPUT)
+    unset(_CSC_LINK_DIRECTORIES)
 
     foreach(_regex ${_FAIL_REGEX})
       if("${OUTPUT}" MATCHES "${_regex}")
@@ -115,21 +131,13 @@ function(CMAKE_CHECK_SOURCE_COMPILES _lang _source _var)
       if(NOT CMAKE_REQUIRED_QUIET)
         message(CHECK_PASS "Success")
       endif()
-      file(APPEND ${CMAKE_BINARY_DIR}${CMAKE_FILES_DIRECTORY}/CMakeOutput.log
-        "Performing ${_lang_textual} SOURCE FILE Test ${_var} succeeded with the following output:\n"
-        "${OUTPUT}\n"
-        "Source file was:\n${_source}\n")
     else()
       if(NOT CMAKE_REQUIRED_QUIET)
         message(CHECK_FAIL "Failed")
       endif()
       set(${_var} "" CACHE INTERNAL "Test ${_var}")
-      file(APPEND ${CMAKE_BINARY_DIR}${CMAKE_FILES_DIRECTORY}/CMakeError.log
-        "Performing ${_lang_textual} SOURCE FILE Test ${_var} failed with the following output:\n"
-        "${OUTPUT}\n"
-        "Source file was:\n${_source}\n")
     endif()
   endif()
 endfunction()
 
-cmake_policy(POP)
+endblock()

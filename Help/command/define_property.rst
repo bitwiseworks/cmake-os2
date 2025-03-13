@@ -73,3 +73,45 @@ project via corresponding options to the :command:`get_property` command.
   with ``CMAKE_`` or ``_CMAKE_``. The property name must contain at least one
   underscore. It is recommended that the property name have a prefix specific
   to the project.
+
+Property Redefinition
+^^^^^^^^^^^^^^^^^^^^^
+
+Once a property is defined for a particular type of scope, it cannot be
+redefined. Attempts to redefine an existing property by calling
+:command:`define_property` with the same scope type and property name
+will be silently ignored. Defining the same property name for two different
+kinds of scope is valid.
+
+:command:`get_property` can be used to determine whether a property is
+already defined for a particular kind of scope, and if so, to examine its
+definition. For example:
+
+.. code-block:: cmake
+
+  # Initial definition
+  define_property(TARGET PROPERTY MY_NEW_PROP
+    BRIEF_DOCS "My new custom property"
+  )
+
+  # Later examination
+  get_property(my_new_prop_exists
+    TARGET NONE
+    PROPERTY MY_NEW_PROP
+    DEFINED
+  )
+
+  if(my_new_prop_exists)
+    get_property(my_new_prop_docs
+      TARGET NONE
+      PROPERTY MY_NEW_PROP
+      BRIEF_DOCS
+    )
+    # ${my_new_prop_docs} is now set to "My new custom property"
+  endif()
+
+See Also
+^^^^^^^^
+
+* :command:`get_property`
+* :command:`set_property`

@@ -7,7 +7,7 @@
  *                            | (__| |_| |  _ <| |___
  *                             \___|\___/|_| \_\_____|
  *
- * Copyright (C) 1998 - 2022, Daniel Stenberg, <daniel@haxx.se>, et al.
+ * Copyright (C) Daniel Stenberg, <daniel@haxx.se>, et al.
  *
  * This software is licensed as described in the file COPYING, which
  * you should have received as part of this distribution. The terms
@@ -31,7 +31,7 @@
 /* default pattern matching function
  * =================================
  * Implemented with recursive backtracking, if you want to use Curl_fnmatch,
- * please note that there is not implemented UTF/UNICODE support.
+ * please note that there is not implemented UTF/Unicode support.
  *
  * Implemented features:
  * '?' notation, does not match UTF characters

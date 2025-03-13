@@ -18,8 +18,26 @@ Optional COMPONENTS
 
 .. versionadded:: 3.10
 
-This module respects several optional COMPONENTS: ``EGL``, ``GLX``, and
-``OpenGL``.  There are corresponding import targets for each of these flags.
+This module respects several optional COMPONENTS:
+
+``EGL``
+  The EGL interface between OpenGL, OpenGL ES and the underlying windowing system.
+
+``GLX``
+  An extension to X that interfaces OpenGL, OpenGL ES with X window system.
+
+``OpenGL``
+  The cross platform API for 3D graphics.
+
+``GLES2``
+  .. versionadded:: 3.27
+
+  A subset of OpenGL API for embedded systems with limited capabilities.
+
+``GLES3``
+  .. versionadded:: 3.27
+
+  A subset of OpenGL API for embedded systems with more capabilities.
 
 IMPORTED Targets
 ^^^^^^^^^^^^^^^^
@@ -42,6 +60,14 @@ This module defines the :prop_tgt:`IMPORTED` targets:
   Defined if the system has OpenGL Extension to the X Window System (GLX).
 ``OpenGL::EGL``
   Defined if the system has EGL.
+``OpenGL::GLES2``
+  .. versionadded:: 3.27
+
+  Defined if the system has GLES2.
+``OpenGL::GLES3``
+  .. versionadded:: 3.27
+
+  Defined if the system has GLES3.
 
 Result Variables
 ^^^^^^^^^^^^^^^^
@@ -60,14 +86,23 @@ This module sets the following variables:
  True, if the system has GLX.
 ``OpenGL_EGL_FOUND``
  True, if the system has EGL.
+``OpenGL::GLES2``
+ Defined if the system has GLES2.
+``OpenGL::GLES3``
+ Defined if the system has GLES3.
 ``OPENGL_INCLUDE_DIR``
  Path to the OpenGL include directory.
+ The ``OPENGL_INCLUDE_DIRS`` variable is preferred.
 ``OPENGL_EGL_INCLUDE_DIRS``
  Path to the EGL include directory.
 ``OPENGL_LIBRARIES``
  Paths to the OpenGL library, windowing system libraries, and GLU libraries.
  On Linux, this assumes GLX and is never correct for EGL-based targets.
  Clients are encouraged to use the ``OpenGL::*`` import targets instead.
+``OPENGL_INCLUDE_DIRS``
+  .. versionadded:: 3.29
+
+  Paths to the OpenGL include directories.
 
 .. versionadded:: 3.10
   Variables for GLVND-specific libraries ``OpenGL``, ``EGL`` and ``GLX``.
@@ -88,6 +123,19 @@ The following cache variables may also be set:
 ``OPENGL_gl_LIBRARY``
  Path to the OpenGL library.  New code should prefer the ``OpenGL::*`` import
  targets.
+``OPENGL_gles2_LIBRARY``
+  .. versionadded:: 3.27
+
+  Path to the OpenGL GLES2 library.
+``OPENGL_gles3_LIBRARY``
+  .. versionadded:: 3.27
+
+  Path to the OpenGL GLES3 library.
+
+``OPENGL_GLU_INCLUDE_DIR``
+  .. versionadded:: 3.29
+
+  Path to the OpenGL GLU include directory.
 
 .. versionadded:: 3.10
   Variables for GLVND-specific libraries ``OpenGL``, ``EGL`` and ``GLX``.
@@ -122,7 +170,7 @@ The value may be one of:
 
  .. versionchanged:: 3.11
   This is the default, unless policy :policy:`CMP0072` is set to ``OLD``
-  and no components are requeted (since components
+  and no components are requested (since components
   correspond to GLVND libraries).
 
 ``LEGACY``
@@ -139,9 +187,24 @@ GLVND.  For non-GLVND Linux and other systems these are left undefined.
 macOS-Specific
 ^^^^^^^^^^^^^^
 
-On OSX FindOpenGL defaults to using the framework version of OpenGL. People
-will have to change the cache values of OPENGL_glu_LIBRARY and
-OPENGL_gl_LIBRARY to use OpenGL with X11 on OSX.
+On macOS this module defaults to using the macOS-native framework
+version of OpenGL.  To use the X11 version of OpenGL on macOS, one
+can disable searching of frameworks.  For example:
+
+.. code-block:: cmake
+
+  find_package(X11)
+  if(APPLE AND X11_FOUND)
+    set(CMAKE_FIND_FRAMEWORK NEVER)
+    find_package(OpenGL)
+    unset(CMAKE_FIND_FRAMEWORK)
+  else()
+    find_package(OpenGL)
+  endif()
+
+An end user building this project may need to point CMake at their
+X11 installation, e.g., with ``-DOpenGL_ROOT=/opt/X11``.
+
 #]=======================================================================]
 
 set(_OpenGL_REQUIRED_VARS OPENGL_gl_LIBRARY)
@@ -169,20 +232,29 @@ if (WIN32)
     OPENGL_glu_LIBRARY
     )
 elseif (APPLE)
-  # The OpenGL.framework provides both gl and glu
-  find_library(OPENGL_gl_LIBRARY OpenGL DOC "OpenGL library for OS X")
-  find_library(OPENGL_glu_LIBRARY OpenGL DOC
-    "GLU library for OS X (usually same as OpenGL library)")
-  find_path(OPENGL_INCLUDE_DIR OpenGL/gl.h DOC "Include for OpenGL on OS X")
+  # The OpenGL.framework provides both gl and glu in OpenGL
+  # XQuartz provides libgl and libglu
+  find_library(OPENGL_gl_LIBRARY NAMES OpenGL GL DOC
+    "OpenGL GL library")
+  find_library(OPENGL_glu_LIBRARY NAMES OpenGL GLU DOC
+    "OpenGL GLU library")
+  find_path(OPENGL_INCLUDE_DIR NAMES OpenGL/gl.h GL/gl.h DOC
+    "Include for OpenGL")
+  find_path(OPENGL_GLU_INCLUDE_DIR NAMES OpenGL/glu.h GL/glu.h DOC
+    "Include for the OpenGL GLU library")
   list(APPEND _OpenGL_REQUIRED_VARS OPENGL_INCLUDE_DIR)
 
   list(APPEND _OpenGL_CACHE_VARS
     OPENGL_INCLUDE_DIR
+    OPENGL_GLU_INCLUDE_DIR
     OPENGL_gl_LIBRARY
     OPENGL_glu_LIBRARY
     )
 else()
-  if (CMAKE_SYSTEM_NAME MATCHES "HP-UX")
+  if (CMAKE_ANDROID_NDK)
+    set(_OPENGL_INCLUDE_PATH ${CMAKE_ANDROID_NDK}/sysroot/usr/include)
+    set(_OPENGL_LIB_PATH ${CMAKE_ANDROID_NDK}/platforms/android-${CMAKE_SYSTEM_VERSION}/arch-${CMAKE_ANDROID_ARCH}/usr/lib)
+  elseif (CMAKE_SYSTEM_NAME MATCHES "HP-UX")
     # Handle HP-UX cases where we only want to find OpenGL in either hpux64
     # or hpux32 depending on if we're doing a 64 bit build.
     if(CMAKE_SIZEOF_VOID_P EQUAL 4)
@@ -198,6 +270,13 @@ else()
       /boot/develop/lib/x86)
     set(_OPENGL_INCLUDE_PATH
       /boot/develop/headers/os/opengl)
+  elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    # CMake doesn't support arbitrary globs in search paths.
+    file(GLOB _OPENGL_LIB_PATH
+      # The NVidia driver installation tool on Linux installs libraries to a
+      # `nvidia-<version>` subdirectory.
+      "/usr/lib/nvidia-*"
+      "/usr/lib32/nvidia-*")
   endif()
 
   # The first line below is to make sure that the proper headers
@@ -215,16 +294,24 @@ else()
   )
   find_path(OPENGL_GLX_INCLUDE_DIR GL/glx.h ${_OPENGL_INCLUDE_PATH})
   find_path(OPENGL_EGL_INCLUDE_DIR EGL/egl.h ${_OPENGL_INCLUDE_PATH})
+  find_path(OPENGL_GLES2_INCLUDE_DIR GLES2/gl2.h ${_OPENGL_INCLUDE_PATH})
+  find_path(OPENGL_GLES3_INCLUDE_DIR GLES3/gl3.h ${_OPENGL_INCLUDE_PATH})
   find_path(OPENGL_xmesa_INCLUDE_DIR GL/xmesa.h
     /usr/share/doc/NVIDIA_GLX-1.0/include
     /usr/openwin/share/include
     /opt/graphics/OpenGL/include
   )
+
+  find_path(OPENGL_GLU_INCLUDE_DIR GL/glu.h ${_OPENGL_INCLUDE_PATH})
+
   list(APPEND _OpenGL_CACHE_VARS
     OPENGL_INCLUDE_DIR
     OPENGL_GLX_INCLUDE_DIR
     OPENGL_EGL_INCLUDE_DIR
+    OPENGL_GLES2_INCLUDE_DIR
+    OPENGL_GLES3_INCLUDE_DIR
     OPENGL_xmesa_INCLUDE_DIR
+    OPENGL_GLU_INCLUDE_DIR
     )
 
   # Search for the GLVND libraries.  We do this regardless of COMPONENTS; we'll
@@ -246,6 +333,17 @@ else()
     PATH_SUFFIXES libglvnd
   )
 
+  find_library(OPENGL_gles2_LIBRARY
+    NAMES GLESv2
+    PATHS ${_OPENGL_LIB_PATH}
+  )
+
+  find_library(OPENGL_gles3_LIBRARY
+    NAMES GLESv3
+          GLESv2 # mesa provides only libGLESv2
+    PATHS ${_OPENGL_LIB_PATH}
+  )
+
   find_library(OPENGL_glu_LIBRARY
     NAMES GLU MesaGLU
     PATHS ${OPENGL_gl_LIBRARY}
@@ -258,6 +356,8 @@ else()
     OPENGL_opengl_LIBRARY
     OPENGL_glx_LIBRARY
     OPENGL_egl_LIBRARY
+    OPENGL_gles2_LIBRARY
+    OPENGL_gles3_LIBRARY
     OPENGL_glu_LIBRARY
     )
 
@@ -338,12 +438,16 @@ else()
           OPENGL_glx_LIBRARY AND
       NOT OPENGL_gl_LIBRARY) OR
      (NOT OPENGL_USE_EGL AND
+      NOT OPENGL_USE_GLES3 AND
+      NOT OPENGL_USE_GLES2 AND
       NOT OPENGL_glx_LIBRARY AND
       NOT OPENGL_gl_LIBRARY) OR
      (NOT OPENGL_USE_EGL AND
           OPENGL_opengl_LIBRARY AND
           OPENGL_glx_LIBRARY) OR
-     (    OPENGL_USE_EGL))
+     (NOT OPENGL_USE_GLES3 AND
+      NOT OPENGL_USE_GLES2 AND
+          OPENGL_USE_EGL))
     list(APPEND _OpenGL_REQUIRED_VARS OPENGL_opengl_LIBRARY)
   endif()
 
@@ -351,13 +455,19 @@ else()
   if((NOT OPENGL_USE_OPENGL AND
       NOT OPENGL_USE_GLX AND
       NOT OPENGL_USE_EGL AND
+      NOT OPENGL_USE_GLES3 AND
+      NOT OPENGL_USE_GLES2 AND
       NOT OPENGL_glx_LIBRARY AND
       NOT OPENGL_gl_LIBRARY) OR
      (    OPENGL_USE_GLX AND
       NOT OPENGL_USE_EGL AND
+      NOT OPENGL_USE_GLES3 AND
+      NOT OPENGL_USE_GLES2 AND
       NOT OPENGL_glx_LIBRARY AND
       NOT OPENGL_gl_LIBRARY) OR
      (NOT OPENGL_USE_EGL AND
+      NOT OPENGL_USE_GLES3 AND
+      NOT OPENGL_USE_GLES2 AND
           OPENGL_opengl_LIBRARY AND
           OPENGL_glx_LIBRARY) OR
      (OPENGL_USE_GLX AND OPENGL_USE_EGL))
@@ -367,6 +477,16 @@ else()
   # GLVND EGL library.
   if(OPENGL_USE_EGL)
     list(APPEND _OpenGL_REQUIRED_VARS OPENGL_egl_LIBRARY)
+  endif()
+
+  # GLVND GLES2 library.
+  if(OPENGL_USE_GLES2)
+    list(APPEND _OpenGL_REQUIRED_VARS OPENGL_gles2_LIBRARY)
+  endif()
+
+  # GLVND GLES3 library.
+  if(OPENGL_USE_GLES3)
+    list(APPEND _OpenGL_REQUIRED_VARS OPENGL_gles3_LIBRARY)
   endif()
 
   # Old-style "libGL" library: used as a fallback when GLVND isn't available.
@@ -381,7 +501,11 @@ else()
   endif()
 
   # We always need the 'gl.h' include dir.
-  list(APPEND _OpenGL_REQUIRED_VARS OPENGL_INCLUDE_DIR)
+  if(OPENGL_USE_EGL)
+    list(APPEND _OpenGL_REQUIRED_VARS OPENGL_EGL_INCLUDE_DIR)
+  else()
+    list(APPEND _OpenGL_REQUIRED_VARS OPENGL_INCLUDE_DIR)
+  endif()
 
   unset(_OPENGL_INCLUDE_PATH)
   unset(_OPENGL_LIB_PATH)
@@ -401,7 +525,7 @@ else()
   set( OPENGL_XMESA_FOUND "NO" )
 endif()
 
-if(OPENGL_glu_LIBRARY)
+if(OPENGL_glu_LIBRARY AND (WIN32 OR OPENGL_GLU_INCLUDE_DIR))
   set( OPENGL_GLU_FOUND "YES" )
 else()
   set( OPENGL_GLU_FOUND "NO" )
@@ -428,6 +552,18 @@ else()
   set(OpenGL_EGL_FOUND FALSE)
 endif()
 
+if(OPENGL_gles2_LIBRARY AND OPENGL_GLES2_INCLUDE_DIR)
+  set(OpenGL_GLES2_FOUND TRUE)
+else()
+  set(OpenGL_GLES2_FOUND FALSE)
+endif()
+
+if(OPENGL_gles3_LIBRARY AND OPENGL_GLES3_INCLUDE_DIR)
+  set(OpenGL_GLES3_FOUND TRUE)
+else()
+  set(OpenGL_GLES3_FOUND FALSE)
+endif()
+
 # User-visible names should be plural.
 if(OPENGL_EGL_INCLUDE_DIR)
   set(OPENGL_EGL_INCLUDE_DIRS ${OPENGL_EGL_INCLUDE_DIR})
@@ -447,6 +583,8 @@ unset(_OpenGL_REQUIRED_VARS)
 
 # OpenGL:: targets
 if(OPENGL_FOUND)
+  set(OPENGL_INCLUDE_DIRS ${OPENGL_INCLUDE_DIR})
+
   # ::OpenGL is a GLVND library, and thus Linux-only: we don't bother checking
   # for a framework version of this library.
   if(OPENGL_opengl_LIBRARY AND NOT TARGET OpenGL::OpenGL)
@@ -461,6 +599,7 @@ if(OPENGL_FOUND)
     endif()
     set_target_properties(OpenGL::OpenGL PROPERTIES INTERFACE_INCLUDE_DIRECTORIES
                           "${OPENGL_INCLUDE_DIR}")
+    set(_OpenGL_EGL_IMPL OpenGL::OpenGL)
   endif()
 
   # ::GLX is a GLVND library, and thus Linux-only: we don't bother checking
@@ -479,23 +618,84 @@ if(OPENGL_FOUND)
                           OpenGL::OpenGL)
     set_target_properties(OpenGL::GLX PROPERTIES INTERFACE_INCLUDE_DIRECTORIES
                           "${OPENGL_GLX_INCLUDE_DIR}")
+    list(APPEND OPENGL_INCLUDE_DIRS ${OPENGL_GLX_INCLUDE_DIR})
+  endif()
+
+  # ::GLES2 is a GLVND library, and thus Linux-only: we don't bother checking
+  # for a framework version of this library.
+  if(OpenGL_GLES2_FOUND AND NOT TARGET OpenGL::GLES2)
+
+    # Initialize target
+    if(NOT OPENGL_gles2_LIBRARY)
+      add_library(OpenGL::GLES2 INTERFACE IMPORTED)
+    else()
+      if(IS_ABSOLUTE "${OPENGL_gles2_LIBRARY}")
+        add_library(OpenGL::GLES2 UNKNOWN IMPORTED)
+        set_target_properties(OpenGL::GLES2 PROPERTIES
+          IMPORTED_LOCATION "${OPENGL_gles2_LIBRARY}"
+        )
+      else()
+        add_library(OpenGL::GLES2 INTERFACE IMPORTED)
+        set_target_properties(OpenGL::GLES2 PROPERTIES
+          IMPORTED_LIBNAME "${OPENGL_gles2_LIBRARY}"
+        )
+      endif()
+    endif()
+
+    # Attach target properties
+    set_target_properties(OpenGL::GLES2
+      PROPERTIES
+        INTERFACE_INCLUDE_DIRECTORIES
+          "${OPENGL_GLES2_INCLUDE_DIR}"
+    )
+    list(APPEND OPENGL_INCLUDE_DIRS ${OPENGL_GLES2_INCLUDE_DIR})
+
+    if (OPENGL_USE_GLES2)
+      set(_OpenGL_EGL_IMPL OpenGL::GLES2)
+    endif ()
+
+  endif()
+
+  # ::GLES3 is a GLVND library, and thus Linux-only: we don't bother checking
+  # for a framework version of this library.
+  if(OpenGL_GLES3_FOUND AND NOT TARGET OpenGL::GLES3)
+
+    # Initialize target
+    if(NOT OPENGL_gles3_LIBRARY)
+      add_library(OpenGL::GLES3 INTERFACE IMPORTED)
+    else()
+      if(IS_ABSOLUTE "${OPENGL_gles3_LIBRARY}")
+        add_library(OpenGL::GLES3 UNKNOWN IMPORTED)
+        set_target_properties(OpenGL::GLES3 PROPERTIES
+          IMPORTED_LOCATION "${OPENGL_gles3_LIBRARY}"
+        )
+      else()
+        add_library(OpenGL::GLES3 INTERFACE IMPORTED)
+        set_target_properties(OpenGL::GLES3 PROPERTIES
+          IMPORTED_LIBNAME "${OPENGL_gles3_LIBRARY}"
+        )
+      endif()
+    endif()
+
+    # Attach target properties
+    set_target_properties(OpenGL::GLES3 PROPERTIES
+      INTERFACE_INCLUDE_DIRECTORIES
+        "${OPENGL_GLES3_INCLUDE_DIR}"
+    )
+    list(APPEND OPENGL_INCLUDE_DIRS ${OPENGL_GLES3_INCLUDE_DIR})
+
+    if (OPENGL_USE_GLES3)
+      set(_OpenGL_EGL_IMPL OpenGL::GLES3)
+    endif ()
+
   endif()
 
   if(OPENGL_gl_LIBRARY AND NOT TARGET OpenGL::GL)
     # A legacy GL library is available, so use it for the legacy GL target.
     if(IS_ABSOLUTE "${OPENGL_gl_LIBRARY}")
       add_library(OpenGL::GL UNKNOWN IMPORTED)
-      if(OPENGL_gl_LIBRARY MATCHES "/([^/]+)\\.framework$")
-        set(_gl_fw "${OPENGL_gl_LIBRARY}/${CMAKE_MATCH_1}")
-        if(EXISTS "${_gl_fw}.tbd")
-          string(APPEND _gl_fw ".tbd")
-        endif()
-        set_target_properties(OpenGL::GL PROPERTIES
-          IMPORTED_LOCATION "${_gl_fw}")
-      else()
-        set_target_properties(OpenGL::GL PROPERTIES
-          IMPORTED_LOCATION "${OPENGL_gl_LIBRARY}")
-      endif()
+      set_target_properties(OpenGL::GL PROPERTIES
+        IMPORTED_LOCATION "${OPENGL_gl_LIBRARY}")
     else()
       add_library(OpenGL::GL INTERFACE IMPORTED)
       set_target_properties(OpenGL::GL PROPERTIES
@@ -517,10 +717,9 @@ if(OPENGL_FOUND)
 
   # ::EGL is a GLVND library, and thus Linux-only: we don't bother checking
   # for a framework version of this library.
-  # Note we test for OpenGL::OpenGL as a target.  When this module is updated to
-  # support GLES, we would additionally want to check for the hypothetical GLES
-  # target and enable EGL if either ::GLES or ::OpenGL is created.
-  if(TARGET OpenGL::OpenGL AND OpenGL_EGL_FOUND AND NOT TARGET OpenGL::EGL)
+  # Note we test whether _OpenGL_EGL_IMPL is set. Based on the OpenGL implementation,
+  # _OpenGL_EGL_IMPL will be one of OpenGL::OpenGL, OpenGL::GLES2, OpenGL::GLES3
+  if(_OpenGL_EGL_IMPL AND OpenGL_EGL_FOUND AND NOT TARGET OpenGL::EGL)
     if(IS_ABSOLUTE "${OPENGL_egl_LIBRARY}")
       add_library(OpenGL::EGL UNKNOWN IMPORTED)
       set_target_properties(OpenGL::EGL PROPERTIES IMPORTED_LOCATION
@@ -531,26 +730,18 @@ if(OPENGL_FOUND)
                             "${OPENGL_egl_LIBRARY}")
     endif()
     set_target_properties(OpenGL::EGL PROPERTIES INTERFACE_LINK_LIBRARIES
-                          OpenGL::OpenGL)
+                          "${_OpenGL_EGL_IMPL}")
     # Note that EGL's include directory is different from OpenGL/GLX's!
     set_target_properties(OpenGL::EGL PROPERTIES INTERFACE_INCLUDE_DIRECTORIES
                           "${OPENGL_EGL_INCLUDE_DIR}")
+    list(APPEND OPENGL_INCLUDE_DIRS ${OPENGL_EGL_INCLUDE_DIR})
   endif()
 
   if(OPENGL_GLU_FOUND AND NOT TARGET OpenGL::GLU)
     if(IS_ABSOLUTE "${OPENGL_glu_LIBRARY}")
       add_library(OpenGL::GLU UNKNOWN IMPORTED)
-      if(OPENGL_glu_LIBRARY MATCHES "/([^/]+)\\.framework$")
-        set(_glu_fw "${OPENGL_glu_LIBRARY}/${CMAKE_MATCH_1}")
-        if(EXISTS "${_glu_fw}.tbd")
-          string(APPEND _glu_fw ".tbd")
-        endif()
-        set_target_properties(OpenGL::GLU PROPERTIES
-          IMPORTED_LOCATION "${_glu_fw}")
-      else()
-        set_target_properties(OpenGL::GLU PROPERTIES
-          IMPORTED_LOCATION "${OPENGL_glu_LIBRARY}")
-      endif()
+      set_target_properties(OpenGL::GLU PROPERTIES
+        IMPORTED_LOCATION "${OPENGL_glu_LIBRARY}")
     else()
       add_library(OpenGL::GLU INTERFACE IMPORTED)
       set_target_properties(OpenGL::GLU PROPERTIES
@@ -558,6 +749,10 @@ if(OPENGL_FOUND)
     endif()
     set_target_properties(OpenGL::GLU PROPERTIES
       INTERFACE_LINK_LIBRARIES OpenGL::GL)
+    # Note that GLU's include directory may be different from OpenGL's!
+    set_target_properties(OpenGL::GLU PROPERTIES INTERFACE_INCLUDE_DIRECTORIES
+                          "${OPENGL_GLU_INCLUDE_DIR}")
+    list(APPEND OPENGL_INCLUDE_DIRS ${OPENGL_GLU_INCLUDE_DIR})
   endif()
 
   # OPENGL_LIBRARIES mirrors OpenGL::GL's logic ...
@@ -573,6 +768,8 @@ if(OPENGL_FOUND)
     list(APPEND OPENGL_LIBRARIES ${OPENGL_glu_LIBRARY})
   endif()
 endif()
+
+list(REMOVE_DUPLICATES OPENGL_INCLUDE_DIRS)
 
 # This deprecated setting is for backward compatibility with CMake1.4
 set(OPENGL_LIBRARY ${OPENGL_LIBRARIES})

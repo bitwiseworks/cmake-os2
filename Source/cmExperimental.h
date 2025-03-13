@@ -5,6 +5,11 @@
 
 #include "cmConfigure.h" // IWYU pragma: keep
 
+#include <string>
+#include <vector>
+
+#include <cm/optional>
+
 class cmMakefile;
 
 class cmExperimental
@@ -12,10 +17,34 @@ class cmExperimental
 public:
   enum class Feature
   {
-    CxxModuleCMakeApi,
+    ExportPackageDependencies,
+    WindowsKernelModeDriver,
+    CxxImportStd,
+    ExportPackageInfo,
+    ExportBuildDatabase,
 
     Sentinel,
   };
 
+  enum class TryCompileCondition
+  {
+    Always,
+    SkipCompilerChecks,
+    Never,
+  };
+
+  struct FeatureData
+  {
+    std::string const Name;
+    std::string const Uuid;
+    std::string const Variable;
+    std::string const Description;
+    std::vector<std::string> const TryCompileVariables;
+    TryCompileCondition const ForwardThroughTryCompile;
+    bool Warned;
+  };
+
+  static const FeatureData& DataForFeature(Feature f);
+  static cm::optional<Feature> FeatureByName(std::string const& name);
   static bool HasSupportEnabled(cmMakefile const& mf, Feature f);
 };

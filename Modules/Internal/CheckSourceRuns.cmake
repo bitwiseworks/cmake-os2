@@ -3,7 +3,7 @@
 
 include_guard(GLOBAL)
 
-cmake_policy(PUSH)
+block(SCOPE_FOR POLICIES)
 cmake_policy(SET CMP0054 NEW) # if() quoted variables not dereferenced
 cmake_policy(SET CMP0057 NEW) # if() supports IN_LIST
 
@@ -79,6 +79,12 @@ function(CMAKE_CHECK_SOURCE_RUNS _lang _source _var)
     else()
       set(CHECK_${_lang}_SOURCE_COMPILES_ADD_LIBRARIES)
     endif()
+    if(CMAKE_REQUIRED_LINK_DIRECTORIES)
+      set(_CSR_LINK_DIRECTORIES
+        "-DLINK_DIRECTORIES:STRING=${CMAKE_REQUIRED_LINK_DIRECTORIES}")
+    else()
+      set(_CSR_LINK_DIRECTORIES)
+    endif()
     if(CMAKE_REQUIRED_INCLUDES)
       set(CHECK_${_lang}_SOURCE_COMPILES_ADD_INCLUDES
         "-DINCLUDE_DIRECTORIES:STRING=${CMAKE_REQUIRED_INCLUDES}")
@@ -98,8 +104,9 @@ function(CMAKE_CHECK_SOURCE_RUNS _lang _source _var)
       CMAKE_FLAGS -DCOMPILE_DEFINITIONS:STRING=${CMAKE_REQUIRED_FLAGS}
       -DCMAKE_SKIP_RPATH:BOOL=${CMAKE_SKIP_RPATH}
       "${CHECK_${_lang}_SOURCE_COMPILES_ADD_INCLUDES}"
-      COMPILE_OUTPUT_VARIABLE OUTPUT
-      RUN_OUTPUT_VARIABLE RUN_OUTPUT)
+      "${_CSR_LINK_DIRECTORIES}"
+      )
+    unset(_CSR_LINK_DIRECTORIES)
     # if it did not compile make the return value fail code of 1
     if(NOT ${_var}_COMPILED)
       set(${_var}_EXITCODE 1)
@@ -111,13 +118,6 @@ function(CMAKE_CHECK_SOURCE_RUNS _lang _source _var)
       if(NOT CMAKE_REQUIRED_QUIET)
         message(CHECK_PASS "Success")
       endif()
-      file(APPEND ${CMAKE_BINARY_DIR}${CMAKE_FILES_DIRECTORY}/CMakeOutput.log
-        "Performing ${_lang_textual} SOURCE FILE Test ${_var} succeeded with the following compile output:\n"
-        "${OUTPUT}\n"
-        "...and run output:\n"
-        "${RUN_OUTPUT}\n"
-        "Return value: ${${_var}}\n"
-        "Source file was:\n${_source}\n")
     else()
       if(CMAKE_CROSSCOMPILING AND "${${_var}_EXITCODE}" MATCHES  "FAILED_TO_RUN")
         set(${_var} "${${_var}_EXITCODE}" PARENT_SCOPE)
@@ -128,16 +128,8 @@ function(CMAKE_CHECK_SOURCE_RUNS _lang _source _var)
       if(NOT CMAKE_REQUIRED_QUIET)
         message(CHECK_FAIL "Failed")
       endif()
-      file(APPEND ${CMAKE_BINARY_DIR}${CMAKE_FILES_DIRECTORY}/CMakeError.log
-        "Performing ${_lang_textual} SOURCE FILE Test ${_var} failed with the following compile output:\n"
-        "${OUTPUT}\n"
-        "...and run output:\n"
-        "${RUN_OUTPUT}\n"
-        "Return value: ${${_var}_EXITCODE}\n"
-        "Source file was:\n${_source}\n")
-
     endif()
   endif()
 endfunction()
 
-cmake_policy(POP)
+endblock()

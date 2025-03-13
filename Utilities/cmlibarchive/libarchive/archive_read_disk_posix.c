@@ -29,13 +29,9 @@
 #if !defined(_WIN32) || defined(__CYGWIN__)
 
 #include "archive_platform.h"
-__FBSDID("$FreeBSD$");
 
 #ifdef HAVE_SYS_PARAM_H
 #include <sys/param.h>
-#endif
-#ifdef HAVE_SYS_MOUNT_H
-#include <sys/mount.h>
 #endif
 #ifdef HAVE_SYS_STAT_H
 #include <sys/stat.h>
@@ -54,6 +50,8 @@ __FBSDID("$FreeBSD$");
 #endif
 #ifdef HAVE_LINUX_FS_H
 #include <linux/fs.h>
+#elif HAVE_SYS_MOUNT_H
+#include <sys/mount.h>
 #endif
 /*
  * Some Linux distributions have both linux/ext2_fs.h and ext2fs/ext2_fs.h.
@@ -93,6 +91,10 @@ __FBSDID("$FreeBSD$");
 #include <sys/ioctl.h>
 #endif
 
+#ifdef __clang_analyzer__
+#include <assert.h>
+#endif
+
 #include "archive.h"
 #include "archive_string.h"
 #include "archive_entry.h"
@@ -107,6 +109,11 @@ __FBSDID("$FreeBSD$");
 #endif
 #ifndef O_CLOEXEC
 #define O_CLOEXEC	0
+#endif
+
+#if defined(__hpux) && !defined(HAVE_DIRFD)
+#define dirfd(x) ((x)->__dd_fd)
+#define HAVE_DIRFD
 #endif
 
 /*-
@@ -448,7 +455,7 @@ archive_read_disk_new(void)
 {
 	struct archive_read_disk *a;
 
-	a = (struct archive_read_disk *)calloc(1, sizeof(*a));
+	a = calloc(1, sizeof(*a));
 	if (a == NULL)
 		return (NULL);
 	a->archive.magic = ARCHIVE_READ_DISK_MAGIC;
@@ -738,6 +745,10 @@ _archive_read_data_block(struct archive *_a, const void **buff,
 			else if (errno == EPERM)
 				flags &= ~O_NOATIME;
 		}
+#ifdef __clang_analyzer__
+		/* Tolerate deadcode.DeadStores to avoid modifying upstream. */
+		(void)flags;
+#endif
 #endif
 		if (t->entry_fd < 0) {
 			archive_set_error(&a->archive, errno,
@@ -1666,6 +1677,11 @@ setup_current_filesystem(struct archive_read_disk *a)
 	else
 		t->current_filesystem->name_max = nm;
 #endif
+	if (t->current_filesystem->name_max == 0) {
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+		    "Cannot determine name_max");
+		return (ARCHIVE_FAILED);
+	}
 #endif /* USE_READDIR_R */
 	return (ARCHIVE_OK);
 }
@@ -1856,7 +1872,16 @@ setup_current_filesystem(struct archive_read_disk *a)
 
 #if defined(USE_READDIR_R)
 	/* Set maximum filename length. */
+#if defined(HAVE_STATVFS)
+	t->current_filesystem->name_max = svfs.f_namemax;
+#else
 	t->current_filesystem->name_max = sfs.f_namelen;
+#endif
+	if (t->current_filesystem->name_max == 0) {
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+		    "Cannot determine name_max");
+		return (ARCHIVE_FAILED);
+	}
 #endif
 	return (ARCHIVE_OK);
 }
@@ -1938,6 +1963,11 @@ setup_current_filesystem(struct archive_read_disk *a)
 #if defined(USE_READDIR_R)
 	/* Set maximum filename length. */
 	t->current_filesystem->name_max = svfs.f_namemax;
+	if (t->current_filesystem->name_max == 0) {
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+		    "Cannot determine name_max");
+		return (ARCHIVE_FAILED);
+	}
 #endif
 	return (ARCHIVE_OK);
 }
@@ -1992,6 +2022,11 @@ setup_current_filesystem(struct archive_read_disk *a)
 	else
 		t->current_filesystem->name_max = nm;
 #  endif /* _PC_NAME_MAX */
+	if (t->current_filesystem->name_max == 0) {
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+		    "Cannot determine name_max");
+		return (ARCHIVE_FAILED);
+	}
 #endif /* USE_READDIR_R */
 	return (ARCHIVE_OK);
 }
@@ -2098,6 +2133,8 @@ tree_push(struct tree *t, const char *path, int filesystem_id,
 	struct tree_entry *te;
 
 	te = calloc(1, sizeof(*te));
+	if (te == NULL)
+		__archive_errx(1, "Out of memory");
 	te->next = t->stack;
 	te->parent = t->current;
 	if (te->parent)
@@ -2341,6 +2378,9 @@ tree_pop(struct tree *t)
 	if (t->stack == t->current && t->current != NULL)
 		t->current = t->current->parent;
 	te = t->stack;
+	#ifdef __clang_analyzer__
+	assert(te);
+	#endif
 	t->stack = te->next;
 	t->dirname_length = te->dirname_length;
 	t->basename = t->path.s + t->dirname_length;
@@ -2428,7 +2468,7 @@ tree_dir_next_posix(struct tree *t)
 #else /* HAVE_FDOPENDIR */
 		if (tree_enter_working_dir(t) == 0) {
 			t->d = opendir(".");
-#if HAVE_DIRFD || defined(dirfd)
+#ifdef HAVE_DIRFD
 			__archive_ensure_cloexec_flag(dirfd(t->d));
 #endif
 		}
@@ -2537,7 +2577,11 @@ tree_current_lstat(struct tree *t)
 #else
 		if (tree_enter_working_dir(t) != 0)
 			return NULL;
+#ifdef HAVE_LSTAT
 		if (lstat(tree_current_access_path(t), &t->lst) != 0)
+#else
+		if (la_stat(tree_current_access_path(t), &t->lst) != 0)
+#endif
 #endif
 			return NULL;
 		t->flags |= hasLstat;

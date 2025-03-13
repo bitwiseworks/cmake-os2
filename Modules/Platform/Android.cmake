@@ -5,9 +5,6 @@ if(CMAKE_ANDROID_NDK)
 endif()
 
 include(Platform/Linux)
-unset(LINUX)
-
-set(ANDROID 1)
 
 # Natively compiling on an Android host doesn't need these flags to be reset.
 if(CMAKE_HOST_SYSTEM_NAME STREQUAL "Android")
@@ -39,6 +36,8 @@ endif()
 # Commonly used Android toolchain files that pre-date CMake upstream support
 # set CMAKE_SYSTEM_VERSION to 1.  Avoid interfering with them.
 if(CMAKE_SYSTEM_VERSION EQUAL 1)
+  # The NDK legacy toolchain file provides its version number.
+  set(CMAKE_ANDROID_NDK_VERSION ${ANDROID_NDK_MAJOR}.${ANDROID_NDK_MINOR})
   return()
 endif()
 

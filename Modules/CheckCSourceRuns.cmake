@@ -5,7 +5,7 @@
 CheckCSourceRuns
 ----------------
 
-Check if given C source compiles and links into an executable and can
+Check once if given C source compiles and links into an executable and can
 subsequently be run.
 
 .. command:: check_c_source_runs
@@ -14,57 +14,33 @@ subsequently be run.
 
     check_c_source_runs(<code> <resultVar>)
 
-  Check that the source supplied in ``<code>`` can be compiled as a C source
-  file, linked as an executable and then run. The ``<code>`` must contain at
-  least a ``main()`` function. If the ``<code>`` could be built and run
-  successfully, the internal cache variable specified by ``<resultVar>`` will
-  be set to 1, otherwise it will be set to an value that evaluates to boolean
-  false (e.g. an empty string or an error message).
+  Check once that the source supplied in ``<code>`` can be built, linked as an
+  executable, and then run. The ``<code>`` must contain at least a ``main()``
+  function.
 
-  The underlying check is performed by the :command:`try_run` command. The
-  compile and link commands can be influenced by setting any of the following
-  variables prior to calling ``check_c_source_runs()``:
+  The result is stored in the internal cache variable specified by
+  ``<resultVar>``. Success of build and run is indicated by boolean ``true``.
+  Failure to build or run is indicated by boolean ``false`` such as an empty
+  string or an error message.
 
-  ``CMAKE_REQUIRED_FLAGS``
-    Additional flags to pass to the compiler. Note that the contents of
-    :variable:`CMAKE_C_FLAGS <CMAKE_<LANG>_FLAGS>` and its associated
-    configuration-specific variable are automatically added to the compiler
-    command before the contents of ``CMAKE_REQUIRED_FLAGS``.
+  See also :command:`check_source_runs` for a more general command syntax.
 
-  ``CMAKE_REQUIRED_DEFINITIONS``
-    A :ref:`;-list <CMake Language Lists>` of compiler definitions of the form
-    ``-DFOO`` or ``-DFOO=bar``. A definition for the name specified by
-    ``<resultVar>`` will also be added automatically.
+  The compile and link commands can be influenced by setting any of the
+  following variables prior to calling ``check_c_source_runs()``:
 
-  ``CMAKE_REQUIRED_INCLUDES``
-    A :ref:`;-list <CMake Language Lists>` of header search paths to pass to
-    the compiler. These will be the only header search paths used by
-    ``try_run()``, i.e. the contents of the :prop_dir:`INCLUDE_DIRECTORIES`
-    directory property will be ignored.
+.. include:: /module/CMAKE_REQUIRED_FLAGS.txt
 
-  ``CMAKE_REQUIRED_LINK_OPTIONS``
-    .. versionadded:: 3.14
+.. include:: /module/CMAKE_REQUIRED_DEFINITIONS.txt
 
-    A :ref:`;-list <CMake Language Lists>` of options to add to the link
-    command (see :command:`try_run` for further details).
+.. include:: /module/CMAKE_REQUIRED_INCLUDES.txt
 
-  ``CMAKE_REQUIRED_LIBRARIES``
-    A :ref:`;-list <CMake Language Lists>` of libraries to add to the link
-    command. These can be the name of system libraries or they can be
-    :ref:`Imported Targets <Imported Targets>` (see :command:`try_run` for
-    further details).
+.. include:: /module/CMAKE_REQUIRED_LINK_OPTIONS.txt
 
-  ``CMAKE_REQUIRED_QUIET``
-    .. versionadded:: 3.1
+.. include:: /module/CMAKE_REQUIRED_LIBRARIES.txt
 
-    If this variable evaluates to a boolean true value, all status messages
-    associated with the check will be suppressed.
+.. include:: /module/CMAKE_REQUIRED_LINK_DIRECTORIES.txt
 
-  The check is only performed once, with the result cached in the variable
-  named by ``<resultVar>``. Every subsequent CMake run will re-use this cached
-  value rather than performing the check again, even if the ``<code>`` changes.
-  In order to force the check to be re-evaluated, the variable named by
-  ``<resultVar>`` must be manually removed from the cache.
+.. include:: /module/CMAKE_REQUIRED_QUIET.txt
 
 #]=======================================================================]
 

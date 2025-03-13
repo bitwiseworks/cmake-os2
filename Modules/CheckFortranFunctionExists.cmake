@@ -29,16 +29,11 @@ Check if a Fortran function exists.
 The following variables may be set before calling this macro to modify
 the way the check is run:
 
-``CMAKE_REQUIRED_LINK_OPTIONS``
-  .. versionadded:: 3.14
-    A :ref:`;-list <CMake Language Lists>` of options to add to the link
-    command (see :command:`try_compile` for further details).
+.. include:: /module/CMAKE_REQUIRED_LINK_OPTIONS.txt
 
-``CMAKE_REQUIRED_LIBRARIES``
-  A :ref:`;-list <CMake Language Lists>` of libraries to add to the link
-  command. These can be the name of system libraries or they can be
-  :ref:`Imported Targets <Imported Targets>` (see :command:`try_compile` for
-  further details).
+.. include:: /module/CMAKE_REQUIRED_LIBRARIES.txt
+
+.. include:: /module/CMAKE_REQUIRED_LINK_DIRECTORIES.txt
 #]=======================================================================]
 
 include_guard(GLOBAL)
@@ -58,6 +53,12 @@ macro(CHECK_FORTRAN_FUNCTION_EXISTS FUNCTION VARIABLE)
     else()
       set(CHECK_FUNCTION_EXISTS_ADD_LIBRARIES)
     endif()
+    if(CMAKE_REQUIRED_LINK_DIRECTORIES)
+      set(_CFFE_LINK_DIRECTORIES
+        "-DLINK_DIRECTORIES:STRING=${CMAKE_REQUIRED_LINK_DIRECTORIES}")
+    else()
+      set(_CFFE_LINK_DIRECTORIES)
+    endif()
     set(__CheckFunction_testFortranCompilerSource
     "
       program TESTFortran
@@ -70,21 +71,17 @@ macro(CHECK_FORTRAN_FUNCTION_EXISTS FUNCTION VARIABLE)
       SOURCE_FROM_VAR testFortranCompiler.f __CheckFunction_testFortranCompilerSource
       ${CHECK_FUNCTION_EXISTS_ADD_LINK_OPTIONS}
       ${CHECK_FUNCTION_EXISTS_ADD_LIBRARIES}
-      OUTPUT_VARIABLE OUTPUT
+      CMAKE_FLAGS
+      "${_CFFE_LINK_DIRECTORIES}"
     )
     unset(__CheckFunction_testFortranCompilerSource)
+    unset(_CFFE_LINK_DIRECTORIES)
     if(${VARIABLE})
       set(${VARIABLE} 1 CACHE INTERNAL "Have Fortran function ${FUNCTION}")
       message(CHECK_PASS "found")
-      file(APPEND ${CMAKE_BINARY_DIR}${CMAKE_FILES_DIRECTORY}/CMakeOutput.log
-        "Determining if the Fortran ${FUNCTION} exists passed with the following output:\n"
-        "${OUTPUT}\n\n")
     else()
       message(CHECK_FAIL "not found")
       set(${VARIABLE} "" CACHE INTERNAL "Have Fortran function ${FUNCTION}")
-      file(APPEND ${CMAKE_BINARY_DIR}${CMAKE_FILES_DIRECTORY}/CMakeError.log
-        "Determining if the Fortran ${FUNCTION} exists failed with the following output:\n"
-        "${OUTPUT}\n\n")
     endif()
   endif()
 endmacro()

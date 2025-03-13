@@ -11,7 +11,6 @@
 #include <cmext/algorithm>
 #include <cmext/memory>
 
-#include "cmDocumentationEntry.h"
 #include "cmGeneratedFileStream.h"
 #include "cmGeneratorTarget.h"
 #include "cmGlobalGenerator.h"
@@ -24,6 +23,7 @@
 #include "cmStateTypes.h"
 #include "cmStringAlgorithms.h"
 #include "cmSystemTools.h"
+#include "cmTarget.h"
 #include "cmTargetDepend.h"
 #include "cmValue.h"
 #include "cmake.h"
@@ -71,11 +71,10 @@ cmGlobalUnixMakefileGenerator3::CreateLocalGenerator(cmMakefile* mf)
     cm::make_unique<cmLocalUnixMakefileGenerator3>(this, mf));
 }
 
-void cmGlobalUnixMakefileGenerator3::GetDocumentation(
-  cmDocumentationEntry& entry)
+cmDocumentationEntry cmGlobalUnixMakefileGenerator3::GetDocumentation()
 {
-  entry.Name = cmGlobalUnixMakefileGenerator3::GetActualName();
-  entry.Brief = "Generates standard UNIX makefiles.";
+  return { cmGlobalUnixMakefileGenerator3::GetActualName(),
+           "Generates standard UNIX makefiles." };
 }
 
 void cmGlobalUnixMakefileGenerator3::ComputeTargetObjectDirectory(
@@ -104,6 +103,9 @@ void cmGlobalUnixMakefileGenerator3::Configure()
 
 void cmGlobalUnixMakefileGenerator3::Generate()
 {
+  this->ClangTidyExportFixesDirs.clear();
+  this->ClangTidyExportFixesFiles.clear();
+
   // first do superclass method
   this->cmGlobalGenerator::Generate();
 
@@ -139,11 +141,13 @@ void cmGlobalUnixMakefileGenerator3::Generate()
     *this->CommandDatabase << "\n]";
     this->CommandDatabase.reset();
   }
+
+  this->RemoveUnknownClangTidyExportFixesFiles();
 }
 
 void cmGlobalUnixMakefileGenerator3::AddCXXCompileCommand(
   const std::string& sourceFile, const std::string& workingDirectory,
-  const std::string& compileCommand)
+  const std::string& compileCommand, const std::string& objPath)
 {
   if (!this->CommandDatabase) {
     std::string commandDatabaseName =
@@ -164,7 +168,9 @@ void cmGlobalUnixMakefileGenerator3::AddCXXCompileCommand(
                          << "\",\n"
                          << R"(  "file": ")"
                          << cmGlobalGenerator::EscapeJSON(sourceFile)
-                         << "\"\n}";
+                         << "\",\n"
+                         << R"(  "output": ")"
+                         << cmGlobalGenerator::EscapeJSON(objPath) << "\"\n}";
 }
 
 void cmGlobalUnixMakefileGenerator3::WriteMainMakefile2()
@@ -433,6 +439,10 @@ void cmGlobalUnixMakefileGenerator3::WriteDirectoryRules2(
   // Write directory-level rules for "all".
   this->WriteDirectoryRule2(ruleFileStream, rootLG, dt, "all", true, false);
 
+  // Write directory-level rules for "codegen".
+  this->WriteDirectoryRule2(ruleFileStream, rootLG, dt, "codegen", true,
+                            false);
+
   // Write directory-level rules for "preinstall".
   this->WriteDirectoryRule2(ruleFileStream, rootLG, dt, "preinstall", true,
                             true);
@@ -693,7 +703,7 @@ void cmGlobalUnixMakefileGenerator3::WriteConvenienceRules2(
       if (cmValue tgtMsg =
             this->GetCMakeInstance()->GetState()->GetGlobalProperty(
               "TARGET_MESSAGES")) {
-        targetMessages = cmIsOn(*tgtMsg);
+        targetMessages = tgtMsg.IsOn();
       }
 
       if (targetMessages) {
@@ -759,6 +769,21 @@ void cmGlobalUnixMakefileGenerator3::WriteConvenienceRules2(
                              "Pre-install relink rule for target.", localName,
                              depends, commands, true);
       }
+
+      // add the codegen rule
+      localName = lg.GetRelativeTargetDirectory(gtarget.get());
+      depends.clear();
+      commands.clear();
+      makeTargetName = cmStrCat(localName, "/codegen");
+      commands.push_back(
+        lg.GetRecursiveMakeCall(makefileName, makeTargetName));
+      if (targetMessages) {
+        lg.AppendEcho(commands, "Finished codegen for target " + name,
+                      cmLocalUnixMakefileGenerator3::EchoNormal, &progress);
+      }
+      this->AppendCodegenTargetDepends(depends, gtarget.get());
+      rootLG.WriteMakeRule(ruleFileStream, "codegen rule for target.",
+                           makeTargetName, depends, commands, true);
 
       // add the clean rule
       localName = lg.GetRelativeTargetDirectory(gtarget.get());
@@ -888,6 +913,29 @@ void cmGlobalUnixMakefileGenerator3::AppendGlobalTargetDepends(
   }
 }
 
+void cmGlobalUnixMakefileGenerator3::AppendCodegenTargetDepends(
+  std::vector<std::string>& depends, cmGeneratorTarget* target)
+{
+  const std::set<std::string>& codegen_depends =
+    target->Target->GetCodegenDeps();
+
+  for (cmTargetDepend const& i : this->GetTargetDirectDepends(target)) {
+    // Create the target-level dependency.
+    cmGeneratorTarget const* dep = i;
+    if (!dep->IsInBuildSystem()) {
+      continue;
+    }
+    if (codegen_depends.find(dep->GetName()) != codegen_depends.end()) {
+      cmLocalUnixMakefileGenerator3* lg3 =
+        static_cast<cmLocalUnixMakefileGenerator3*>(dep->GetLocalGenerator());
+      std::string tgtName = cmStrCat(
+        lg3->GetRelativeTargetDirectory(const_cast<cmGeneratorTarget*>(dep)),
+        "/all");
+      depends.push_back(tgtName);
+    }
+  }
+}
+
 void cmGlobalUnixMakefileGenerator3::WriteHelpRule(
   std::ostream& ruleFileStream, cmLocalUnixMakefileGenerator3* lg)
 {
@@ -902,6 +950,9 @@ void cmGlobalUnixMakefileGenerator3::WriteHelpRule(
   lg->AppendEcho(commands, "... clean");
   if (!this->GlobalSettingIsOn("CMAKE_SUPPRESS_REGENERATION")) {
     lg->AppendEcho(commands, "... depend");
+  }
+  if (this->CheckCMP0171()) {
+    lg->AppendEcho(commands, "... codegen");
   }
 
   // Keep track of targets already listed.

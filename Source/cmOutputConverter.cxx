@@ -13,9 +13,9 @@
 #  include <utility>
 #endif
 
+#include "cmList.h"
 #include "cmState.h"
 #include "cmStateDirectory.h"
-#include "cmStringAlgorithms.h"
 #include "cmSystemTools.h"
 #include "cmValue.h"
 
@@ -154,7 +154,7 @@ std::string cmOutputConverter::MaybeRelativeToCurBinDir(
 }
 
 std::string cmOutputConverter::ConvertToOutputForExisting(
-  const std::string& remote, OutputFormat format) const
+  const std::string& remote, OutputFormat format, bool useWatcomQuote) const
 {
 #ifdef _WIN32
   // Cache the Short Paths since we only convert the same few paths anyway and
@@ -176,30 +176,37 @@ std::string cmOutputConverter::ConvertToOutputForExisting(
       }
 
       std::string tmp{};
-      cmSystemTools::GetShortPath(remote, tmp);
+      cmsys::Status status = cmSystemTools::GetShortPath(remote, tmp);
+      if (!status) {
+        // Fallback for cases when Windows refuses to resolve the short path,
+        // like for C:\Program Files\WindowsApps\...
+        tmp = remote;
+      }
       shortPathCache[remote] = tmp;
       return tmp;
     }();
 
-    return this->ConvertToOutputFormat(shortPath, format);
+    return this->ConvertToOutputFormat(shortPath, format, useWatcomQuote);
   }
 #endif
 
   // Otherwise, perform standard conversion.
-  return this->ConvertToOutputFormat(remote, format);
+  return this->ConvertToOutputFormat(remote, format, useWatcomQuote);
 }
 
 std::string cmOutputConverter::ConvertToOutputFormat(cm::string_view source,
-                                                     OutputFormat output) const
+                                                     OutputFormat format,
+                                                     bool useWatcomQuote) const
 {
   std::string result(source);
   // Convert it to an output path.
-  if (output == SHELL || output == WATCOMQUOTE || output == NINJAMULTI) {
+  if (format == SHELL || format == NINJAMULTI) {
     result = this->ConvertDirectorySeparatorsForShell(source);
-    result = this->EscapeForShell(result, true, false, output == WATCOMQUOTE,
-                                  output == NINJAMULTI);
-  } else if (output == RESPONSE) {
-    result = this->EscapeForShell(result, false, false, false, false, true);
+    result = this->EscapeForShell(result, true, false, useWatcomQuote,
+                                  format == NINJAMULTI);
+  } else if (format == RESPONSE) {
+    result =
+      this->EscapeForShell(result, false, false, useWatcomQuote, false, true);
   }
   return result;
 }
@@ -237,11 +244,6 @@ std::string cmOutputConverter::EscapeForShell(cm::string_view str,
                                               bool unescapeNinjaConfiguration,
                                               bool forResponse) const
 {
-  // Do not escape shell operators.
-  if (cmOutputConverterIsShellOperator(str)) {
-    return std::string(str);
-  }
-
   // Compute the flags for the target shell environment.
   int flags = 0;
   if (this->GetState()->UseWindowsVSIDE()) {
@@ -273,8 +275,21 @@ std::string cmOutputConverter::EscapeForShell(cm::string_view str,
   if (this->GetState()->UseNMake()) {
     flags |= Shell_Flag_NMake;
   }
+  if (this->GetState()->UseNinja()) {
+    flags |= Shell_Flag_Ninja;
+  }
   if (!this->GetState()->UseWindowsShell()) {
     flags |= Shell_Flag_IsUnix;
+  }
+
+  return cmOutputConverter::EscapeForShell(str, flags);
+}
+
+std::string cmOutputConverter::EscapeForShell(cm::string_view str, int flags)
+{
+  // Do not escape shell operators.
+  if (cmOutputConverterIsShellOperator(str)) {
+    return std::string(str);
   }
 
   return Shell_GetArgument(str, flags);
@@ -317,7 +332,7 @@ cmOutputConverter::FortranFormat cmOutputConverter::GetFortranFormat(
 {
   FortranFormat format = FortranFormatNone;
   if (!value.empty()) {
-    for (std::string const& fi : cmExpandedList(value)) {
+    for (std::string const& fi : cmList(value)) {
       if (fi == "FIXED") {
         format = FortranFormatFixed;
       }
@@ -437,7 +452,8 @@ bool cmOutputConverter::Shell_CharNeedsQuotes(char c, int flags)
     }
   } else {
     /* On Windows several special characters need quotes to preserve them.  */
-    if (Shell_CharNeedsQuotesOnWindows(c)) {
+    if (Shell_CharNeedsQuotesOnWindows(c) ||
+        (c == ';' && (flags & Shell_Flag_VSIDE))) {
       return true;
     }
   }
@@ -657,15 +673,18 @@ std::string cmOutputConverter::Shell_GetArgument(cm::string_view in, int flags)
       }
     } else if (*cit == ';') {
       if (flags & Shell_Flag_VSIDE) {
-        /* In a VS IDE a semicolon is written ";".  If this is written
-           in an un-quoted argument it starts a quoted segment,
-           inserts the ; and ends the segment.  If it is written in a
-           quoted argument it ends quoting, inserts the ; and restarts
-           quoting.  Either way the ; is isolated.  */
+        /* In VS a semicolon is written `";"` inside a quoted argument.
+           It ends quoting, inserts the `;`, and restarts quoting.  */
         out += "\";\"";
       } else {
         /* Otherwise a semicolon is written just ;. */
         out += ';';
+      }
+    } else if (*cit == '\n') {
+      if (flags & Shell_Flag_Ninja) {
+        out += "$\n";
+      } else {
+        out += '\n';
       }
     } else {
       /* Store this character.  */

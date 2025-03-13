@@ -4,20 +4,19 @@
 #include KWSYS_HEADER(CommandLineArguments.hxx)
 
 #include KWSYS_HEADER(Configure.hxx)
-#include KWSYS_HEADER(String.hxx)
 
 // Work-around CMake dependency scanning limitation.  This must
 // duplicate the above list of headers.
 #if 0
 #  include "CommandLineArguments.hxx.in"
 #  include "Configure.hxx.in"
-#  include "String.hxx.in"
 #endif
 
 #include <iostream>
 #include <map>
 #include <set>
 #include <sstream>
+#include <string>
 #include <vector>
 
 #include <cstdio>
@@ -52,14 +51,14 @@ struct CommandLineArgumentsCallbackStructure
   const char* Help;
 };
 
-class CommandLineArgumentsVectorOfStrings : public std::vector<kwsys::String>
+class CommandLineArgumentsVectorOfStrings : public std::vector<std::string>
 {
 };
-class CommandLineArgumentsSetOfStrings : public std::set<kwsys::String>
+class CommandLineArgumentsSetOfStrings : public std::set<std::string>
 {
 };
 class CommandLineArgumentsMapOfStrucs
-  : public std::map<kwsys::String, CommandLineArgumentsCallbackStructure>
+  : public std::map<std::string, CommandLineArgumentsCallbackStructure>
 {
 };
 
@@ -70,7 +69,7 @@ public:
 
   using VectorOfStrings = CommandLineArgumentsVectorOfStrings;
   using CallbacksMap = CommandLineArgumentsMapOfStrucs;
-  using String = kwsys::String;
+  using String = std::string;
   using SetOfStrings = CommandLineArgumentsSetOfStrings;
 
   VectorOfStrings Argv;
@@ -133,7 +132,7 @@ bool CommandLineArguments::GetMatchedArguments(
 
   // Does the argument match to any we know about?
   for (it = this->Internals->Callbacks.begin();
-       it != this->Internals->Callbacks.end(); it++) {
+       it != this->Internals->Callbacks.end(); ++it) {
     const CommandLineArguments::Internal::String& parg = it->first;
     CommandLineArgumentsCallbackStructure* cs = &it->second;
     if (cs->ArgumentType == CommandLineArguments::NO_ARGUMENT ||
@@ -306,7 +305,7 @@ void CommandLineArguments::GetUnusedArguments(int* argc, char*** argv)
 
   // Copy everything after the LastArgument, since that was not parsed.
   for (cc = 0; cc < this->Internals->UnusedArguments.size(); cc++) {
-    kwsys::String& str = this->Internals->UnusedArguments[cc];
+    std::string& str = this->Internals->UnusedArguments[cc];
     args[cnt] = new char[str.size() + 1];
     strcpy(args[cnt], str.c_str());
     cnt++;
@@ -319,7 +318,7 @@ void CommandLineArguments::DeleteRemainingArguments(int argc, char*** argv)
 {
   int cc;
   for (cc = 0; cc < argc; ++cc) {
-    delete[](*argv)[cc];
+    delete[] (*argv)[cc];
   }
   delete[] * argv;
 }
@@ -468,7 +467,7 @@ void CommandLineArguments::GenerateHelp()
   MapArgs mp;
   MapArgs::iterator mpit, smpit;
   for (it = this->Internals->Callbacks.begin();
-       it != this->Internals->Callbacks.end(); it++) {
+       it != this->Internals->Callbacks.end(); ++it) {
     CommandLineArgumentsCallbackStructure* cs = &(it->second);
     mpit = mp.find(cs->Help);
     if (mpit != mp.end()) {
@@ -479,14 +478,14 @@ void CommandLineArguments::GenerateHelp()
     }
   }
   for (it = this->Internals->Callbacks.begin();
-       it != this->Internals->Callbacks.end(); it++) {
+       it != this->Internals->Callbacks.end(); ++it) {
     CommandLineArgumentsCallbackStructure* cs = &(it->second);
     mpit = mp.find(cs->Help);
     if (mpit != mp.end()) {
       mpit->second.insert(it->first);
       smpit = mp.find(it->first);
       CommandLineArguments::Internal::SetOfStrings::iterator sit;
-      for (sit = smpit->second.begin(); sit != smpit->second.end(); sit++) {
+      for (sit = smpit->second.begin(); sit != smpit->second.end(); ++sit) {
         mpit->second.insert(*sit);
       }
       mp.erase(smpit);
@@ -497,9 +496,9 @@ void CommandLineArguments::GenerateHelp()
 
   // Find the length of the longest string
   CommandLineArguments::Internal::String::size_type maxlen = 0;
-  for (mpit = mp.begin(); mpit != mp.end(); mpit++) {
+  for (mpit = mp.begin(); mpit != mp.end(); ++mpit) {
     CommandLineArguments::Internal::SetOfStrings::iterator sit;
-    for (sit = mpit->second.begin(); sit != mpit->second.end(); sit++) {
+    for (sit = mpit->second.begin(); sit != mpit->second.end(); ++sit) {
       CommandLineArguments::Internal::String::size_type clen = sit->size();
       switch (this->Internals->Callbacks[*sit].ArgumentType) {
         case CommandLineArguments::NO_ARGUMENT:
@@ -525,9 +524,9 @@ void CommandLineArguments::GenerateHelp()
   maxlen += 4; // For the space before and after the option
 
   // Print help for each option
-  for (mpit = mp.begin(); mpit != mp.end(); mpit++) {
+  for (mpit = mp.begin(); mpit != mp.end(); ++mpit) {
     CommandLineArguments::Internal::SetOfStrings::iterator sit;
-    for (sit = mpit->second.begin(); sit != mpit->second.end(); sit++) {
+    for (sit = mpit->second.begin(); sit != mpit->second.end(); ++sit) {
       str << std::endl;
       std::string argument = *sit;
       switch (this->Internals->Callbacks[*sit].ArgumentType) {

@@ -25,7 +25,6 @@ public:
   // -- Properties
 
   //! Set the property value
-  void SetProperty(const std::string& name, const char* value);
   void SetProperty(const std::string& name, cmValue value);
   void SetProperty(const std::string& name, const std::string& value)
   {

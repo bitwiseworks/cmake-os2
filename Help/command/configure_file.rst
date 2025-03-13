@@ -1,6 +1,10 @@
 configure_file
 --------------
 
+.. only:: html
+
+   .. contents::
+
 Copy a file to another location and modify its contents.
 
 .. code-block:: cmake
@@ -11,80 +15,18 @@ Copy a file to another location and modify its contents.
                  [COPYONLY] [ESCAPE_QUOTES] [@ONLY]
                  [NEWLINE_STYLE [UNIX|DOS|WIN32|LF|CRLF] ])
 
-Copies an ``<input>`` file to an ``<output>`` file and substitutes
-variable values referenced as ``@VAR@`` or ``${VAR}`` in the input
-file content.  Each variable reference will be replaced with the
-current value of the variable, or the empty string if the variable
-is not defined.  Furthermore, input lines of the form
-
-.. code-block:: c
-
-  #cmakedefine VAR ...
-
-will be replaced with either
-
-.. code-block:: c
-
-  #define VAR ...
-
-or
-
-.. code-block:: c
-
-  /* #undef VAR */
-
-depending on whether ``VAR`` is set in CMake to any value not considered
-a false constant by the :command:`if` command.  The "..." content on the
-line after the variable name, if any, is processed as above.
-
-Unlike lines of the form ``#cmakedefine VAR ...``, in lines of the form
-``#cmakedefine01 VAR``, ``VAR`` itself will expand to ``VAR 0`` or ``VAR 1``
-rather than being assigned the value ``...``. Therefore, input lines of the form
-
-.. code-block:: c
-
-  #cmakedefine01 VAR
-
-will be replaced with either
-
-.. code-block:: c
-
-  #define VAR 0
-
-or
-
-.. code-block:: c
-
-  #define VAR 1
-
-Input lines of the form ``#cmakedefine01 VAR ...`` will expand
-as ``#cmakedefine01 VAR ... 0`` or ``#cmakedefine01 VAR ... 0``,
-which may lead to undefined behavior.
-
-.. versionadded:: 3.10
-  The result lines (with the exception of the ``#undef`` comments) can be
-  indented using spaces and/or tabs between the ``#`` character
-  and the ``cmakedefine`` or ``cmakedefine01`` words. This whitespace
-  indentation will be preserved in the output lines:
-
-  .. code-block:: c
-
-    #  cmakedefine VAR
-    #  cmakedefine01 VAR
-
-  will be replaced, if ``VAR`` is defined, with
-
-  .. code-block:: c
-
-    #  define VAR
-    #  define VAR 1
+Copies an ``<input>`` file to an ``<output>`` file while performing
+`transformations`_ of the input file content.
 
 If the input file is modified the build system will re-run CMake to
 re-configure the file and generate the build system again.
 The generated file is modified and its timestamp updated on subsequent
 cmake runs only if its content is changed.
 
-The arguments are:
+Options
+^^^^^^^
+
+The options are:
 
 ``<input>``
   Path to the input file.  A relative path is treated with respect to
@@ -137,6 +79,78 @@ The arguments are:
   ``DOS``, ``WIN32``, or ``CRLF`` for ``\r\n`` newlines.
   This option may not be used with ``COPYONLY``.
 
+Transformations
+^^^^^^^^^^^^^^^
+
+:ref:`Variables <CMake Language Variables>` referenced in the input
+file content as ``@VAR@``, ``${VAR}``, ``$CACHE{VAR}``, and
+:ref:`environment variables <CMake Language Environment Variables>`
+referenced as ``$ENV{VAR}``, will each be replaced with the current value
+of the variable, or the empty string if the variable is not defined.
+Furthermore, input lines of the form
+
+.. code-block:: c
+
+  #cmakedefine VAR ...
+
+will be replaced with either
+
+.. code-block:: c
+
+  #define VAR ...
+
+or
+
+.. code-block:: c
+
+  /* #undef VAR */
+
+depending on whether ``VAR`` is set in CMake to any value not considered
+a false constant by the :command:`if` command.  The "..." content on the
+line after the variable name, if any, is processed as above.
+
+Unlike lines of the form ``#cmakedefine VAR ...``, in lines of the form
+``#cmakedefine01 VAR``, ``VAR`` itself will expand to ``VAR 0`` or ``VAR 1``
+rather than being assigned the value ``...``. Therefore, input lines of the form
+
+.. code-block:: c
+
+  #cmakedefine01 VAR
+
+will be replaced with either
+
+.. code-block:: c
+
+  #define VAR 0
+
+or
+
+.. code-block:: c
+
+  #define VAR 1
+
+Input lines of the form ``#cmakedefine01 VAR ...`` will expand
+as ``#cmakedefine01 VAR ... 0`` or ``#cmakedefine01 VAR ... 1``,
+which may lead to undefined behavior.
+
+.. versionadded:: 3.10
+  The result lines (with the exception of the ``#undef`` comments) can be
+  indented using spaces and/or tabs between the ``#`` character
+  and the ``cmakedefine`` or ``cmakedefine01`` words. This whitespace
+  indentation will be preserved in the output lines:
+
+  .. code-block:: c
+
+    #  cmakedefine VAR
+    #  cmakedefine01 VAR
+
+  will be replaced, if ``VAR`` is defined, with
+
+  .. code-block:: c
+
+    #  define VAR
+    #  define VAR 1
+
 Example
 ^^^^^^^
 
@@ -174,11 +188,16 @@ Otherwise it will contain:
   /* #undef FOO_ENABLE */
   /* #undef FOO_STRING */
 
-One may then use the :command:`include_directories` command to
+One may then use the :command:`target_include_directories` command to
 specify the output directory as an include directory:
 
 .. code-block:: cmake
 
-  include_directories(${CMAKE_CURRENT_BINARY_DIR})
+  target_include_directories(<target> [SYSTEM] <INTERFACE|PUBLIC|PRIVATE> "${CMAKE_CURRENT_BINARY_DIR}")
 
 so that sources may include the header as ``#include <foo.h>``.
+
+See Also
+^^^^^^^^
+
+* :command:`file(GENERATE)`

@@ -7,7 +7,7 @@
  *                            | (__| |_| |  _ <| |___
  *                             \___|\___/|_| \_\_____|
  *
- * Copyright (C) 1998 - 2022, Daniel Stenberg, <daniel@haxx.se>, et al.
+ * Copyright (C) Daniel Stenberg, <daniel@haxx.se>, et al.
  *
  * This software is licensed as described in the file COPYING, which
  * you should have received as part of this distribution. The terms
@@ -26,10 +26,10 @@
 
 #include "curl_setup.h"
 
-/* Use a larger type even for 32 bit time_t systems so that we can keep
+/* Use a larger type even for 32-bit time_t systems so that we can keep
    microsecond accuracy in it */
 typedef curl_off_t timediff_t;
-#define CURL_FORMAT_TIMEDIFF_T CURL_FORMAT_CURL_OFF_T
+#define FMT_TIMEDIFF_T FMT_OFF_T
 
 #define TIMEDIFF_T_MAX CURL_OFF_T_MAX
 #define TIMEDIFF_T_MIN CURL_OFF_T_MIN
