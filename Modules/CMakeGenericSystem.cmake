@@ -30,12 +30,18 @@ set(CMAKE_FIND_LIBRARY_SUFFIXES ".so" ".a")
 # LINK_LIBRARY_OVERRIDE_<LIBRARY> target properties
 set(CMAKE_LINK_LIBRARY_USING_DEFAULT_SUPPORTED TRUE)
 
-set(CMAKE_AUTOGEN_ORIGIN_DEPENDS ON)
-set(CMAKE_AUTOMOC_COMPILER_PREDEFINES ON)
+if(NOT DEFINED CMAKE_AUTOGEN_ORIGIN_DEPENDS)
+  set(CMAKE_AUTOGEN_ORIGIN_DEPENDS ON)
+endif()
+if(NOT DEFINED CMAKE_AUTOMOC_COMPILER_PREDEFINES)
+  set(CMAKE_AUTOMOC_COMPILER_PREDEFINES ON)
+endif()
 if(NOT DEFINED CMAKE_AUTOMOC_PATH_PREFIX)
   set(CMAKE_AUTOMOC_PATH_PREFIX OFF)
 endif()
-set(CMAKE_AUTOMOC_MACRO_NAMES "Q_OBJECT" "Q_GADGET" "Q_NAMESPACE" "Q_NAMESPACE_EXPORT")
+if(NOT DEFINED CMAKE_AUTOMOC_MACRO_NAMES)
+  set(CMAKE_AUTOMOC_MACRO_NAMES "Q_OBJECT" "Q_GADGET" "Q_NAMESPACE" "Q_NAMESPACE_EXPORT")
+endif()
 
 # basically all general purpose OSs support shared libs
 set_property(GLOBAL PROPERTY TARGET_SUPPORTS_SHARED_LIBS TRUE)
@@ -70,6 +76,13 @@ if(NOT DEFINED CMAKE_EXPORT_COMPILE_COMMANDS AND CMAKE_GENERATOR MATCHES "Ninja|
     CACHE BOOL "Enable/Disable output of compile commands during generation."
     )
   mark_as_advanced(CMAKE_EXPORT_COMPILE_COMMANDS)
+endif()
+
+if(NOT DEFINED CMAKE_EXPORT_BUILD_DATABASE AND CMAKE_GENERATOR MATCHES "Ninja")
+  set(CMAKE_EXPORT_BUILD_DATABASE "$ENV{CMAKE_EXPORT_BUILD_DATABASE}"
+    CACHE BOOL "Enable/Disable output of build database during the build."
+    )
+  mark_as_advanced(CMAKE_EXPORT_BUILD_DATABASE)
 endif()
 
 # GetDefaultWindowsPrefixBase
@@ -171,20 +184,27 @@ endfunction()
 # was initialized by the block below.  This is useful for user
 # projects to change the default prefix while still allowing the
 # command line to override it.
-if(NOT DEFINED CMAKE_INSTALL_PREFIX)
+if(NOT DEFINED CMAKE_INSTALL_PREFIX AND
+   NOT DEFINED ENV{CMAKE_INSTALL_PREFIX})
   set(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT 1)
 endif()
 
-# Choose a default install prefix for this platform.
-if(CMAKE_HOST_UNIX)
-  set(CMAKE_INSTALL_PREFIX "/usr/local"
+if(DEFINED ENV{CMAKE_INSTALL_PREFIX})
+  set(CMAKE_INSTALL_PREFIX "$ENV{CMAKE_INSTALL_PREFIX}"
     CACHE PATH "Install path prefix, prepended onto install directories.")
 else()
-  GetDefaultWindowsPrefixBase(CMAKE_GENERIC_PROGRAM_FILES)
-  set(CMAKE_INSTALL_PREFIX
-    "${CMAKE_GENERIC_PROGRAM_FILES}/${PROJECT_NAME}"
-    CACHE PATH "Install path prefix, prepended onto install directories.")
-  set(CMAKE_GENERIC_PROGRAM_FILES)
+  # If CMAKE_INSTALL_PREFIX env variable is not set,
+  # choose a default install prefix for this platform.
+  if(CMAKE_HOST_UNIX)
+    set(CMAKE_INSTALL_PREFIX "/usr/local"
+      CACHE PATH "Install path prefix, prepended onto install directories.")
+  else()
+    GetDefaultWindowsPrefixBase(CMAKE_GENERIC_PROGRAM_FILES)
+    set(CMAKE_INSTALL_PREFIX
+      "${CMAKE_GENERIC_PROGRAM_FILES}/${PROJECT_NAME}"
+      CACHE PATH "Install path prefix, prepended onto install directories.")
+    set(CMAKE_GENERIC_PROGRAM_FILES)
+  endif()
 endif()
 
 # Set a variable which will be used as component name in install() commands

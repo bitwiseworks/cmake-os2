@@ -7,7 +7,7 @@ UseJava
 
 This file provides support for ``Java``.  It is assumed that
 :module:`FindJava` has already been loaded.  See :module:`FindJava` for
-information on how to load Java into your ``CMake`` project.
+information on how to load Java into your CMake project.
 
 Synopsis
 ^^^^^^^^
@@ -294,7 +294,7 @@ Header Generation
 
   .. deprecated:: 3.11
     This command will no longer be supported starting with version 10 of the JDK
-    due to the `suppression of javah tool <https://openjdk.java.net/jeps/313>`_.
+    due to the `suppression of javah tool <https://openjdk.org/jeps/313>`_.
     The :ref:`add_jar(GENERATE_NATIVE_HEADERS) <add_jar>` command should be
     used instead.
 
@@ -873,6 +873,7 @@ function(add_jar _TARGET_NAME)
             endforeach()
         endif()
 
+        cmake_language(GET_MESSAGE_LOG_LEVEL _LOG_LEVEL)
         # Compile the java files and create a list of class files
         add_custom_command(
             # NOTE: this command generates an artificial dependency file
@@ -881,6 +882,7 @@ function(add_jar _TARGET_NAME)
                 -DCMAKE_JAVA_CLASS_OUTPUT_PATH=${CMAKE_JAVA_CLASS_OUTPUT_PATH}
                 -DCMAKE_JAR_CLASSES_PREFIX=${CMAKE_JAR_CLASSES_PREFIX}
                 -P ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/UseJava/ClearClassFiles.cmake
+                --log-level ${_LOG_LEVEL}
             COMMAND ${Java_JAVAC_EXECUTABLE}
                 ${CMAKE_JAVA_COMPILE_FLAGS}
                 -classpath "${CMAKE_JAVA_INCLUDE_PATH_FINAL}"
@@ -1521,7 +1523,7 @@ function (create_javah)
       "CLASSES;CLASSPATH;DEPENDS"
       ${ARGN})
 
-    # ckeck parameters
+    # check parameters
     if (NOT _create_javah_TARGET AND NOT _create_javah_GENERATED_FILES)
       message (FATAL_ERROR "create_javah: TARGET or GENERATED_FILES must be specified.")
     endif()

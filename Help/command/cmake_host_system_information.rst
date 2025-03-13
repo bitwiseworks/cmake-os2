@@ -17,7 +17,7 @@ Synopsis
 Query host system specific information
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-::
+.. code-block:: cmake
 
   cmake_host_system_information(RESULT <variable> QUERY <key> ...)
 
@@ -146,6 +146,13 @@ queried.  The list of queried values is stored in ``<variable>``.
 
   See :variable:`CMAKE_HOST_SYSTEM_PROCESSOR`
 
+``MSYSTEM_PREFIX``
+  .. versionadded:: 3.28
+
+  Available only on Windows hosts.  In a MSYS or MinGW development
+  environment that sets the ``MSYSTEM`` environment variable, this
+  is its installation prefix.  Otherwise, this is the empty string.
+
 ``DISTRIB_INFO``
   .. versionadded:: 3.22
 
@@ -258,7 +265,7 @@ Example:
 
 .. [#mebibytes] One MiB (mebibyte) is equal to 1024x1024 bytes.
 
-.. _man 5 os-release: https://www.freedesktop.org/software/systemd/man/os-release.html
+.. _man 5 os-release: https://www.freedesktop.org/software/systemd/man/latest/os-release.html
 .. _various distribution-specific files: http://linuxmafia.com/faq/Admin/release-files.html
 
 .. _Query Windows registry:

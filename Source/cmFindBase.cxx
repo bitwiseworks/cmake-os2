@@ -5,7 +5,7 @@
 #include <algorithm>
 #include <cstddef>
 #include <deque>
-#include <functional>
+#include <iterator>
 #include <map>
 #include <utility>
 
@@ -15,6 +15,7 @@
 
 #include "cmCMakePath.h"
 #include "cmExecutionStatus.h"
+#include "cmList.h"
 #include "cmListFileCache.h"
 #include "cmMakefile.h"
 #include "cmMessageType.h"
@@ -147,14 +148,14 @@ bool cmFindBase::ParseArguments(std::vector<std::string> const& argsIn)
         return false;
       }
       auto command = this->Makefile->GetState()->GetCommand(args[j]);
-      if (command == nullptr) {
+      if (!command) {
         this->SetError(cmStrCat(
           "command specified for \"VALIDATOR\" is undefined: ", args[j], '.'));
         return false;
       }
       // ensure a macro is not specified as validator
       const auto& validatorName = args[j];
-      auto macros = cmExpandedList(this->Makefile->GetProperty("MACROS"));
+      cmList macros{ this->Makefile->GetProperty("MACROS") };
       if (std::find_if(macros.begin(), macros.end(),
                        [&validatorName](const std::string& item) {
                          return cmSystemTools::Strucmp(validatorName.c_str(),
@@ -327,9 +328,6 @@ void cmFindBase::FillSystemEnvironmentPath()
   // Add LIB or INCLUDE
   if (!this->EnvironmentPath.empty()) {
     paths.AddEnvPath(this->EnvironmentPath);
-#if defined(_WIN32) || defined(__CYGWIN__)
-    paths.AddEnvPrefixPath("PATH", true);
-#endif
   }
   // Add PATH
   paths.AddEnvPath("PATH");
@@ -344,7 +342,7 @@ struct entry_to_remove
   {
     if (cmValue to_skip = makefile->GetDefinition(
           cmStrCat("_CMAKE_SYSTEM_PREFIX_PATH_", name, "_PREFIX_COUNT"))) {
-      cmStrToLong(to_skip, &count);
+      cmStrToLong(*to_skip, &count);
     }
     if (cmValue prefix_value = makefile->GetDefinition(
           cmStrCat("_CMAKE_SYSTEM_PREFIX_PATH_", name, "_PREFIX_VALUE"))) {
@@ -403,7 +401,7 @@ void cmFindBase::FillCMakeSystemVariablePath()
       this->Makefile->GetDefinition("CMAKE_SYSTEM_PREFIX_PATH");
 
     // remove entries from CMAKE_SYSTEM_PREFIX_PATH
-    std::vector<std::string> expanded = cmExpandedList(*prefix_paths);
+    cmList expanded{ *prefix_paths };
     install_entry.remove_self(expanded);
     staging_entry.remove_self(expanded);
 
@@ -508,7 +506,7 @@ void cmFindBase::NormalizeFindResult()
       // value.
       if (value != *existingValue || this->AlreadyInCacheWithoutMetaInfo) {
         this->Makefile->GetCMakeInstance()->AddCacheEntry(
-          this->VariableName, value, this->VariableDocumentation.c_str(),
+          this->VariableName, value, this->VariableDocumentation,
           this->VariableType);
         if (this->Makefile->GetPolicyStatus(cmPolicies::CMP0126) ==
             cmPolicies::NEW) {
@@ -533,7 +531,7 @@ void cmFindBase::NormalizeFindResult()
     if (this->StoreResultInCache) {
       if (this->AlreadyInCacheWithoutMetaInfo) {
         this->Makefile->AddCacheDefinition(this->VariableName, "",
-                                           this->VariableDocumentation.c_str(),
+                                           this->VariableDocumentation,
                                            this->VariableType);
         if (this->Makefile->GetPolicyStatus(cmPolicies::CMP0126) ==
               cmPolicies::NEW &&
@@ -563,7 +561,7 @@ void cmFindBase::StoreFindResult(const std::string& value)
   if (!value.empty()) {
     if (this->StoreResultInCache) {
       this->Makefile->AddCacheDefinition(this->VariableName, value,
-                                         this->VariableDocumentation.c_str(),
+                                         this->VariableDocumentation,
                                          this->VariableType, force);
       if (updateNormalVariable &&
           this->Makefile->IsNormalDefinitionSet(this->VariableName)) {
@@ -579,7 +577,7 @@ void cmFindBase::StoreFindResult(const std::string& value)
   auto notFound = cmStrCat(this->VariableName, "-NOTFOUND");
   if (this->StoreResultInCache) {
     this->Makefile->AddCacheDefinition(this->VariableName, notFound,
-                                       this->VariableDocumentation.c_str(),
+                                       this->VariableDocumentation,
                                        this->VariableType, force);
     if (updateNormalVariable &&
         this->Makefile->IsNormalDefinitionSet(this->VariableName)) {

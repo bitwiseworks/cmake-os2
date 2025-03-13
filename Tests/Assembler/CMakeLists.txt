@@ -1,4 +1,4 @@
-cmake_minimum_required (VERSION 3.8)
+cmake_minimum_required (VERSION 3.10)
 if(POLICY CMP0129)
   cmake_policy(SET CMP0129 NEW)
 endif()
@@ -12,7 +12,7 @@ set(SRCS)
 # and also generate assembler files from C:
 if("${CMAKE_GENERATOR}" MATCHES "Makefile|Xcode|Ninja" AND
     NOT CMAKE_OSX_ARCHITECTURES MATCHES ";")
-  if((CMAKE_C_COMPILER_ID MATCHES "^(GNU|LCC|Clang|AppleClang|HP|SunPro|XL)$") OR (CMAKE_C_COMPILER_ID MATCHES "Intel"  AND  UNIX)
+  if((CMAKE_C_COMPILER_ID MATCHES "^(GNU|LCC|Clang|AppleClang|HP|SunPro|XL|OrangeC)$") OR (CMAKE_C_COMPILER_ID MATCHES "Intel"  AND  UNIX)
      AND NOT (CMAKE_C_COMPILER_ID STREQUAL "Clang" AND "x${CMAKE_C_COMPILER_FRONTEND_VARIANT}" STREQUAL "xMSVC"))
     set(C_FLAGS "${CMAKE_C_FLAGS}")
     separate_arguments(C_FLAGS)
@@ -24,7 +24,7 @@ if("${CMAKE_GENERATOR}" MATCHES "Makefile|Xcode|Ninja" AND
     elseif("${CMAKE_SYSTEM_NAME};${CMAKE_SYSTEM_PROCESSOR}" STREQUAL "Darwin;arm64")
       list(APPEND C_FLAGS -arch arm64)
     endif()
-    if(CMAKE_C_COMPILER_ID STREQUAL "Clang")
+    if(CMAKE_C_COMPILER_ID MATCHES "Clang")
       # Just in case the user is passing -flto, we need to pass -fno-lto to
       # clang when generating the assembly file, or else clang will generate
       # LLVM IR instead of assembly.

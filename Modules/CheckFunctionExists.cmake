@@ -5,7 +5,7 @@
 CheckFunctionExists
 -------------------
 
-Check if a C function can be linked
+Check once if a C function can be linked from system libraries.
 
 .. command:: check_function_exists
 
@@ -14,33 +14,29 @@ Check if a C function can be linked
     check_function_exists(<function> <variable>)
 
   Checks that the ``<function>`` is provided by libraries on the system and store
-  the result in a ``<variable>``, which will be created as an internal
-  cache variable.
+  the result in internal cache variable ``<variable>``.
 
 The following variables may be set before calling this macro to modify the
 way the check is run:
 
-``CMAKE_REQUIRED_FLAGS``
-  string of compile command line flags.
-``CMAKE_REQUIRED_DEFINITIONS``
-  a :ref:`;-list <CMake Language Lists>` of macros to define (-DFOO=bar).
-``CMAKE_REQUIRED_INCLUDES``
-  a :ref:`;-list <CMake Language Lists>` of header search paths to pass to
-  the compiler.
-``CMAKE_REQUIRED_LINK_OPTIONS``
-  .. versionadded:: 3.14
-    a :ref:`;-list <CMake Language Lists>` of options to add to the link command.
-``CMAKE_REQUIRED_LIBRARIES``
-  a :ref:`;-list <CMake Language Lists>` of libraries to add to the link
-  command. See policy :policy:`CMP0075`.
-``CMAKE_REQUIRED_QUIET``
-  .. versionadded:: 3.1
-    execute quietly without messages.
+.. include:: /module/CMAKE_REQUIRED_FLAGS.txt
+
+.. include:: /module/CMAKE_REQUIRED_DEFINITIONS.txt
+
+.. include:: /module/CMAKE_REQUIRED_INCLUDES.txt
+
+.. include:: /module/CMAKE_REQUIRED_LINK_OPTIONS.txt
+
+.. include:: /module/CMAKE_REQUIRED_LIBRARIES.txt
+
+.. include:: /module/CMAKE_REQUIRED_LINK_DIRECTORIES.txt
+
+.. include:: /module/CMAKE_REQUIRED_QUIET.txt
 
 .. note::
 
-  Prefer using :Module:`CheckSymbolExists` instead of this module,
-  for the following reasons:
+  Prefer using :module:`CheckSymbolExists` or :module:`CheckSourceCompiles`
+  instead of this module, for the following reasons:
 
   * ``check_function_exists()`` can't detect functions that are inlined
     in headers or specified as a macro.
@@ -73,6 +69,12 @@ macro(CHECK_FUNCTION_EXISTS FUNCTION VARIABLE)
     else()
       set(CHECK_FUNCTION_EXISTS_ADD_LIBRARIES)
     endif()
+    if(CMAKE_REQUIRED_LINK_DIRECTORIES)
+      set(_CFE_LINK_DIRECTORIES
+        "-DLINK_DIRECTORIES:STRING=${CMAKE_REQUIRED_LINK_DIRECTORIES}")
+    else()
+      set(_CFE_LINK_DIRECTORIES)
+    endif()
     if(CMAKE_REQUIRED_INCLUDES)
       set(CHECK_FUNCTION_EXISTS_ADD_INCLUDES
         "-DINCLUDE_DIRECTORIES:STRING=${CMAKE_REQUIRED_INCLUDES}")
@@ -95,25 +97,21 @@ macro(CHECK_FUNCTION_EXISTS FUNCTION VARIABLE)
       ${CHECK_FUNCTION_EXISTS_ADD_LIBRARIES}
       CMAKE_FLAGS -DCOMPILE_DEFINITIONS:STRING=${MACRO_CHECK_FUNCTION_DEFINITIONS}
       "${CHECK_FUNCTION_EXISTS_ADD_INCLUDES}"
-      OUTPUT_VARIABLE OUTPUT)
+      "${_CFE_LINK_DIRECTORIES}"
+      )
     unset(_cfe_source)
+    unset(_CFE_LINK_DIRECTORIES)
 
     if(${VARIABLE})
       set(${VARIABLE} 1 CACHE INTERNAL "Have function ${FUNCTION}")
       if(NOT CMAKE_REQUIRED_QUIET)
         message(CHECK_PASS "found")
       endif()
-      file(APPEND ${CMAKE_BINARY_DIR}${CMAKE_FILES_DIRECTORY}/CMakeOutput.log
-        "Determining if the function ${FUNCTION} exists passed with the following output:\n"
-        "${OUTPUT}\n\n")
     else()
       if(NOT CMAKE_REQUIRED_QUIET)
         message(CHECK_FAIL "not found")
       endif()
       set(${VARIABLE} "" CACHE INTERNAL "Have function ${FUNCTION}")
-      file(APPEND ${CMAKE_BINARY_DIR}${CMAKE_FILES_DIRECTORY}/CMakeError.log
-        "Determining if the function ${FUNCTION} exists failed with the following output:\n"
-        "${OUTPUT}\n\n")
     endif()
   endif()
 endmacro()

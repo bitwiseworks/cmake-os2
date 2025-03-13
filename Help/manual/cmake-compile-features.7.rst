@@ -266,6 +266,7 @@ versions specified for each:
 * ``PGI``: PGI version 12.10+.
 * ``NVHPC``: NVIDIA HPC compilers version 11.0+.
 * ``TI``: Texas Instruments compiler.
+* ``TIClang``: Texas Instruments Clang-based compilers.
 * ``XL``: IBM XL version 10.1+.
 
 CMake is currently aware of the :prop_tgt:`C standards <C_STANDARD>` and
@@ -282,3 +283,25 @@ versions specified for each:
 
 * ``Clang``: Clang compiler 5.0+.
 * ``NVIDIA``: NVIDIA nvcc compiler 7.5+.
+
+.. _`Language Standard Flags`:
+
+Language Standard Flags
+=======================
+
+In order to satisfy requirements specified by the
+:command:`target_compile_features` command or the
+:variable:`CMAKE_<LANG>_STANDARD` variable, CMake may pass a
+language standard flag to the compiler, such as ``-std=c++11``.
+
+For :ref:`Visual Studio Generators`, CMake cannot precisely control
+the placement of the language standard flag on the compiler command line.
+For :ref:`Ninja Generators`, :ref:`Makefile Generators`, and
+:generator:`Xcode`, CMake places the language standard flag just after
+the language-wide flags from :variable:`CMAKE_<LANG>_FLAGS`
+and :variable:`CMAKE_<LANG>_FLAGS_<CONFIG>`.
+
+.. versionchanged:: 3.26
+  The language standard flag is placed before flags specified by other
+  abstractions such as the :command:`target_compile_options` command.
+  Prior to CMake 3.26, the language standard flag was placed after them.

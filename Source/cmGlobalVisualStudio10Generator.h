@@ -93,6 +93,12 @@ public:
    * directory */
   std::string const& GetPlatformToolsetCudaVSIntegrationSubdirString() const;
 
+  /** The fortran toolset name.  */
+  cm::optional<std::string> GetPlatformToolsetFortran() const override
+  {
+    return this->GeneratorToolsetFortran;
+  }
+
   /** Return whether we need to use No/Debug instead of false/true
       for GenerateDebugInformation.  */
   bool GetPlatformToolsetNeedsDebugEnum() const
@@ -149,6 +155,8 @@ public:
 
   virtual bool IsUtf8EncodingSupported() const { return false; }
 
+  virtual bool IsScanDependenciesSupported() const { return false; }
+
   static std::string GetInstalledNsightTegraVersion();
 
   /** Return the first two components of CMAKE_SYSTEM_VERSION.  */
@@ -163,10 +171,12 @@ public:
   cmIDEFlagTable const* GetLinkFlagTable() const;
   cmIDEFlagTable const* GetCudaFlagTable() const;
   cmIDEFlagTable const* GetCudaHostFlagTable() const;
+  cmIDEFlagTable const* GetMarmasmFlagTable() const;
   cmIDEFlagTable const* GetMasmFlagTable() const;
   cmIDEFlagTable const* GetNasmFlagTable() const;
 
   bool IsMsBuildRestoreSupported() const;
+  bool IsBuildInParallelSupported() const;
 
 protected:
   cmGlobalVisualStudio10Generator(cmake* cm, const std::string& name,
@@ -180,6 +190,10 @@ protected:
   virtual bool InitializeWindowsStore(cmMakefile* mf);
   virtual bool InitializeTegraAndroid(cmMakefile* mf);
   virtual bool InitializeAndroid(cmMakefile* mf);
+
+  bool InitializePlatform(cmMakefile* mf) override;
+  virtual bool InitializePlatformWindows(cmMakefile* mf);
+  virtual bool VerifyNoGeneratorPlatformVersion(cmMakefile* mf) const;
 
   virtual bool ProcessGeneratorToolsetField(std::string const& key,
                                             std::string const& value);
@@ -213,6 +227,7 @@ protected:
   std::string GeneratorToolsetCudaCustomDir;
   std::string GeneratorToolsetCudaNvccSubdir;
   std::string GeneratorToolsetCudaVSIntegrationSubdir;
+  cm::optional<std::string> GeneratorToolsetFortran;
   std::string DefaultPlatformToolset;
   std::string DefaultPlatformToolsetHostArchitecture;
   std::string DefaultAndroidToolset;
@@ -226,6 +241,7 @@ protected:
   std::string DefaultLinkFlagTableName;
   std::string DefaultCudaFlagTableName;
   std::string DefaultCudaHostFlagTableName;
+  std::string DefaultMarmasmFlagTableName;
   std::string DefaultMasmFlagTableName;
   std::string DefaultNasmFlagTableName;
   std::string DefaultRCFlagTableName;
@@ -239,15 +255,10 @@ protected:
 private:
   struct LongestSourcePath
   {
-    LongestSourcePath()
-      : Length(0)
-      , Target(0)
-      , SourceFile(0)
-    {
-    }
-    size_t Length;
-    cmGeneratorTarget* Target;
-    cmSourceFile const* SourceFile;
+    LongestSourcePath() = default;
+    size_t Length = 0;
+    cmGeneratorTarget* Target = nullptr;
+    cmSourceFile const* SourceFile = nullptr;
     std::string SourceRel;
   };
   LongestSourcePath LongestSource;

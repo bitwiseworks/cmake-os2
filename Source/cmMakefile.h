@@ -25,9 +25,10 @@
 
 #include "cmAlgorithms.h"
 #include "cmCustomCommand.h"
-#include "cmCustomCommandTypes.h"
+#include "cmFindPackageStack.h"
+#include "cmFunctionBlocker.h"
 #include "cmListFileCache.h"
-#include "cmMessageType.h"
+#include "cmMessageType.h" // IWYU pragma: keep
 #include "cmNewLineStyle.h"
 #include "cmPolicies.h"
 #include "cmSourceFileLocationKind.h"
@@ -43,12 +44,14 @@
 #  include "cmSourceGroup.h"
 #endif
 
+enum class cmCustomCommandType;
+enum class cmObjectLibraryCommands;
+
 class cmCompiledGeneratorExpression;
 class cmCustomCommandLines;
 class cmExecutionStatus;
 class cmExpandedCommandArgument;
 class cmExportBuildFileGenerator;
-class cmFunctionBlocker;
 class cmGeneratorExpressionEvaluationFile;
 class cmGlobalGenerator;
 class cmInstallGenerator;
@@ -140,6 +143,14 @@ public:
   bool EnforceUniqueName(std::string const& name, std::string& msg,
                          bool isCustom = false) const;
 
+  enum class GeneratorActionWhen
+  {
+    // Run after all CMake code has been parsed.
+    AfterConfigure,
+    // Run after generator targets have been constructed.
+    AfterGeneratorTargets,
+  };
+
   class GeneratorAction
   {
     using ActionT =
@@ -149,20 +160,29 @@ public:
                          std::unique_ptr<cmCustomCommand> cc)>;
 
   public:
-    GeneratorAction(ActionT&& action)
-      : Action(std::move(action))
+    GeneratorAction(
+      ActionT&& action,
+      GeneratorActionWhen when = GeneratorActionWhen::AfterConfigure)
+      : When(when)
+      , Action(std::move(action))
     {
     }
 
-    GeneratorAction(std::unique_ptr<cmCustomCommand> tcc, CCActionT&& action)
-      : CCAction(std::move(action))
+    GeneratorAction(
+      std::unique_ptr<cmCustomCommand> tcc, CCActionT&& action,
+      GeneratorActionWhen when = GeneratorActionWhen::AfterConfigure)
+      : When(when)
+      , CCAction(std::move(action))
       , cc(std::move(tcc))
     {
     }
 
-    void operator()(cmLocalGenerator& lg, const cmListFileBacktrace& lfbt);
+    void operator()(cmLocalGenerator& lg, const cmListFileBacktrace& lfbt,
+                    GeneratorActionWhen when);
 
   private:
+    GeneratorActionWhen When;
+
     ActionT Action;
 
     // FIXME: Use std::variant
@@ -187,6 +207,7 @@ public:
    * the makefile.
    */
   void Generate(cmLocalGenerator& lg);
+  void GenerateAfterGeneratorTargets(cmLocalGenerator& lg);
 
   /**
    * Get the target for PRE_BUILD, PRE_LINK, or POST_BUILD commands.
@@ -241,10 +262,13 @@ public:
 
   std::pair<cmTarget&, bool> CreateNewTarget(
     const std::string& name, cmStateEnums::TargetType type,
-    cmTarget::PerConfig perConfig = cmTarget::PerConfig::Yes);
+    cmTarget::PerConfig perConfig = cmTarget::PerConfig::Yes,
+    cmTarget::Visibility vis = cmTarget::Visibility::Normal);
 
   cmTarget* AddNewTarget(cmStateEnums::TargetType type,
                          const std::string& name);
+  cmTarget* AddSynthesizedTarget(cmStateEnums::TargetType type,
+                                 const std::string& name);
 
   /** Create a target instance for the utility.  */
   cmTarget* AddNewUtilityTarget(const std::string& utilityName,
@@ -299,14 +323,23 @@ public:
    */
   void AddDefinitionBool(const std::string& name, bool);
   //! Add a definition to this makefile and the global cmake cache.
-  void AddCacheDefinition(const std::string& name, const char* value,
-                          const char* doc, cmStateEnums::CacheEntryType type,
+  void AddCacheDefinition(const std::string& name, cmValue value, cmValue doc,
+                          cmStateEnums::CacheEntryType type,
                           bool force = false);
-  void AddCacheDefinition(const std::string& name, const std::string& value,
-                          const char* doc, cmStateEnums::CacheEntryType type,
+  void AddCacheDefinition(const std::string& name, cmValue value,
+                          const std::string& doc,
+                          cmStateEnums::CacheEntryType type,
                           bool force = false)
   {
-    this->AddCacheDefinition(name, value.c_str(), doc, type, force);
+    this->AddCacheDefinition(name, value, cmValue{ doc }, type, force);
+  }
+  void AddCacheDefinition(const std::string& name, const std::string& value,
+                          const std::string& doc,
+                          cmStateEnums::CacheEntryType type,
+                          bool force = false)
+  {
+    this->AddCacheDefinition(name, cmValue{ value }, cmValue{ doc }, type,
+                             force);
   }
 
   /**
@@ -422,7 +455,7 @@ public:
    */
   void SetIncludeRegularExpression(const std::string& regex)
   {
-    this->SetProperty("INCLUDE_REGULAR_EXPRESSION", regex.c_str());
+    this->SetProperty("INCLUDE_REGULAR_EXPRESSION", regex);
   }
   const std::string& GetIncludeRegularExpression() const
   {
@@ -515,8 +548,6 @@ public:
   const std::string& GetRequiredDefinition(const std::string& name) const;
   bool IsDefinitionSet(const std::string&) const;
   bool IsNormalDefinitionSet(const std::string&) const;
-  bool GetDefExpandList(const std::string& name, std::vector<std::string>& out,
-                        bool emptyArgs = false) const;
   /**
    * Get the list of all variables in the current space. If argument
    * cacheonly is specified and is greater than 0, then only cache
@@ -551,6 +582,8 @@ public:
     AppleTVSimulator,
     WatchOS,
     WatchSimulator,
+    XROS,
+    XRSimulator,
   };
 
   /** What SDK type points CMAKE_OSX_SYSROOT to? */
@@ -558,6 +591,16 @@ public:
 
   /** Return whether the target platform is Apple iOS.  */
   bool PlatformIsAppleEmbedded() const;
+
+  /** Return whether the target platform is an Apple simulator.  */
+  bool PlatformIsAppleSimulator() const;
+
+  /** Return whether the target platform is an Apple catalyst.  */
+  bool PlatformIsAppleCatalyst() const;
+
+  /** Return whether the target platform supports generation of text base stubs
+     (.tbd file) describing exports (Apple specific). */
+  bool PlatformSupportsAppleTextStubs() const;
 
   /** Retrieve soname flag for the specified language if supported */
   const char* GetSONameFlag(const std::string& language) const;
@@ -637,6 +680,11 @@ public:
    * Get the current context backtrace.
    */
   cmListFileBacktrace GetBacktrace() const;
+
+  /**
+   * Get the current stack of find_package calls.
+   */
+  cmFindPackageStack GetFindPackageStack() const;
 
   /**
    * Get the vector of  files created by this makefile
@@ -776,7 +824,7 @@ public:
   /**
    * Return a location of a file in cmake or custom modules directory
    */
-  std::string GetModulesFile(const std::string& name) const
+  std::string GetModulesFile(cm::string_view name) const
   {
     bool system;
     std::string debugBuffer;
@@ -786,18 +834,21 @@ public:
   /**
    * Return a location of a file in cmake or custom modules directory
    */
-  std::string GetModulesFile(const std::string& name, bool& system) const
+  std::string GetModulesFile(cm::string_view name, bool& system) const
   {
     std::string debugBuffer;
     return this->GetModulesFile(name, system, false, debugBuffer);
   }
 
-  std::string GetModulesFile(const std::string& name, bool& system, bool debug,
+  std::string GetModulesFile(cm::string_view name, bool& system, bool debug,
                              std::string& debugBuffer) const;
 
   //! Set/Get a property of this directory
-  void SetProperty(const std::string& prop, const char* value);
   void SetProperty(const std::string& prop, cmValue value);
+  void SetProperty(const std::string& prop, std::nullptr_t)
+  {
+    this->SetProperty(prop, cmValue{ nullptr });
+  }
   void SetProperty(const std::string& prop, const std::string& value)
   {
     this->SetProperty(prop, cmValue(value));
@@ -996,6 +1047,15 @@ public:
   // searches
   std::deque<std::vector<std::string>> FindPackageRootPathStack;
 
+  class FindPackageStackRAII
+  {
+    cmMakefile* Makefile;
+
+  public:
+    FindPackageStackRAII(cmMakefile* mf, std::string const& pkg);
+    ~FindPackageStackRAII();
+  };
+
   class DebugFindPkgRAII
   {
     cmMakefile* Makefile;
@@ -1008,13 +1068,18 @@ public:
 
   bool GetDebugFindPkgMode() const;
 
-  void MaybeWarnCMP0074(std::string const& pkg);
+  void MaybeWarnCMP0074(std::string const& rootVar, cmValue rootDef,
+                        cm::optional<std::string> const& rootEnv);
+  void MaybeWarnCMP0144(std::string const& rootVAR, cmValue rootDEF,
+                        cm::optional<std::string> const& rootENV);
   void MaybeWarnUninitialized(std::string const& variable,
                               const char* sourceFilename) const;
   bool IsProjectFile(const char* filename) const;
 
-  int GetRecursionDepth() const;
-  void SetRecursionDepth(int recursionDepth);
+  size_t GetRecursionDepthLimit() const;
+
+  size_t GetRecursionDepth() const;
+  void SetRecursionDepth(size_t recursionDepth);
 
   std::string NewDeferId() const;
   bool DeferCall(std::string id, std::string fileName, cmListFileFunction lff);
@@ -1080,7 +1145,7 @@ protected:
 private:
   cmStateSnapshot StateSnapshot;
   cmListFileBacktrace Backtrace;
-  int RecursionDepth;
+  size_t RecursionDepth = 0;
 
   struct DeferCommand
   {
@@ -1181,11 +1246,15 @@ private:
   std::vector<BT<GeneratorAction>> GeneratorActions;
   bool GeneratorActionsInvoked = false;
 
+  cmFindPackageStack FindPackageStack;
+  unsigned int FindPackageStackNextIndex = 0;
+
   bool DebugFindPkg = false;
 
   bool CheckSystemVars;
   bool CheckCMP0000;
   std::set<std::string> WarnedCMP0074;
+  std::set<std::string> WarnedCMP0144;
   bool IsSourceFileTryCompile;
   mutable bool SuppressSideEffects;
   ImportedTargetScope CurrentImportedTargetScope = ImportedTargetScope::Local;

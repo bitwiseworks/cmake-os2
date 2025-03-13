@@ -5,7 +5,7 @@
  *                            | (__| |_| |  _ <| |___
  *                             \___|\___/|_| \_\_____|
  *
- * Copyright (C) 1998 - 2022, Daniel Stenberg, <daniel@haxx.se>, et al.
+ * Copyright (C) Daniel Stenberg, <daniel@haxx.se>, et al.
  *
  * This software is licensed as described in the file COPYING, which
  * you should have received as part of this distribution. The terms
@@ -65,4 +65,4 @@ Curl_strtok_r(char *ptr, const char *sep, char **end)
   return NULL;
 }
 
-#endif /* this was only compiled if strtok_r wasn't present */
+#endif /* this was only compiled if strtok_r was not present */

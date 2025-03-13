@@ -66,6 +66,12 @@ Each ``<item>`` may be:
   :ref:`usage requirement <Target Usage Requirements>`.  This has the same
   effect as passing the framework directory as an include directory.
 
+  .. versionadded:: 3.28
+
+    The library file may point to a ``.xcframework`` folder on Apple platforms.
+    If it does, the target will get the selected library's ``Headers``
+    directory as a usage requirement.
+
   .. versionadded:: 3.8
     On :ref:`Visual Studio Generators` for VS 2010 and above, library files
     ending in ``.targets`` will be treated as MSBuild targets files and
@@ -134,6 +140,11 @@ Items containing ``::``, such as ``Foo::Bar``, are assumed to be
 target names and will cause an error if no such target exists.
 See policy :policy:`CMP0028`.
 
+See the :variable:`CMAKE_LINK_LIBRARIES_STRATEGY` variable and
+corresponding :prop_tgt:`LINK_LIBRARIES_STRATEGY` target property
+for details on how CMake orders direct link dependencies on linker
+command lines.
+
 See the :manual:`cmake-buildsystem(7)` manual for more on defining
 buildsystem properties.
 
@@ -147,7 +158,7 @@ Libraries for a Target and/or its Dependents
                        [<PRIVATE|PUBLIC|INTERFACE> <item>...]...)
 
 The ``PUBLIC``, ``PRIVATE`` and ``INTERFACE``
-:ref:`scope <Target Usage Requirements>` keywords can be used to
+:ref:`scope <Target Command Scope>` keywords can be used to
 specify both the link dependencies and the link interface in one command.
 
 Libraries and targets following ``PUBLIC`` are linked to, and are made
@@ -293,8 +304,8 @@ will be included in the link too.
 
 .. _`Linking Object Libraries via $<TARGET_OBJECTS>`:
 
-Linking Object Libraries via $<TARGET_OBJECTS>
-""""""""""""""""""""""""""""""""""""""""""""""
+Linking Object Libraries via ``$<TARGET_OBJECTS>``
+""""""""""""""""""""""""""""""""""""""""""""""""""
 
 .. versionadded:: 3.21
 
@@ -407,3 +418,15 @@ Creating Relocatable Packages
 
 .. |INTERFACE_PROPERTY_LINK| replace:: :prop_tgt:`INTERFACE_LINK_LIBRARIES`
 .. include:: /include/INTERFACE_LINK_LIBRARIES_WARNING.txt
+
+See Also
+^^^^^^^^
+
+* :command:`target_compile_definitions`
+* :command:`target_compile_features`
+* :command:`target_compile_options`
+* :command:`target_include_directories`
+* :command:`target_link_directories`
+* :command:`target_link_options`
+* :command:`target_precompile_headers`
+* :command:`target_sources`

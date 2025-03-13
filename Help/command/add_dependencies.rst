@@ -20,7 +20,23 @@ transitively in its place since the target itself does not build.
 .. versionadded:: 3.3
   Allow adding dependencies to interface libraries.
 
-See the ``DEPENDS`` option of :command:`add_custom_target` and
-:command:`add_custom_command` commands for adding file-level
-dependencies in custom rules.  See the :prop_sf:`OBJECT_DEPENDS`
-source file property to add file-level dependencies to object files.
+.. versionadded:: 3.8
+  Dependencies will populate the :prop_tgt:`MANUALLY_ADDED_DEPENDENCIES`
+  property of ``<target>``.
+
+.. versionchanged:: 3.9
+  The :ref:`Ninja Generators` use weaker ordering than
+  other generators in order to improve available concurrency.
+  They only guarantee that the dependencies' custom commands are
+  finished before sources in ``<target>`` start compiling; this
+  ensures generated sources are available.
+
+See Also
+^^^^^^^^
+
+* The ``DEPENDS`` option of :command:`add_custom_target` and
+  :command:`add_custom_command` commands for adding file-level
+  dependencies in custom rules.
+
+* The :prop_sf:`OBJECT_DEPENDS` source file property to add
+  file-level dependencies to object files.

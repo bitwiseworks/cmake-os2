@@ -22,7 +22,7 @@ elseif("${CMAKE_GENERATOR}" MATCHES "Xcode")
   _cmake_find_compiler_path(Fortran)
 else()
   if(NOT CMAKE_Fortran_COMPILER)
-    # prefer the environment variable CC
+    # prefer the environment variable FC
     if(NOT $ENV{FC} STREQUAL "")
       get_filename_component(CMAKE_Fortran_COMPILER_INIT $ENV{FC} PROGRAM PROGRAM_ARGS CMAKE_Fortran_FLAGS_ENV_INIT)
       if(CMAKE_Fortran_FLAGS_ENV_INIT)
@@ -60,6 +60,7 @@ else()
       #  ifx: Intel Fortran LLVM-based compiler
       #  ifort: Intel Classic Fortran compiler
       #  nagfor: NAG Fortran compiler
+      #  lfortran: LFortran Fortran Compiler
       #
       #  GNU is last to be searched,
       #  so if you paid for a compiler it is picked by default.
@@ -98,6 +99,9 @@ else()
   set(CMAKE_Fortran_COMPILER_ID_TEST_FLAGS_FIRST
     # Get verbose output to help distinguish compilers.
     "-v"
+
+    # Try compiling to an object file only, with verbose output.
+    "-v -c"
     )
   set(CMAKE_Fortran_COMPILER_ID_TEST_FLAGS
     # Try compiling to an object file only.
@@ -105,7 +109,14 @@ else()
 
     # Intel on windows does not preprocess by default.
     "-fpp"
+
+    # LFortran does not preprocess by default.
+    "--cpp-infer"
     )
+endif()
+
+if(CMAKE_Fortran_COMPILER_TARGET)
+  set(CMAKE_Fortran_COMPILER_ID_TEST_FLAGS_FIRST "-v -c --target=${CMAKE_Fortran_COMPILER_TARGET}")
 endif()
 
 # Build a small source file to identify the compiler.
@@ -133,11 +144,11 @@ if(NOT CMAKE_Fortran_COMPILER_ID_RUN)
   set(CMAKE_Fortran_COMPILER_ID_TOOL_MATCH_INDEX 2)
 
   set(_version_info "")
-  foreach(m MAJOR MINOR PATCH TWEAK)
+  foreach(m IN ITEMS MAJOR MINOR PATCH TWEAK)
     set(_COMP "_${m}")
     string(APPEND _version_info "
 #if defined(COMPILER_VERSION${_COMP})")
-    foreach(d 1 2 3 4 5 6 7 8)
+    foreach(d RANGE 1 8)
       string(APPEND _version_info "
 # undef DEC
 # undef HEX
@@ -187,11 +198,11 @@ if(NOT CMAKE_Fortran_COMPILER_ID_RUN)
     if(NOT CMAKE_COMPILER_RETURN)
       if(CMAKE_COMPILER_OUTPUT MATCHES "THIS_IS_GNU")
         set(CMAKE_Fortran_COMPILER_ID "GNU")
-        file(APPEND ${CMAKE_BINARY_DIR}${CMAKE_FILES_DIRECTORY}/CMakeOutput.log
+        message(CONFIGURE_LOG
           "Determining if the Fortran compiler is GNU succeeded with "
           "the following output:\n${CMAKE_COMPILER_OUTPUT}\n\n")
       else()
-        file(APPEND ${CMAKE_BINARY_DIR}${CMAKE_FILES_DIRECTORY}/CMakeOutput.log
+        message(CONFIGURE_LOG
           "Determining if the Fortran compiler is GNU failed with "
           "the following output:\n${CMAKE_COMPILER_OUTPUT}\n\n")
       endif()
@@ -225,6 +236,49 @@ if(NOT CMAKE_Fortran_COMPILER_ID_RUN)
   if(CMAKE_Fortran_COMPILER_ID MATCHES "GNU")
     set(CMAKE_COMPILER_IS_GNUG77 1)
   endif()
+endif()
+
+if("${CMAKE_Fortran_COMPILER_ID};${CMAKE_Fortran_SIMULATE_ID}" STREQUAL "LLVMFlang;MSVC")
+  # With LLVMFlang targeting the MSVC ABI we link using lld-link.
+  # Detect the implicit link information from the compiler driver
+  # so we can explicitly pass it to the linker.
+  include(${CMAKE_ROOT}/Modules/CMakeParseImplicitLinkInfo.cmake)
+  set(_LLVMFlang_COMMAND "${CMAKE_Fortran_COMPILER}" "-###" ${CMAKE_CURRENT_LIST_DIR}/CMakeFortranCompilerABI.F)
+  if(CMAKE_Fortran_COMPILER_TARGET)
+    list(APPEND _LLVMFlang_COMMAND --target=${CMAKE_Fortran_COMPILER_TARGET})
+  endif()
+  execute_process(COMMAND ${_LLVMFlang_COMMAND}
+    OUTPUT_VARIABLE _LLVMFlang_OUTPUT
+    ERROR_VARIABLE _LLVMFlang_OUTPUT
+    RESULT_VARIABLE _LLVMFlang_RESULT)
+  string(JOIN "\" \"" _LLVMFlang_COMMAND ${_LLVMFlang_COMMAND})
+  message(CONFIGURE_LOG
+    "Running the Fortran compiler: \"${_LLVMFlang_COMMAND}\"\n"
+    "${_LLVMFlang_OUTPUT}"
+    )
+  if(_LLVMFlang_RESULT EQUAL 0)
+    cmake_parse_implicit_link_info("${_LLVMFlang_OUTPUT}"
+                                   CMAKE_Fortran_IMPLICIT_LINK_LIBRARIES
+                                   CMAKE_Fortran_IMPLICIT_LINK_DIRECTORIES
+                                   CMAKE_Fortran_IMPLICIT_LINK_FRAMEWORK_DIRECTORIES
+                                   log
+                                   "${CMAKE_Fortran_IMPLICIT_OBJECT_REGEX}"
+                                   LANGUAGE Fortran)
+    message(CONFIGURE_LOG
+      "Parsed Fortran implicit link information:\n"
+      "${log}\n"
+      )
+    set(_CMAKE_Fortran_IMPLICIT_LINK_INFORMATION_DETERMINED_EARLY 1)
+    if("x${CMAKE_Fortran_COMPILER_ARCHITECTURE_ID}" STREQUAL "xARM64" AND CMAKE_Fortran_COMPILER_VERSION VERSION_LESS 18.0)
+      # LLVMFlang < 18.0 does not add `-defaultlib:` fields to object
+      # files to specify link dependencies on its runtime libraries.
+      # For now, we add them ourselves.
+      list(APPEND CMAKE_Fortran_IMPLICIT_LINK_LIBRARIES "clang_rt.builtins-aarch64.lib")
+    endif()
+  endif()
+  unset(_LLVMFlang_COMMAND)
+  unset(_LLVMFlang_OUTPUT)
+  unset(_LLVMFlang_RESULT)
 endif()
 
 if (NOT _CMAKE_TOOLCHAIN_LOCATION)
@@ -283,6 +337,9 @@ endif()
 if(MSVC_Fortran_ARCHITECTURE_ID)
   set(SET_MSVC_Fortran_ARCHITECTURE_ID
     "set(MSVC_Fortran_ARCHITECTURE_ID ${MSVC_Fortran_ARCHITECTURE_ID})")
+endif()
+if(CMAKE_Fortran_COMPILER_ID STREQUAL "NVHPC")
+  set(CMAKE_Fortran_VENDOR_SOURCE_FILE_EXTENSIONS ";cuf;CUF")
 endif()
 # configure variables set in this file for fast reload later on
 configure_file(${CMAKE_ROOT}/Modules/CMakeFortranCompiler.cmake.in

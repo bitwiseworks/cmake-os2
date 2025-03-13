@@ -80,6 +80,7 @@ cmake_init_file=""
 cmake_bootstrap_system_libs=""
 cmake_bootstrap_qt_gui=""
 cmake_bootstrap_qt_qmake=""
+cmake_bootstrap_debugger=""
 cmake_sphinx_info=""
 cmake_sphinx_man=""
 cmake_sphinx_html=""
@@ -250,8 +251,8 @@ cmake_doc_dir_default="`cmake_install_dest_default DOC ${cmake_doc_dir_keyword}`
 cmake_man_dir_default="`cmake_install_dest_default MAN ${cmake_man_dir_keyword}`"
 cmake_xdgdata_dir_default="`cmake_install_dest_default XDGDATA ${cmake_xdgdata_dir_keyword}`"
 
-CMAKE_KNOWN_C_COMPILERS="cc gcc clang xlc icc tcc"
-CMAKE_KNOWN_CXX_COMPILERS="aCC xlC CC g++ clang++ c++ icc como "
+CMAKE_KNOWN_C_COMPILERS="cc gcc clang xlc icx tcc"
+CMAKE_KNOWN_CXX_COMPILERS="aCC xlC CC g++ clang++ c++ icpx"
 CMAKE_KNOWN_MAKE_PROCESSORS="gmake make smake"
 CMAKE_KNOWN_NINJA_PROCESSORS="ninja-build ninja samu"
 
@@ -305,8 +306,10 @@ CMAKE_CXX_SOURCES="\
   cmBlockCommand \
   cmBreakCommand \
   cmBuildCommand \
+  cmBuildDatabase \
   cmCMakeLanguageCommand \
   cmCMakeMinimumRequired \
+  cmList \
   cmCMakePath \
   cmCMakePathCommand \
   cmCMakePolicyCommand \
@@ -331,24 +334,30 @@ CMAKE_CXX_SOURCES="\
   cmCustomCommandGenerator \
   cmCustomCommandLines \
   cmCxxModuleMapper \
+  cmCxxModuleUsageEffects \
   cmDefinePropertyCommand \
   cmDefinitions \
   cmDocumentationFormatter \
   cmELF \
   cmEnableLanguageCommand \
   cmEnableTestingCommand \
+  cmEvaluatedTargetProperty \
   cmExecProgramCommand \
   cmExecuteProcessCommand \
   cmExpandedCommandArgument \
   cmExperimental \
+  cmExportBuildCMakeConfigGenerator \
   cmExportBuildFileGenerator \
+  cmExportCMakeConfigGenerator \
   cmExportFileGenerator \
+  cmExportInstallCMakeConfigGenerator \
   cmExportInstallFileGenerator \
   cmExportSet \
   cmExportTryCompileFileGenerator \
   cmExprParserHelper \
   cmExternalMakefileProjectGenerator \
   cmFileCommand \
+  cmFileCommand_ReadMacho \
   cmFileCopier \
   cmFileInstaller \
   cmFileSet \
@@ -360,6 +369,7 @@ CMAKE_CXX_SOURCES="\
   cmFindFileCommand \
   cmFindLibraryCommand \
   cmFindPackageCommand \
+  cmFindPackageStack \
   cmFindPathCommand \
   cmFindProgramCommand \
   cmForEachCommand \
@@ -376,6 +386,14 @@ CMAKE_CXX_SOURCES="\
   cmGeneratorExpressionNode \
   cmGeneratorExpressionParser \
   cmGeneratorTarget \
+  cmGeneratorTarget_CompatibleInterface \
+  cmGeneratorTarget_IncludeDirectories \
+  cmGeneratorTarget_Link \
+  cmGeneratorTarget_LinkDirectories \
+  cmGeneratorTarget_Options \
+  cmGeneratorTarget_Sources \
+  cmGeneratorTarget_TargetPropertyEntry \
+  cmGeneratorTarget_TransitiveProperty \
   cmGetCMakePropertyCommand \
   cmGetDirectoryPropertyCommand \
   cmGetFilenameComponentCommand \
@@ -389,10 +407,12 @@ CMAKE_CXX_SOURCES="\
   cmGlobVerificationManager \
   cmHexFileConverter \
   cmIfCommand \
+  cmImportedCxxModuleInfo \
   cmIncludeCommand \
   cmIncludeGuardCommand \
   cmIncludeDirectoryCommand \
   cmIncludeRegularExpressionCommand \
+  cmInstallCMakeConfigExportGenerator \
   cmInstallCommand \
   cmInstallCommandArguments \
   cmInstallCxxModuleBmiGenerator \
@@ -411,6 +431,8 @@ CMAKE_CXX_SOURCES="\
   cmInstallTargetGenerator \
   cmInstallTargetsCommand \
   cmInstalledFile \
+  cmJSONHelpers \
+  cmJSONState \
   cmLDConfigLDConfigTool \
   cmLDConfigTool \
   cmLinkDirectoriesCommand \
@@ -447,6 +469,7 @@ CMAKE_CXX_SOURCES="\
   cmGccDepfileReader \
   cmReturnCommand \
   cmPlaceholderExpander \
+  cmPlistParser \
   cmRulePlaceholderExpander \
   cmRuntimeDependencyArchive \
   cmScriptGenerator \
@@ -483,6 +506,7 @@ CMAKE_CXX_SOURCES="\
   cmTargetPropCommandBase \
   cmTargetPropertyComputer \
   cmTargetSourcesCommand \
+  cmTargetTraceDependencies \
   cmTest \
   cmTestGenerator \
   cmTimestamp \
@@ -496,10 +520,18 @@ CMAKE_CXX_SOURCES="\
   cmWhileCommand \
   cmWindowsRegistry \
   cmWorkingDirectory \
+  cmXcFramework \
   cmake  \
   cmakemain \
   cmcmd  \
+  cm_fileno \
 "
+
+if ${cmake_system_darwin}; then
+  CMAKE_CXX_SOURCES="${CMAKE_CXX_SOURCES}\
+    cmMachO \
+  "
+fi
 
 if ${cmake_system_mingw}; then
   CMAKE_CXX_SOURCES="${CMAKE_CXX_SOURCES}\
@@ -569,7 +601,6 @@ KWSYS_FILES="\
   RegularExpression.hxx \
   Status.hxx \
   String.h \
-  String.hxx \
   System.h \
   SystemTools.hxx \
   Terminal.h"
@@ -584,6 +615,13 @@ LIBRHASH_C_SOURCES="\
   librhash/sha256.c \
   librhash/sha3.c \
   librhash/sha512.c \
+  librhash/util.c \
+  "
+
+JSONCPP_CXX_SOURCES="\
+  src/lib_json/json_reader.cpp \
+  src/lib_json/json_value.cpp \
+  src/lib_json/json_writer.cpp \
   "
 
 if ${cmake_system_mingw}; then
@@ -665,8 +703,10 @@ Configuration:
                           (for use only by package maintainers)
   --no-system-libs        use all cmake-provided third-party libraries
                           (default)
-  --system-curl           use system-installed curl library
-  --no-system-curl        use cmake-provided curl library (default)
+  --system-cppdap         use system-installed cppdap library
+  --no-system-cppdap      use cmake-provided cppdap library (default)
+  --system-curl           use system-installed curl library (default on macOS)
+  --no-system-curl        use cmake-provided curl library (default elsewhere)
   --system-expat          use system-installed expat library
   --no-system-expat       use cmake-provided expat library (default)
   --system-jsoncpp        use system-installed jsoncpp library
@@ -695,6 +735,9 @@ Configuration:
   --qt-gui                build the Qt-based GUI (requires Qt >= 4.2)
   --no-qt-gui             do not build the Qt-based GUI (default)
   --qt-qmake=<qmake>      use <qmake> as the qmake executable to find Qt
+
+  --debugger              enable debugger support (default if supported)
+  --no-debugger           disable debugger support
 
   --sphinx-info           build Info manual with Sphinx
   --sphinx-man            build man pages with Sphinx
@@ -879,7 +922,7 @@ cmake_try_run ()
   echo "----------  file   -----------------------"
   cat "${TESTFILE}"
   echo "------------------------------------------"
-  "${COMPILER}" ${FLAGS} "${TESTFILE}" -o "${TMPFILE}"
+  ${COMPILER} ${FLAGS} "${TESTFILE}" -o "${TMPFILE}"
   RES=$?
   if test "${RES}" -ne "0"; then
     echo "Test failed to compile"
@@ -949,10 +992,10 @@ while test $# != 0; do
   --init=*) cmake_init_file=`cmake_arg "$1"` ;;
   --system-libs) cmake_bootstrap_system_libs="${cmake_bootstrap_system_libs} -DCMAKE_USE_SYSTEM_LIBRARIES=1" ;;
   --no-system-libs) cmake_bootstrap_system_libs="${cmake_bootstrap_system_libs} -DCMAKE_USE_SYSTEM_LIBRARIES=0" ;;
-  --system-bzip2|--system-curl|--system-expat|--system-jsoncpp|--system-libarchive|--system-librhash|--system-zlib|--system-liblzma|--system-nghttp2|--system-zstd|--system-libuv)
+  --system-bzip2|--system-cppdap|--system-curl|--system-expat|--system-jsoncpp|--system-libarchive|--system-librhash|--system-zlib|--system-liblzma|--system-nghttp2|--system-zstd|--system-libuv)
     lib=`cmake_arg "$1" "--system-"`
     cmake_bootstrap_system_libs="${cmake_bootstrap_system_libs} -DCMAKE_USE_SYSTEM_LIBRARY_`cmake_toupper $lib`=1" ;;
-  --no-system-bzip2|--no-system-curl|--no-system-expat|--no-system-jsoncpp|--no-system-libarchive|--no-system-librhash|--no-system-zlib|--no-system-liblzma|--no-system-nghttp2|--no-system-zstd|--no-system-libuv)
+  --no-system-bzip2|--no-system-cppdap|--no-system-curl|--no-system-expat|--no-system-jsoncpp|--no-system-libarchive|--no-system-librhash|--no-system-zlib|--no-system-liblzma|--no-system-nghttp2|--no-system-zstd|--no-system-libuv)
     lib=`cmake_arg "$1" "--no-system-"`
     cmake_bootstrap_system_libs="${cmake_bootstrap_system_libs} -DCMAKE_USE_SYSTEM_LIBRARY_`cmake_toupper $lib`=0" ;;
   --bootstrap-system-libuv) bootstrap_system_libuv="1" ;;
@@ -961,6 +1004,8 @@ while test $# != 0; do
   --qt-gui) cmake_bootstrap_qt_gui="1" ;;
   --no-qt-gui) cmake_bootstrap_qt_gui="0" ;;
   --qt-qmake=*) cmake_bootstrap_qt_qmake=`cmake_arg "$1"` ;;
+  --debugger) cmake_bootstrap_debugger="1" ;;
+  --no-debugger) cmake_bootstrap_debugger="0" ;;
   --sphinx-info) cmake_sphinx_info="1" ;;
   --sphinx-man) cmake_sphinx_man="1" ;;
   --sphinx-html) cmake_sphinx_html="1" ;;
@@ -1082,12 +1127,6 @@ if test "${cmake_bootstrap_generator}" = "Ninja"; then
     cmFortranLexer \
     cmFortranParser \
     "
-
-  JSONCPP_CXX_SOURCES="\
-    src/lib_json/json_reader.cpp \
-    src/lib_json/json_value.cpp \
-    src/lib_json/json_writer.cpp \
-    "
 else
   CMAKE_CXX_SOURCES="${CMAKE_CXX_SOURCES} \
     cmDepends \
@@ -1101,8 +1140,6 @@ else
     cmMakefileUtilityTargetGenerator \
     cmProcessTools \
     "
-
-  JSONCPP_CXX_SOURCES=
 fi
 
 # Add Cygwin-specific flags
@@ -1205,15 +1242,18 @@ cmake_c_compiler=
 # If CC is set, use that for compiler, otherwise use list of known compilers
 if test -n "${cmake_toolchain}"; then
   eval cmake_c_compilers="\${cmake_toolchain_${cmake_toolchain}_CC}"
-elif test -n "${CC}"; then
-  cmake_c_compilers="${CC}"
 else
   cmake_c_compilers="${CMAKE_KNOWN_C_COMPILERS}"
 fi
 
-# Check if C compiler works
-TMPFILE=`cmake_tmp_file`
-echo '
+cmake_c_compiler_try_set()
+{
+  test_compiler="$1"
+  test_thread_flags="$2"
+
+  # Check if C compiler works
+  TMPFILE=`cmake_tmp_file`
+  echo '
 #ifdef __cplusplus
 # error "The CMAKE_C_COMPILER is set to a C++ compiler"
 #endif
@@ -1238,23 +1278,34 @@ int main(int argc, char* argv[])
   return argc - 1;
 }
 ' > "${TMPFILE}.c"
-for std in 11 99 90; do
-  std_flags="`cmake_extract_standard_flags \"${cmake_toolchain}\" C \"${std}\"`"
-  for compiler in ${cmake_c_compilers}; do
+  for std in 11 99 90; do
+    std_flags="`cmake_extract_standard_flags \"${cmake_toolchain}\" C \"${std}\"`"
     for std_flag in '' $std_flags; do
-      for thread_flag in '' $thread_flags; do
-        echo "Checking whether '${compiler} ${cmake_c_flags} ${cmake_ld_flags} ${std_flag} ${thread_flag}' works." >> cmake_bootstrap.log 2>&1
-        if cmake_try_run "${compiler}" "${cmake_c_flags} ${cmake_ld_flags} ${std_flag} ${thread_flag}" \
+      for thread_flag in '' $test_thread_flags; do
+        echo "Checking whether '${test_compiler} ${cmake_c_flags} ${cmake_ld_flags} ${std_flag} ${thread_flag}' works." >> cmake_bootstrap.log 2>&1
+        if cmake_try_run "${test_compiler}" "${cmake_c_flags} ${cmake_ld_flags} ${std_flag} ${thread_flag}" \
           "${TMPFILE}.c" >> cmake_bootstrap.log 2>&1; then
-          cmake_c_compiler="${compiler}"
+          cmake_c_compiler="${test_compiler}"
           cmake_c_flags="${cmake_c_flags} ${std_flag} ${thread_flag}"
-          break 4
+          rm -f "${TMPFILE}.c"
+          return 0
         fi
       done
     done
   done
-done
-rm -f "${TMPFILE}.c"
+  rm -f "${TMPFILE}.c"
+  return 1
+}
+
+if test -n "${CC}"; then
+  cmake_c_compiler_try_set "${CC}" "${thread_flags}"
+else
+  for compiler in ${cmake_c_compilers}; do
+    if cmake_c_compiler_try_set "${compiler}" "${thread_flags}"; then
+      break
+    fi
+  done
+fi
 
 if test -z "${cmake_c_compiler}"; then
   cmake_error 6 "Cannot find appropriate C compiler on this system.
@@ -1273,14 +1324,17 @@ cmake_cxx_compiler=
 # If CC is set, use that for compiler, otherwise use list of known compilers
 if test -n "${cmake_toolchain}"; then
   eval cmake_cxx_compilers="\${cmake_toolchain_${cmake_toolchain}_CXX}"
-elif test -n "${CXX}"; then
-  cmake_cxx_compilers="${CXX}"
 else
   cmake_cxx_compilers="${CMAKE_KNOWN_CXX_COMPILERS}"
 fi
 
 # Check if C++ compiler works
-TMPFILE=`cmake_tmp_file`
+cmake_cxx_compiler_try_set()
+{
+  test_compiler="$1"
+  test_thread_flags="$2"
+
+  TMPFILE=`cmake_tmp_file`
 echo '
 #include <iostream>
 #include <memory>
@@ -1359,23 +1413,34 @@ int main()
   return 0;
 }
 ' > "${TMPFILE}.cxx"
-for std in 17 14 11; do
-  std_flags="`cmake_extract_standard_flags \"${cmake_toolchain}\" CXX \"${std}\"`"
-  for compiler in ${cmake_cxx_compilers}; do
+  for std in 17 14 11; do
+    std_flags="`cmake_extract_standard_flags \"${cmake_toolchain}\" CXX \"${std}\"`"
     for std_flag in '' $std_flags; do
-      for thread_flag in '' $thread_flags; do
-        echo "Checking whether '${compiler} ${cmake_cxx_flags} ${cmake_ld_flags} ${std_flag} ${thread_flag}' works." >> cmake_bootstrap.log 2>&1
-        if cmake_try_run "${compiler}" "${cmake_cxx_flags} ${cmake_ld_flags} ${std_flag} ${thread_flag}" \
+      for thread_flag in '' $test_thread_flags; do
+        echo "Checking whether '${test_compiler} ${cmake_cxx_flags} ${cmake_ld_flags} ${std_flag} ${thread_flag}' works." >> cmake_bootstrap.log 2>&1
+        if cmake_try_run "${test_compiler}" "${cmake_cxx_flags} ${cmake_ld_flags} ${std_flag} ${thread_flag}" \
           "${TMPFILE}.cxx" >> cmake_bootstrap.log 2>&1; then
-          cmake_cxx_compiler="${compiler}"
+          cmake_cxx_compiler="${test_compiler}"
           cmake_cxx_flags="${cmake_cxx_flags} ${std_flag} ${thread_flag} "
-          break 4
+          rm -f "${TMPFILE}.cxx"
+          return 0
         fi
       done
     done
   done
-done
-rm -f "${TMPFILE}.cxx"
+  rm -f "${TMPFILE}.cxx"
+  return 1
+}
+
+if test -n "${CXX}"; then
+  cmake_cxx_compiler_try_set "${CXX}" "${thread_flags}"
+else
+  for compiler in ${cmake_cxx_compilers}; do
+    if cmake_cxx_compiler_try_set "${compiler}" "${thread_flags}"; then
+      break
+    fi
+  done
+fi
 
 if test -z "${cmake_cxx_compiler}"; then
 cmake_error 7 "Cannot find a C++ compiler that supports both C++11 and the specified C++ flags.
@@ -1434,13 +1499,13 @@ cd "${cmake_bootstrap_dir}/${TMPFILE}"
 if test "${cmake_bootstrap_generator}" = "Ninja"; then
   echo '
 rule cc
-  command = "'"${cmake_c_compiler}"'" '"${cmake_ld_flags} ${cmake_c_flags}"' -o $out $in
+  command = '"${cmake_c_compiler}"' '"${cmake_ld_flags} ${cmake_c_flags}"' -o $out $in
 build test: cc test.c
 '>"build.ninja"
 else
   echo '
 test: test.c
-	"'"${cmake_c_compiler}"'" '"${cmake_ld_flags} ${cmake_c_flags}"' -o test test.c
+	'"${cmake_c_compiler}"' '"${cmake_ld_flags} ${cmake_c_flags}"' -o test test.c
 '>"Makefile"
 fi
 echo '
@@ -1616,6 +1681,10 @@ else
   cmake_report cmConfigure.h${_tmp} "#define CMAKE_BOOTSTRAP_MAKEFILES"
 fi
 
+if ${cmake_system_darwin}; then
+  cmake_report cmConfigure.h${_tmp} "#define CMake_USE_MACH_PARSER"
+fi
+
 if ${cmake_system_mingw}; then
   cmake_report cmConfigure.h${_tmp} "#if defined(_WIN32) && !defined(NOMINMAX)"
   cmake_report cmConfigure.h${_tmp} "#  define NOMINMAX"
@@ -1688,12 +1757,10 @@ if test "x${bootstrap_system_librhash}" = "x"; then
     objs="${objs} rhash-`cmake_obj ${a}`"
   done
 fi
-if test "${cmake_bootstrap_generator}" = "Ninja"; then
-  if test "x${bootstrap_system_jsoncpp}" = "x"; then
-    for a in ${JSONCPP_CXX_SOURCES}; do
-      objs="${objs} jsoncpp-`cmake_obj ${a}`"
-    done
-  fi
+if test "x${bootstrap_system_jsoncpp}" = "x"; then
+  for a in ${JSONCPP_CXX_SOURCES}; do
+    objs="${objs} jsoncpp-`cmake_obj ${a}`"
+  done
 fi
 
 libs=""
@@ -1701,7 +1768,7 @@ libs=""
 uv_c_flags=""
 if ${cmake_system_mingw}; then
   uv_c_flags="${uv_c_flags} -DWIN32_LEAN_AND_MEAN -D_WIN32_WINNT=0x0600"
-  libs="${libs} -lws2_32 -lpsapi -liphlpapi -lshell32 -luserenv -lole32 -loleaut32"
+  libs="${libs} -lws2_32 -lpsapi -liphlpapi -lshell32 -luserenv -lole32 -loleaut32 -luuid"
 else
   case "${cmake_system}" in
     *AIX*)
@@ -1725,8 +1792,6 @@ else
       libs="${libs} -lkvm"
       ;;
     *SunOS*)
-      # Normally libuv uses '-D_XOPEN_SOURCE=500 -std=c90' on Solaris 5.10,
-      # but we do not need to do that because we bootstrap using POSIX APIs.
       uv_c_flags="${uv_c_flags} -D__EXTENSIONS__ -D_XOPEN_SOURCE=600"
       libs="${libs} -lkstat -lnsl -lsendfile -lsocket -lrt"
       ;;
@@ -1747,32 +1812,40 @@ if test "x${bootstrap_system_libuv}" = "x"; then
 else
   if test `which pkg-config`; then
     use_uv_flags="`pkg-config --cflags libuv`"
+    use_uv_ldflags="`pkg-config --libs libuv`"
     cmake_c_flags="${cmake_c_flags} ${use_uv_flags}"
     cmake_cxx_flags="${cmake_cxx_flags} ${use_uv_flags}"
+  else
+    use_uv_ldflags="-luv"
   fi
-  libs="${libs} -luv"
+  libs="${libs} ${use_uv_ldflags}"
 fi
 
+librhash_c_flags="-DNO_IMPORT_EXPORT"
 if test "x${bootstrap_system_librhash}" != "x"; then
   if test `which pkg-config`; then
     use_librhash_flags="`pkg-config --cflags librhash`"
+    use_librhash_ldflags="`pkg-config --libs librhash`"
     cmake_c_flags="${cmake_c_flags} ${use_librhash_flags}"
     cmake_cxx_flags="${cmake_cxx_flags} ${use_librhash_flags}"
+  else
+    use_librhash_ldflags="-lrhash"
   fi
-  libs="${libs} -lrhash"
+  libs="${libs} ${use_librhash_ldflags}"
 fi
 
-if test "${cmake_bootstrap_generator}" = "Ninja"; then
-  jsoncpp_cxx_flags=
-  if test "x${bootstrap_system_jsoncpp}" = "x"; then
-    jsoncpp_cxx_flags="${jsoncpp_cxx_flags} `cmake_escape_shell "-I${cmake_source_dir}/Utilities/cmjsoncpp/include"`"
+jsoncpp_cxx_flags=
+if test "x${bootstrap_system_jsoncpp}" = "x"; then
+  jsoncpp_cxx_flags="${jsoncpp_cxx_flags} `cmake_escape_shell "-I${cmake_source_dir}/Utilities/cmjsoncpp/include"`"
+else
+  if test `which pkg-config`; then
+    use_jsoncpp_flags="`pkg-config --cflags jsoncpp`"
+    use_jsoncpp_ldflags="`pkg-config --libs jsoncpp`"
+    cmake_cxx_flags="${cmake_cxx_flags} ${use_jsoncpp_flags}"
   else
-    if test `which pkg-config`; then
-      use_jsoncpp_flags="`pkg-config --cflags jsoncpp`"
-      cmake_cxx_flags="${cmake_cxx_flags} ${use_jsoncpp_flags}"
-    fi
-    libs="${libs} -ljsoncpp"
+    use_jsoncpp_ldflags="-ljsoncpp"
   fi
+  libs="${libs} ${use_jsoncpp_ldflags}"
 fi
 
 if test "x${cmake_ansi_cxx_flags}" != "x"; then
@@ -1909,16 +1982,14 @@ fi
 if test "x${bootstrap_system_librhash}" = "x"; then
   for a in ${LIBRHASH_C_SOURCES}; do
     src=`cmake_escape_artifact "${cmake_source_dir}/Utilities/cmlibrhash/${a}"`
-    write_source_rule "c" "rhash-`cmake_obj ${a}`" "${src}" ""
+    write_source_rule "c" "rhash-`cmake_obj ${a}`" "${src}" "${librhash_c_flags}"
   done
 fi
-if test "${cmake_bootstrap_generator}" = "Ninja"; then
-  if test "x${bootstrap_system_jsoncpp}" = "x"; then
-    for a in ${JSONCPP_CXX_SOURCES}; do
-      src=`cmake_escape_artifact "${cmake_source_dir}/Utilities/cmjsoncpp/${a}"`
-      write_source_rule "cxx" "jsoncpp-`cmake_obj ${a}`" "${src}" "${jsoncpp_cxx_flags}"
-    done
-  fi
+if test "x${bootstrap_system_jsoncpp}" = "x"; then
+  for a in ${JSONCPP_CXX_SOURCES}; do
+    src=`cmake_escape_artifact "${cmake_source_dir}/Utilities/cmjsoncpp/${a}"`
+    write_source_rule "cxx" "jsoncpp-`cmake_obj ${a}`" "${src}" "${jsoncpp_cxx_flags}"
+  done
 fi
 if test "${cmake_bootstrap_generator}" = "Ninja"; then
   echo "
@@ -1956,6 +2027,11 @@ fi
 if test "x${cmake_bootstrap_qt_qmake}" != "x"; then
   echo '
 set (QT_QMAKE_EXECUTABLE "'"${cmake_bootstrap_qt_qmake}"'" CACHE FILEPATH "Location of Qt qmake" FORCE)
+' >> "${cmake_bootstrap_dir}/InitialCacheFlags.cmake"
+fi
+if test "x${cmake_bootstrap_debugger}" != "x"; then
+  echo '
+set (CMake_ENABLE_DEBUGGER '"${cmake_bootstrap_debugger}"' CACHE BOOL "Enable CMake debugger support" FORCE)
 ' >> "${cmake_bootstrap_dir}/InitialCacheFlags.cmake"
 fi
 if test "x${cmake_sphinx_info}" != "x"; then

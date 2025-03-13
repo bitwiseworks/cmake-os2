@@ -7,7 +7,7 @@
  *                            | (__| |_| |  _ <| |___
  *                             \___|\___/|_| \_\_____|
  *
- * Copyright (C) 1998 - 2022, Daniel Stenberg, <daniel@haxx.se>, et al.
+ * Copyright (C) Daniel Stenberg, <daniel@haxx.se>, et al.
  *
  * This software is licensed as described in the file COPYING, which
  * you should have received as part of this distribution. The terms
@@ -32,8 +32,13 @@ char *Curl_inet_ntop(int af, const void *addr, char *buf, size_t size);
 #ifdef HAVE_ARPA_INET_H
 #include <arpa/inet.h>
 #endif
+#ifdef _WIN32
 #define Curl_inet_ntop(af,addr,buf,size) \
-        inet_ntop(af, addr, buf, (curl_socklen_t)size)
+        inet_ntop(af, addr, buf, size)
+#else
+#define Curl_inet_ntop(af,addr,buf,size) \
+        inet_ntop(af, addr, buf, (curl_socklen_t)(size))
+#endif
 #endif
 
 #endif /* HEADER_CURL_INET_NTOP_H */

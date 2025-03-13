@@ -9,7 +9,7 @@ include:
 =============================== ===============================================
 Value                           Name
 =============================== ===============================================
-``Absoft``                      `Absoft Fortran`_
+``Absoft``                      Absoft Fortran
 ``ADSP``                        Analog VisualDSP++
 ``AppleClang``                  Apple Clang
 ``ARMCC``                       ARM Compiler
@@ -18,6 +18,7 @@ Value                           Name
 ``CCur``                        Concurrent Fortran
 ``Clang``                       `LLVM Clang`_
 ``Cray``                        Cray Compiler
+``CrayClang``                   Cray Clang-based Compiler
 ``Embarcadero``, ``Borland``    `Embarcadero`_
 ``Flang``                       `Classic Flang Fortran Compiler`_
 ``LLVMFlang``                   `LLVM Flang Fortran Compiler`_
@@ -31,16 +32,19 @@ Value                           Name
 ``Intel``                       Intel Classic Compiler
 ``IntelLLVM``                   `Intel LLVM-Based Compiler`_
 ``LCC``                         MCST Elbrus C/C++/Fortran Compiler
+``LFortran``                    LFortran Fortran Compiler
 ``MSVC``                        `Microsoft Visual Studio`_
 ``NVHPC``                       `NVIDIA HPC Compiler`_
 ``NVIDIA``                      `NVIDIA CUDA Compiler`_
+``OrangeC``                     `OrangeC Compiler`_
 ``OpenWatcom``                  `Open Watcom`_
 ``PGI``                         The Portland Group
 ``PathScale``                   PathScale
 ``SDCC``                        `Small Device C Compiler`_
-``SunPro``                      Oracle Solaris Studio
+``SunPro``                      Oracle Developer Studio
 ``Tasking``                     `Tasking Compiler Toolsets`_
 ``TI``                          Texas Instruments
+``TIClang``                     `Texas Instruments Clang-based Compilers`_
 ``TinyCC``                      `Tiny C Compiler`_
 ``XL``, ``VisualAge``, ``zOS``  IBM XL
 ``XLClang``                     IBM Clang-based XL
@@ -50,7 +54,6 @@ Value                           Name
 This variable is not guaranteed to be defined for all compilers or
 languages.
 
-.. _Absoft Fortran: https://www.absoft.com
 .. _LLVM Clang: https://clang.llvm.org
 .. _Embarcadero: https://www.embarcadero.com
 .. _Classic Flang Fortran Compiler: https://github.com/flang-compiler/flang
@@ -63,6 +66,8 @@ languages.
 .. _NVIDIA HPC Compiler: https://developer.nvidia.com/hpc-compilers
 .. _NVIDIA CUDA Compiler: https://developer.nvidia.com/cuda-llvm-compiler
 .. _Open Watcom: https://open-watcom.github.io
+.. _OrangeC Compiler: https://github.com/LADSoft/OrangeC
 .. _Small Device C Compiler: https://sdcc.sourceforge.net
 .. _Tiny C Compiler: https://bellard.org/tcc
 .. _Tasking Compiler Toolsets: https://www.tasking.com
+.. _Texas Instruments Clang-based Compilers: https://www.ti.com/tool/download/ARM-CGT-CLANG

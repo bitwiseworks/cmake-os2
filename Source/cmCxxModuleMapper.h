@@ -13,12 +13,31 @@
 #include <cm/optional>
 #include <cmext/string_view>
 
-#include "cmScanDepFormat.h"
+enum class LookupMethod;
+struct cmScanDepInfo;
 
 enum class CxxModuleMapFormat
 {
+  Clang,
   Gcc,
   Msvc,
+};
+
+struct CxxBmiLocation
+{
+  static CxxBmiLocation Unknown();
+  static CxxBmiLocation Private();
+  static CxxBmiLocation Known(std::string path);
+
+  bool IsKnown() const;
+  bool IsPrivate() const;
+  std::string const& Location() const;
+
+private:
+  CxxBmiLocation();
+  CxxBmiLocation(std::string path);
+
+  cm::optional<std::string> BmiLocation;
 };
 
 struct CxxModuleLocations
@@ -29,15 +48,14 @@ struct CxxModuleLocations
   std::string RootDirectory;
 
   // A function to convert a full path to a path for the generator.
-  std::function<std::string(std::string const&)> PathForGenerator;
+  std::function<std::string(std::string)> PathForGenerator;
 
   // Lookup the BMI location of a logical module name.
-  std::function<cm::optional<std::string>(std::string const&)>
-    BmiLocationForModule;
+  std::function<CxxBmiLocation(std::string const&)> BmiLocationForModule;
 
   // Returns the generator path (if known) for the BMI given a
   // logical module name.
-  cm::optional<std::string> BmiGeneratorPathForModule(
+  CxxBmiLocation BmiGeneratorPathForModule(
     std::string const& logical_name) const;
 };
 
@@ -65,6 +83,14 @@ struct CxxModuleUsage
                     LookupMethod method);
 };
 
+enum class CxxModuleMapMode
+{
+  Text,
+  Binary,
+
+  Default = Text,
+};
+
 // Return the extension to use for a given modulemap format.
 cm::static_string_view CxxModuleMapExtension(
   cm::optional<CxxModuleMapFormat> format);
@@ -75,7 +101,7 @@ cm::static_string_view CxxModuleMapExtension(
 // import cycle).
 std::set<std::string> CxxModuleUsageSeed(
   CxxModuleLocations const& loc, std::vector<cmScanDepInfo> const& objects,
-  CxxModuleUsage& usages);
+  CxxModuleUsage& usages, bool& private_usage_found);
 
 // Return the contents of the module map in the given format for the
 // object file.
@@ -83,3 +109,6 @@ std::string CxxModuleMapContent(CxxModuleMapFormat format,
                                 CxxModuleLocations const& loc,
                                 cmScanDepInfo const& obj,
                                 CxxModuleUsage const& usages);
+
+// Return the open mode required for the modmap file format.
+CxxModuleMapMode CxxModuleMapOpenMode(CxxModuleMapFormat format);

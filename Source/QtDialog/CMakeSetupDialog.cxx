@@ -32,6 +32,7 @@
 
 #include "QCMake.h"
 #include "QCMakeCacheView.h"
+#include "QCMakeSizeType.h"
 
 #include "cmSystemTools.h"
 #include "cmVersion.h"
@@ -42,7 +43,7 @@
 #include "RegexExplorer.h"
 #include "WarningMessagesDialog.h"
 
-void OpenReferenceManual()
+void OpenReferenceManual(const QString& filename)
 {
   QString urlFormat("https://cmake.org/cmake/help/v%1.%2/");
   QUrl url(urlFormat.arg(QString::number(cmVersion::GetMajorVersion()),
@@ -51,7 +52,7 @@ void OpenReferenceManual()
   if (!cmSystemTools::GetHTMLDoc().empty()) {
     url = QUrl::fromLocalFile(
       QDir(QString::fromStdString(cmSystemTools::GetHTMLDoc()))
-        .filePath("index.html"));
+        .filePath(filename));
   }
 
   QDesktopServices::openUrl(url);
@@ -212,7 +213,8 @@ CMakeSetupDialog::CMakeSetupDialog()
   QObject::connect(a, &QAction::triggered, this, &CMakeSetupDialog::doHelp);
   a->setShortcut(QKeySequence::HelpContents);
   a = HelpMenu->addAction(tr("CMake Reference Manual"));
-  QObject::connect(a, &QAction::triggered, this, OpenReferenceManual);
+  QObject::connect(a, &QAction::triggered, this,
+                   [] { OpenReferenceManual("index.html"); });
   a = HelpMenu->addAction(tr("About"));
   QObject::connect(a, &QAction::triggered, this, &CMakeSetupDialog::doAbout);
 
@@ -348,8 +350,24 @@ void CMakeSetupDialog::initialize()
   if (!this->SourceDirectory->text().isEmpty() &&
       !this->DeferredPreset.isNull()) {
     this->onSourceDirectoryChanged(this->SourceDirectory->text());
+    if (!this->BinaryDirectory->lineEdit()->text().isEmpty()) {
+      this->onBinaryDirectoryChanged(
+        this->BinaryDirectory->lineEdit()->text());
+    }
   } else if (!this->SourceDirectory->text().isEmpty() ||
              !this->BinaryDirectory->lineEdit()->text().isEmpty()) {
+    if (this->SourceDirectory->text().isEmpty() &&
+        !cmSystemTools::FileIsFullPath(
+          this->BinaryDirectory->lineEdit()->text().toStdString())) {
+      // If the binary directory is relative, load the previous source path
+      // from the config
+      QSettings settings;
+      settings.beginGroup("Settings/StartPath");
+      QString srcDir = settings.value(QString("WhereSource")).toString();
+      this->SourceDirectory->blockSignals(true);
+      this->SourceDirectory->setText(srcDir);
+      this->SourceDirectory->blockSignals(false);
+    }
     this->onSourceDirectoryChanged(this->SourceDirectory->text());
     this->onBinaryDirectoryChanged(this->BinaryDirectory->lineEdit()->text());
   } else {
@@ -409,8 +427,13 @@ bool CMakeSetupDialog::prepareConfigure()
     }
   }
 
-  // remember path
-  this->addBinaryPath(dir.absolutePath());
+  // remember paths
+  this->addBinaryPath(
+    this->CMakeThread->cmakeInstance()->relativeBinaryDirectory());
+  QSettings settings;
+  settings.beginGroup("Settings/StartPath");
+  settings.setValue("WhereSource",
+                    this->CMakeThread->cmakeInstance()->sourceDirectory());
 
   return true;
 }
@@ -730,19 +753,25 @@ void CMakeSetupDialog::updatePreset(const QString& name)
   }
 }
 
-void CMakeSetupDialog::showPresetLoadError(
-  const QString& dir, cmCMakePresetsGraph::ReadFileResult result)
+void CMakeSetupDialog::showPresetLoadError(const QString& dir,
+                                           const QString& message)
 {
   QMessageBox::warning(
     this, "Error Reading CMake Presets",
-    QString("Could not read presets from %1: %2")
-      .arg(dir, cmCMakePresetsGraph::ResultToString(result)));
+    QString("Could not read presets from %1: %2").arg(dir, message));
 }
 
 void CMakeSetupDialog::doBinaryBrowse()
 {
+  QString abs_path = this->BinaryDirectory->currentText();
+  if (!cmSystemTools::FileIsFullPath(abs_path.toStdString())) {
+    if (!this->SourceDirectory->text().endsWith("/")) {
+      abs_path = "/" + abs_path;
+    }
+    abs_path = this->SourceDirectory->text() + abs_path;
+  }
   QString dir = QFileDialog::getExistingDirectory(
-    this, tr("Enter Path to Build"), this->BinaryDirectory->currentText(),
+    this, tr("Enter Path to Build"), abs_path,
     QFileDialog::ShowDirsOnly | QFileDialog::DontResolveSymlinks);
   if (!dir.isEmpty() && dir != this->BinaryDirectory->currentText()) {
     this->setBinaryDirectory(dir);
@@ -874,7 +903,7 @@ bool CMakeSetupDialog::setupFirstConfigure()
     if (preset.setToolset) {
       dialog.setToolset(preset.toolset);
     }
-    dialog.setCompilerOption(CompilerOption::DefaultNative);
+    dialog.setCompilerOption(CompilerOption::DefaultPreset);
   }
 
   if (dialog.exec() == QDialog::Accepted) {
@@ -1119,12 +1148,12 @@ void CMakeSetupDialog::saveBuildPaths(const QStringList& paths)
   QSettings settings;
   settings.beginGroup("Settings/StartPath");
 
-  int num = paths.count();
+  cm_qsizetype num = paths.count();
   if (num > 10) {
     num = 10;
   }
 
-  for (int i = 0; i < num; i++) {
+  for (cm_qsizetype i = 0; i < num; i++) {
     settings.setValue(QString("WhereBuild%1").arg(i), paths[i]);
   }
 }
@@ -1344,7 +1373,8 @@ void CMakeSetupDialog::showUserChanges()
 void CMakeSetupDialog::setSearchFilter(const QString& str)
 {
   this->CacheValues->selectionModel()->clear();
-  this->CacheValues->setSearchFilter(str);
+  const bool valid = this->CacheValues->setSearchFilter(str);
+  QtCMake::setSearchFilterColor(this->Search, valid);
 }
 
 void CMakeSetupDialog::doOutputContextMenu(QPoint pt)

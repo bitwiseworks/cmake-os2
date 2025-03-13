@@ -1,6 +1,3 @@
-
-#include <iostream>
-
 #include "file1.h"
 #include "file2.h"
 
@@ -15,7 +12,7 @@ static __global__ void file5_kernel(result_type& r, int x)
   result_type_dynamic rd = file2_func(x);
 }
 
-int file5_launch_kernel(int x)
+EXPORT int file5_launch_kernel(int x)
 {
   result_type r;
   file5_kernel<<<1, 1>>>(r, x);

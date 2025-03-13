@@ -19,6 +19,7 @@
 #include "cmCPackLog.h"
 #include "cmDuration.h"
 #include "cmGeneratedFileStream.h"
+#include "cmList.h"
 #include "cmStringAlgorithms.h"
 #include "cmSystemTools.h"
 #include "cmValue.h"
@@ -245,8 +246,7 @@ int cmCPackNSISGenerator::PackageFiles()
   std::string nsisPreArguments;
   if (cmValue nsisArguments =
         this->GetOption("CPACK_NSIS_EXECUTABLE_PRE_ARGUMENTS")) {
-    std::vector<std::string> expandedArguments;
-    cmExpandList(nsisArguments, expandedArguments);
+    cmList expandedArguments{ nsisArguments };
 
     for (auto& arg : expandedArguments) {
       if (!cmHasPrefix(arg, NSIS_OPT)) {
@@ -259,8 +259,7 @@ int cmCPackNSISGenerator::PackageFiles()
   std::string nsisPostArguments;
   if (cmValue nsisArguments =
         this->GetOption("CPACK_NSIS_EXECUTABLE_POST_ARGUMENTS")) {
-    std::vector<std::string> expandedArguments;
-    cmExpandList(nsisArguments, expandedArguments);
+    cmList expandedArguments{ nsisArguments };
     for (auto& arg : expandedArguments) {
       if (!cmHasPrefix(arg, NSIS_OPT)) {
         nsisPostArguments = cmStrCat(nsisPostArguments, NSIS_OPT);
@@ -305,7 +304,7 @@ int cmCPackNSISGenerator::PackageFiles()
 
     // Create installation groups first
     for (auto& group : this->ComponentGroups) {
-      if (group.second.ParentGroup == nullptr) {
+      if (!group.second.ParentGroup) {
         componentCode +=
           this->CreateComponentGroupDescription(&group.second, macrosOut);
       }
@@ -366,7 +365,7 @@ int cmCPackNSISGenerator::PackageFiles()
 
     if (anyDownloadedComponents) {
       defines += "!define CPACK_USES_DOWNLOAD\n";
-      if (cmIsOn(this->GetOption("CPACK_ADD_REMOVE"))) {
+      if (this->GetOption("CPACK_ADD_REMOVE").IsOn()) {
         defines += "!define CPACK_NSIS_ADD_REMOVE\n";
       }
     }
@@ -413,7 +412,7 @@ int cmCPackNSISGenerator::PackageFiles()
 
 int cmCPackNSISGenerator::InitializeInternal()
 {
-  if (cmIsOn(this->GetOption("CPACK_INCLUDE_TOPLEVEL_DIRECTORY"))) {
+  if (this->GetOption("CPACK_INCLUDE_TOPLEVEL_DIRECTORY").IsOn()) {
     cmCPackLogger(
       cmCPackLog::LOG_WARNING,
       "NSIS Generator cannot work with CPACK_INCLUDE_TOPLEVEL_DIRECTORY set. "
@@ -473,7 +472,7 @@ int cmCPackNSISGenerator::InitializeInternal()
 
   this->SetOptionIfNotSet("CPACK_NSIS_EXECUTABLE", "makensis");
   nsisPath = cmSystemTools::FindProgram(
-    this->GetOption("CPACK_NSIS_EXECUTABLE"), path, false);
+    *this->GetOption("CPACK_NSIS_EXECUTABLE"), path, false);
 
   if (nsisPath.empty()) {
     cmCPackLogger(
@@ -545,14 +544,14 @@ int cmCPackNSISGenerator::InitializeInternal()
     this->GetOption("CPACK_CREATE_DESKTOP_LINKS");
   cmValue cpackNsisExecutablesDirectory =
     this->GetOption("CPACK_NSIS_EXECUTABLES_DIRECTORY");
-  std::vector<std::string> cpackPackageDesktopLinksVector;
+  cmList cpackPackageDesktopLinksList;
   if (cpackPackageDeskTopLinks) {
     cmCPackLogger(cmCPackLog::LOG_DEBUG,
                   "CPACK_CREATE_DESKTOP_LINKS: " << cpackPackageDeskTopLinks
                                                  << std::endl);
 
-    cmExpandList(cpackPackageDeskTopLinks, cpackPackageDesktopLinksVector);
-    for (std::string const& cpdl : cpackPackageDesktopLinksVector) {
+    cpackPackageDesktopLinksList.assign(cpackPackageDeskTopLinks);
+    for (std::string const& cpdl : cpackPackageDesktopLinksList) {
       cmCPackLogger(cmCPackLog::LOG_DEBUG,
                     "CPACK_CREATE_DESKTOP_LINKS: " << cpdl << std::endl);
     }
@@ -569,9 +568,8 @@ int cmCPackNSISGenerator::InitializeInternal()
     cmCPackLogger(cmCPackLog::LOG_DEBUG,
                   "The cpackPackageExecutables: " << cpackPackageExecutables
                                                   << "." << std::endl);
-    std::vector<std::string> cpackPackageExecutablesVector =
-      cmExpandedList(cpackPackageExecutables);
-    if (cpackPackageExecutablesVector.size() % 2 != 0) {
+    cmList cpackPackageExecutablesList{ cpackPackageExecutables };
+    if (cpackPackageExecutablesList.size() % 2 != 0) {
       cmCPackLogger(
         cmCPackLog::LOG_ERROR,
         "CPACK_PACKAGE_EXECUTABLES should contain pairs of <executable> and "
@@ -579,9 +577,9 @@ int cmCPackNSISGenerator::InitializeInternal()
           << std::endl);
       return 0;
     }
-    std::vector<std::string>::iterator it;
-    for (it = cpackPackageExecutablesVector.begin();
-         it != cpackPackageExecutablesVector.end(); ++it) {
+    cmList::iterator it;
+    for (it = cpackPackageExecutablesList.begin();
+         it != cpackPackageExecutablesList.end(); ++it) {
       std::string execName = *it;
       ++it;
       std::string linkName = *it;
@@ -592,7 +590,7 @@ int cmCPackNSISGenerator::InitializeInternal()
                 << ".lnk\"" << std::endl;
       // see if CPACK_CREATE_DESKTOP_LINK_ExeName is on
       // if so add a desktop link
-      if (cm::contains(cpackPackageDesktopLinksVector, execName)) {
+      if (cm::contains(cpackPackageDesktopLinksList, execName)) {
         str << "  StrCmp \"$INSTALL_DESKTOP\" \"1\" 0 +2\n";
         str << "    CreateShortCut \"$DESKTOP\\" << linkName
             << R"(.lnk" "$INSTDIR\)" << cpackNsisExecutablesDirectory << "\\"
@@ -622,9 +620,8 @@ void cmCPackNSISGenerator::CreateMenuLinks(std::ostream& str,
   }
   cmCPackLogger(cmCPackLog::LOG_DEBUG,
                 "The cpackMenuLinks: " << cpackMenuLinks << "." << std::endl);
-  std::vector<std::string> cpackMenuLinksVector =
-    cmExpandedList(cpackMenuLinks);
-  if (cpackMenuLinksVector.size() % 2 != 0) {
+  cmList cpackMenuLinksList{ cpackMenuLinks };
+  if (cpackMenuLinksList.size() % 2 != 0) {
     cmCPackLogger(
       cmCPackLog::LOG_ERROR,
       "CPACK_NSIS_MENU_LINKS should contain pairs of <shortcut target> and "
@@ -636,9 +633,8 @@ void cmCPackNSISGenerator::CreateMenuLinks(std::ostream& str,
   static cmsys::RegularExpression urlRegex(
     "^(mailto:|(ftps?|https?|news)://).*$");
 
-  std::vector<std::string>::iterator it;
-  for (it = cpackMenuLinksVector.begin(); it != cpackMenuLinksVector.end();
-       ++it) {
+  cmList::iterator it;
+  for (it = cpackMenuLinksList.begin(); it != cpackMenuLinksList.end(); ++it) {
     std::string sourceName = *it;
     const bool url = urlRegex.find(sourceName);
 
@@ -805,7 +801,7 @@ std::string cmCPackNSISGenerator::CreateComponentDescription(
     // size of the installed component.
     std::string zipListFileName = cmStrCat(
       this->GetOption("CPACK_TEMPORARY_DIRECTORY"), "/winZip.filelist");
-    bool needQuotesInFile = cmIsOn(this->GetOption("CPACK_ZIP_NEED_QUOTES"));
+    bool needQuotesInFile = this->GetOption("CPACK_ZIP_NEED_QUOTES").IsOn();
     unsigned long totalSize = 0;
     { // the scope is needed for cmGeneratedFileStream
       cmGeneratedFileStream out(zipListFileName);
@@ -867,8 +863,8 @@ std::string cmCPackNSISGenerator::CreateComponentDescription(
     /* clang-format on */
     componentCode += out.str();
   } else {
-    componentCode +=
-      "  File /r \"${INST_DIR}\\" + component->Name + "\\*.*\"\n";
+    componentCode += "  File /r \"${INST_DIR}\\" +
+      this->GetSanitizedDirOrFileName(component->Name) + "\\*.*\"\n";
   }
   componentCode += "SectionEnd\n";
 

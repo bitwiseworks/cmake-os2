@@ -373,6 +373,8 @@ function(FortranCInterface_VERIFY)
                  "-DCMAKE_C_FLAGS_RELEASE:STRING=${CMAKE_C_FLAGS_RELEASE}"
                  "-DCMAKE_CXX_FLAGS_RELEASE:STRING=${CMAKE_CXX_FLAGS_RELEASE}"
                  "-DCMAKE_Fortran_FLAGS_RELEASE:STRING=${CMAKE_Fortran_FLAGS_RELEASE}"
+                 "-DFortranCInterface_BINARY_DIR=${FortranCInterface_BINARY_DIR}"
+                 "-DCMAKE_OSX_DEPLOYMENT_TARGET=${CMAKE_OSX_DEPLOYMENT_TARGET}"
                  ${_FortranCInterface_OSX_ARCH}
                  ${_FortranCInterface_EXE_LINKER_FLAGS}
       OUTPUT_VARIABLE _output)
@@ -381,13 +383,9 @@ function(FortranCInterface_VERIFY)
     # Report results.
     if(FortranCInterface_VERIFY_${lang}_COMPILED)
       message(CHECK_PASS "Success")
-      file(APPEND ${CMAKE_BINARY_DIR}${CMAKE_FILES_DIRECTORY}/CMakeOutput.log
-        "${_desc} passed with the following output:\n${_output}\n\n")
       set(FortranCInterface_VERIFIED_${lang} 1 CACHE INTERNAL "Fortran/${lang} compatibility")
     else()
       message(CHECK_FAIL "Failed")
-      file(APPEND ${CMAKE_BINARY_DIR}${CMAKE_FILES_DIRECTORY}/CMakeError.log
-        "${_desc} failed with the following output:\n${_output}\n\n")
       set(FortranCInterface_VERIFIED_${lang} 0 CACHE INTERNAL "Fortran/${lang} compatibility")
     endif()
     unset(FortranCInterface_VERIFY_${lang}_COMPILED CACHE)

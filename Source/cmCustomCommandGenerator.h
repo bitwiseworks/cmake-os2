@@ -20,7 +20,8 @@ class cmLocalGenerator;
 
 class cmCustomCommandGenerator
 {
-  std::string GetInternalDepfileName(const std::string&, const std::string&);
+  std::string GetInternalDepfileName(const std::string&,
+                                     const std::string&) const;
 
   cmCustomCommand const* CC;
   std::string OutputConfig;
@@ -58,7 +59,7 @@ public:
   unsigned int GetNumberOfCommands() const;
   std::string GetCommand(unsigned int c) const;
   void AppendArguments(unsigned int c, std::string& cmd) const;
-  const char* GetComment() const;
+  cm::optional<std::string> GetComment() const;
   std::string GetWorkingDirectory() const;
   std::vector<std::string> const& GetOutputs() const;
   std::vector<std::string> const& GetByproducts() const;

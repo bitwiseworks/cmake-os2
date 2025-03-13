@@ -35,26 +35,25 @@ macro(PKGCONFIG _package _include_DIR _link_DIR _link_FLAGS _cflags)
   # if pkg-config has been found
   if(PKGCONFIG_EXECUTABLE)
 
-    exec_program(${PKGCONFIG_EXECUTABLE} ARGS ${_package} --exists RETURN_VALUE _return_VALUE OUTPUT_VARIABLE _pkgconfigDevNull )
+    execute_process(COMMAND ${PKGCONFIG_EXECUTABLE} ${_package} --exists RESULT_VARIABLE _return_VALUE OUTPUT_VARIABLE _pkgconfigDevNull )
 
     # and if the package of interest also exists for pkg-config, then get the information
     if(NOT _return_VALUE)
 
-      exec_program(${PKGCONFIG_EXECUTABLE} ARGS ${_package} --variable=includedir
-        OUTPUT_VARIABLE ${_include_DIR} )
+      execute_process(COMMAND ${PKGCONFIG_EXECUTABLE} ${_package} --variable=includedir
+        OUTPUT_VARIABLE ${_include_DIR} OUTPUT_STRIP_TRAILING_WHITESPACE )
       string(REGEX REPLACE "[\r\n]" " " ${_include_DIR} "${${_include_DIR}}")
 
-
-      exec_program(${PKGCONFIG_EXECUTABLE} ARGS ${_package} --variable=libdir
-        OUTPUT_VARIABLE ${_link_DIR} )
+      execute_process(COMMAND ${PKGCONFIG_EXECUTABLE} ${_package} --variable=libdir
+        OUTPUT_VARIABLE ${_link_DIR} OUTPUT_STRIP_TRAILING_WHITESPACE )
       string(REGEX REPLACE "[\r\n]" " " ${_link_DIR} "${${_link_DIR}}")
 
-      exec_program(${PKGCONFIG_EXECUTABLE} ARGS ${_package} --libs
-        OUTPUT_VARIABLE ${_link_FLAGS} )
+      execute_process(COMMAND ${PKGCONFIG_EXECUTABLE} ${_package} --libs
+        OUTPUT_VARIABLE ${_link_FLAGS} OUTPUT_STRIP_TRAILING_WHITESPACE )
       string(REGEX REPLACE "[\r\n]" " " ${_link_FLAGS} "${${_link_FLAGS}}")
 
-      exec_program(${PKGCONFIG_EXECUTABLE} ARGS ${_package} --cflags
-        OUTPUT_VARIABLE ${_cflags} )
+      execute_process(COMMAND ${PKGCONFIG_EXECUTABLE} ${_package} --cflags
+        OUTPUT_VARIABLE ${_cflags} OUTPUT_STRIP_TRAILING_WHITESPACE )
       string(REGEX REPLACE "[\r\n]" " " ${_cflags} "${${_cflags}}")
 
     else()

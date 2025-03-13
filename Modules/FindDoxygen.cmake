@@ -76,7 +76,8 @@ Functions
         [ALL]
         [USE_STAMP_FILE]
         [WORKING_DIRECTORY dir]
-        [COMMENT comment])
+        [COMMENT comment]
+        [CONFIG_FILE filename])
 
   The function constructs a ``Doxyfile`` and defines a custom target that runs
   Doxygen on that generated file. The listed files and directories are used as
@@ -96,6 +97,10 @@ Functions
   If provided, the optional ``comment`` will be passed as the ``COMMENT`` for
   the :command:`add_custom_target` command used to create the custom target
   internally.
+
+  .. versionadded:: 3.27
+    If ``CONFIG_FILE`` is set, the given file provided with full-path
+    will be used as doxygen configuration file
 
   .. versionadded:: 3.12
     If ``ALL`` is set, the target will be added to the default build target.
@@ -458,10 +463,6 @@ function(_Doxygen_version_validator version_match doxy_path)
     else()
         _Doxygen_get_version(candidate_version version_result "${doxy_path}")
 
-        if(version_result)
-            message(DEBUG "Unable to determine candidate doxygen version at ${doxy_path}: ${version_result}")
-        endif()
-
         find_package_check_version("${candidate_version}" valid_doxy_version
             HANDLE_VERSION_RANGE
         )
@@ -489,15 +490,18 @@ macro(_Doxygen_find_doxygen)
         _Doxygen_get_version(DOXYGEN_VERSION _Doxygen_version_result "${DOXYGEN_EXECUTABLE}")
 
         if(_Doxygen_version_result)
-            message(WARNING "Unable to determine doxygen version: ${_Doxygen_version_result}")
-        endif()
-
-        # Create an imported target for Doxygen
-        if(NOT TARGET Doxygen::doxygen)
-            add_executable(Doxygen::doxygen IMPORTED GLOBAL)
-            set_target_properties(Doxygen::doxygen PROPERTIES
-                IMPORTED_LOCATION "${DOXYGEN_EXECUTABLE}"
-            )
+            if(NOT Doxygen_FIND_QUIETLY)
+                message(WARNING "Doxygen executable failed unexpected while determining version (exit status: ${_Doxygen_version_result}). Disabling Doxygen.")
+            endif()
+            set(DOXYGEN_EXECUTABLE "${DOXYGEN_EXECUTABLE}-FAILED_EXECUTION-NOTFOUND")
+        else()
+            # Create an imported target for Doxygen
+            if(NOT TARGET Doxygen::doxygen)
+                add_executable(Doxygen::doxygen IMPORTED GLOBAL)
+                set_target_properties(Doxygen::doxygen PROPERTIES
+                    IMPORTED_LOCATION "${DOXYGEN_EXECUTABLE}"
+                )
+            endif()
         endif()
     endif()
 endmacro()
@@ -864,7 +868,7 @@ endfunction()
 
 function(doxygen_add_docs targetName)
     set(_options ALL USE_STAMP_FILE)
-    set(_one_value_args WORKING_DIRECTORY COMMENT)
+    set(_one_value_args WORKING_DIRECTORY COMMENT CONFIG_FILE)
     set(_multi_value_args)
     cmake_parse_arguments(_args
                           "${_options}"
@@ -1166,8 +1170,15 @@ doxygen_add_docs() for target ${targetName}")
 
     # Prepare doxygen configuration file
     set(_doxyfile_template "${CMAKE_BINARY_DIR}/CMakeDoxyfile.in")
-    set(_target_doxyfile "${CMAKE_CURRENT_BINARY_DIR}/Doxyfile.${targetName}")
-    configure_file("${_doxyfile_template}" "${_target_doxyfile}")
+    if(_args_CONFIG_FILE)
+        if(NOT EXISTS "${_args_CONFIG_FILE}")
+            message(FATAL_ERROR "Option CONFIG_FILE specifies file:\n ${_args_CONFIG_FILE}\nbut it does not exist.")
+        endif()
+        set(_target_doxyfile "${_args_CONFIG_FILE}")
+    else()
+        set(_target_doxyfile "${CMAKE_CURRENT_BINARY_DIR}/Doxyfile.${targetName}")
+        configure_file("${_doxyfile_template}" "${_target_doxyfile}")
+    endif()
 
     unset(_all)
     if(${_args_ALL})

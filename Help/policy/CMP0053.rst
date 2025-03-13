@@ -20,7 +20,7 @@ cleaned up to simplify the behavior.  Specifically:
   the characters ``_``, ``.``, ``/``, ``-``, and ``+``.
   Note that ``$`` is technically allowed in the ``NEW`` behavior, but is
   invalid for ``OLD`` behavior.  This is due to an oversight during the
-  implementation of :policy:`CMP0053` and its use as a literal variable
+  implementation of ``CMP0053`` and its use as a literal variable
   reference is discouraged for this reason.
   Variables with other characters in their name may still
   be referenced indirectly, e.g.
@@ -44,9 +44,8 @@ The ``OLD`` behavior for this policy is to honor the legacy behavior for
 variable references and escape sequences.  The ``NEW`` behavior is to
 use the simpler variable expansion and escape sequence evaluation rules.
 
-This policy was introduced in CMake version 3.1.
-CMake version |release| warns when the policy is not set and uses
-``OLD`` behavior.  Use the :command:`cmake_policy` command to set
-it to ``OLD`` or ``NEW`` explicitly.
+.. |INTRODUCED_IN_CMAKE_VERSION| replace:: 3.1
+.. |WARNS_OR_DOES_NOT_WARN| replace:: warns
+.. include:: STANDARD_ADVICE.txt
 
 .. include:: DEPRECATED.txt

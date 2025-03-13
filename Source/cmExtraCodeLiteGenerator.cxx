@@ -33,7 +33,7 @@ cmExtraCodeLiteGenerator::GetFactory()
 {
   static cmExternalMakefileProjectGeneratorSimpleFactory<
     cmExtraCodeLiteGenerator>
-    factory("CodeLite", "Generates CodeLite project files.");
+    factory("CodeLite", "Generates CodeLite project files (deprecated).");
 
   if (factory.GetSupportedGlobalGenerators().empty()) {
 #if defined(_WIN32)
@@ -59,7 +59,7 @@ void cmExtraCodeLiteGenerator::Generate()
     this->GlobalGenerator->GetProjectMap();
 
   // loop projects and locate the root project.
-  // and extract the information for creating the worspace
+  // and extract the information for creating the workspace
   // root makefile
   for (auto const& it : projectMap) {
     cmLocalGenerator* lg = it.second[0];

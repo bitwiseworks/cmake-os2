@@ -15,15 +15,14 @@
 
 #include "cmCustomCommand.h"
 #include "cmCustomCommandLines.h"
-#include "cmDocumentationEntry.h"
 #include "cmGeneratedFileStream.h"
 #include "cmGeneratorTarget.h"
 #include "cmGhsMultiGpj.h"
+#include "cmList.h"
 #include "cmLocalGenerator.h"
 #include "cmLocalGhsMultiGenerator.h"
 #include "cmMakefile.h"
 #include "cmMessageType.h"
-#include "cmPolicies.h"
 #include "cmSourceFile.h"
 #include "cmState.h"
 #include "cmStateTypes.h"
@@ -58,11 +57,12 @@ cmGlobalGhsMultiGenerator::CreateLocalGenerator(cmMakefile* mf)
     cm::make_unique<cmLocalGhsMultiGenerator>(this, mf));
 }
 
-void cmGlobalGhsMultiGenerator::GetDocumentation(cmDocumentationEntry& entry)
+cmDocumentationEntry cmGlobalGhsMultiGenerator::GetDocumentation()
 {
-  entry.Name = GetActualName();
-  entry.Brief =
-    "Generates Green Hills MULTI files (experimental, work-in-progress).";
+  return {
+    GetActualName(),
+    "Generates Green Hills MULTI files (experimental, work-in-progress)."
+  };
 }
 
 void cmGlobalGhsMultiGenerator::ComputeTargetObjectDirectory(
@@ -100,12 +100,12 @@ bool cmGlobalGhsMultiGenerator::SetGeneratorToolset(std::string const& ts,
   cmValue prevTool = mf->GetDefinition("CMAKE_MAKE_PROGRAM");
 
   /* check if the toolset changed from last generate */
-  if (cmNonempty(prevTool) && !cmSystemTools::ComparePath(gbuild, prevTool)) {
-    std::string const& e =
-      cmStrCat("toolset build tool: ", gbuild,
-               "\nDoes not match the previously used build tool: ", prevTool,
-               "\nEither remove the CMakeCache.txt file and CMakeFiles "
-               "directory or choose a different binary directory.");
+  if (cmNonempty(prevTool) && !cmSystemTools::ComparePath(gbuild, *prevTool)) {
+    std::string const& e = cmStrCat(
+      "toolset build tool: ", gbuild, '\n',
+      "Does not match the previously used build tool: ", *prevTool, '\n',
+      "Either remove the CMakeCache.txt file and CMakeFiles "
+      "directory or choose a different binary directory.");
     mf->IssueMessage(MessageType::FATAL_ERROR, e);
     return false;
   }
@@ -124,7 +124,7 @@ bool cmGlobalGhsMultiGenerator::SetGeneratorPlatform(std::string const& p,
 {
   /* set primary target */
   cmValue t = mf->GetDefinition("GHS_PRIMARY_TARGET");
-  if (cmIsOff(t)) {
+  if (t.IsOff()) {
     /* Use the value from `-A` or use `arm` */
     std::string arch = "arm";
     if (!cmIsOff(p)) {
@@ -297,18 +297,18 @@ void cmGlobalGhsMultiGenerator::WriteTopLevelProject(std::ostream& fout,
   // Specify BSP option if supplied by user
   // -- not all platforms require this entry in the project file
   cmValue bspName = root->GetMakefile()->GetDefinition("GHS_BSP_NAME");
-  if (!cmIsOff(bspName)) {
+  if (!bspName.IsOff()) {
     fout << "    -bsp " << *bspName << '\n';
   }
 
   // Specify OS DIR if supplied by user
   // -- not all platforms require this entry in the project file
   cmValue osDir = root->GetMakefile()->GetDefinition("GHS_OS_DIR");
-  if (!cmIsOff(osDir)) {
+  if (!osDir.IsOff()) {
     cmValue osDirOption =
       root->GetMakefile()->GetDefinition("GHS_OS_DIR_OPTION");
     fout << "    ";
-    if (cmIsOff(osDirOption)) {
+    if (osDirOption.IsOff()) {
       fout << "";
     } else {
       fout << *osDirOption;
@@ -354,7 +354,7 @@ void cmGlobalGhsMultiGenerator::WriteProjectLine(
    * unsupported target type and should be skipped.
    */
   if (projFile && projType) {
-    std::string path = cmSystemTools::RelativePath(rootBinaryDir, projFile);
+    std::string path = cmSystemTools::RelativePath(rootBinaryDir, *projFile);
 
     fout << path;
     fout << ' ' << *projType << '\n';
@@ -532,7 +532,7 @@ void cmGlobalGhsMultiGenerator::WriteMacros(std::ostream& fout,
   fout << "macro PROJ_NAME=" << root->GetProjectName() << '\n';
   cmValue ghsGpjMacros = root->GetMakefile()->GetDefinition("GHS_GPJ_MACROS");
   if (ghsGpjMacros) {
-    std::vector<std::string> expandedList = cmExpandedList(*ghsGpjMacros);
+    cmList expandedList{ *ghsGpjMacros };
     for (std::string const& arg : expandedList) {
       fout << "macro " << arg << '\n';
     }
@@ -670,7 +670,7 @@ bool cmGlobalGhsMultiGenerator::AddCheckTarget()
     }
 
     // Add the cache file.
-    listFiles.push_back(cmStrCat(
+    listFiles.emplace_back(cmStrCat(
       this->GetCMakeInstance()->GetHomeOutputDirectory(), "/CMakeCache.txt"));
 
     // Print not implemented warning.
@@ -717,7 +717,6 @@ bool cmGlobalGhsMultiGenerator::AddCheckTarget()
     cc->SetDepends(listFiles);
     cc->SetCommandLines(commandLines);
     cc->SetComment("Checking Build System");
-    cc->SetCMP0116Status(cmPolicies::NEW);
     cc->SetEscapeOldStyle(false);
     cc->SetStdPipesUTF8(true);
 
@@ -747,7 +746,6 @@ void cmGlobalGhsMultiGenerator::AddAllTarget()
       // Use no actual command lines so that the target itself is not
       // considered always out of date.
       auto cc = cm::make_unique<cmCustomCommand>();
-      cc->SetCMP0116Status(cmPolicies::NEW);
       cc->SetEscapeOldStyle(false);
       cc->SetComment("Build all projects");
       cmTarget* allBuild = gen[0]->AddUtilityCommand(this->GetAllTargetName(),

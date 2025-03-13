@@ -265,6 +265,7 @@ Additionally, the following variables are deprecated:
 
 cmake_policy(PUSH)
 cmake_policy(SET CMP0057 NEW) # if IN_LIST
+cmake_policy(SET CMP0159 NEW) # file(STRINGS) with REGEX updates CMAKE_MATCH_<n>
 
 include(${CMAKE_CURRENT_LIST_DIR}/FindPackageHandleStandardArgs.cmake)
 find_package(PkgConfig QUIET)
@@ -282,6 +283,9 @@ set(_MPI_Fortran_GENERIC_COMPILER_NAMES    mpif95   mpif95_r  mpf95   mpf95_r
 set(_MPI_Fujitsu_C_COMPILER_NAMES        mpifccpx mpifcc)
 set(_MPI_Fujitsu_CXX_COMPILER_NAMES      mpiFCCpx mpiFCC)
 set(_MPI_Fujitsu_Fortran_COMPILER_NAMES  mpifrtpx mpifrt)
+set(_MPI_FujitsuClang_C_COMPILER_NAMES            mpifccpx mpifcc)
+set(_MPI_FujitsuClang_CXX_COMPILER_NAMES          mpiFCCpx mpiFCC)
+set(_MPI_FujitsuClang_Fortran_COMPILER_NAMES      mpifrtpx mpifrt)
 
 # GNU compiler names
 set(_MPI_GNU_C_COMPILER_NAMES              mpigcc mpgcc mpigcc_r mpgcc_r)
@@ -301,9 +305,9 @@ if(WIN32)
   set(_MPI_Intel_Fortran_COMPILER_NAMES      mpiifort.bat mpif77.bat mpif90.bat)
 
   # Intel MPI compiler names
-  set(_MPI_IntelLLVM_C_COMPILER_NAMES            mpiicc.bat)
-  set(_MPI_IntelLLVM_CXX_COMPILER_NAMES          mpiicpc.bat)
-  set(_MPI_IntelLLVM_Fortran_COMPILER_NAMES      mpiifort.bat mpif77.bat mpif90.bat)
+  set(_MPI_IntelLLVM_C_COMPILER_NAMES            mpiicx.bat mpiicc.bat)
+  set(_MPI_IntelLLVM_CXX_COMPILER_NAMES          mpiicx.bat mpiicpc.bat) # Not GNU-like mpiicpx.bat
+  set(_MPI_IntelLLVM_Fortran_COMPILER_NAMES      mpiifx.bat mpiifort.bat mpif77.bat mpif90.bat)
 
   # Intel MPI compiler names for MSMPI
   set(_MPI_MSVC_C_COMPILER_NAMES             mpicl.bat)
@@ -315,9 +319,9 @@ else()
   set(_MPI_Intel_Fortran_COMPILER_NAMES      mpiifort mpiif95 mpiif90 mpiif77)
 
   # Intel compiler names
-  set(_MPI_IntelLLVM_C_COMPILER_NAMES            mpiicc)
-  set(_MPI_IntelLLVM_CXX_COMPILER_NAMES          mpiicpc  mpiicxx mpiic++)
-  set(_MPI_IntelLLVM_Fortran_COMPILER_NAMES      mpiifort mpiif95 mpiif90 mpiif77)
+  set(_MPI_IntelLLVM_C_COMPILER_NAMES            mpiicx mpiicc)
+  set(_MPI_IntelLLVM_CXX_COMPILER_NAMES          mpiicpx mpiicpc mpiicxx mpiic++)
+  set(_MPI_IntelLLVM_Fortran_COMPILER_NAMES      mpiifx mpiifort mpiif95 mpiif90 mpiif77)
 endif()
 
 # PGI compiler names
@@ -436,7 +440,7 @@ function (_MPI_interrogate_compiler LANG)
   # a particular MPICH derivate might check compiler interoperability.
   # Intel MPI in particular does this with I_MPI_CHECK_COMPILER.
   file(TO_NATIVE_PATH "${CMAKE_${LANG}_COMPILER}" _MPI_UNDERLAYING_COMPILER)
-  # On Windows, the Intel MPI batch scripts can only work with filnames - Full paths will break them.
+  # On Windows, the Intel MPI batch scripts can only work with filenames - Full paths will break them.
   # Due to the lack of other MPICH-based wrappers for Visual C++, we may treat this as default.
   if(MSVC)
     get_filename_component(_MPI_UNDERLAYING_COMPILER "${_MPI_UNDERLAYING_COMPILER}" NAME)
@@ -679,7 +683,7 @@ function (_MPI_interrogate_compiler LANG)
   endforeach()
 
   # Extract include paths from compile command line
-  string(REGEX MATCHALL "(^| )${_MPI_PREPROCESSOR_FLAG_REGEX}${CMAKE_INCLUDE_FLAG_${LANG}} *([^\" ]+|\"[^\"]+\")"
+  string(REGEX MATCHALL "(^|\n| )${_MPI_PREPROCESSOR_FLAG_REGEX}${CMAKE_INCLUDE_FLAG_${LANG}} *([^\" ]+|\"[^\"]+\")"
     MPI_ALL_INCLUDE_PATHS "${MPI_COMPILE_CMDLINE}")
 
   # If extracting failed to work, we'll try using -showme:incdirs.
@@ -694,6 +698,7 @@ function (_MPI_interrogate_compiler LANG)
 
   foreach(_MPI_INCLUDE_PATH IN LISTS MPI_ALL_INCLUDE_PATHS)
     string(REGEX REPLACE "^ ?${_MPI_PREPROCESSOR_FLAG_REGEX}${CMAKE_INCLUDE_FLAG_${LANG}} *" "" _MPI_INCLUDE_PATH "${_MPI_INCLUDE_PATH}")
+    string(REPLACE "\n" "" _MPI_INCLUDE_PATH "${_MPI_INCLUDE_PATH}")
     string(REPLACE "\"" "" _MPI_INCLUDE_PATH "${_MPI_INCLUDE_PATH}")
     string(REPLACE "'" "" _MPI_INCLUDE_PATH "${_MPI_INCLUDE_PATH}")
     get_filename_component(_MPI_INCLUDE_PATH "${_MPI_INCLUDE_PATH}" REALPATH)
@@ -1259,9 +1264,16 @@ function(_MPI_try_staged_settings LANG MPI_TEST_FILE_NAME MODE RUN_BINARY SUPPRE
     file(READ "${SRC_DIR}/${MPI_TEST_FILE_NAME}.c" MPI_TEST_SOURCE_CONTENT)
     set(MPI_TEST_SOURCE_FILE "${MPI_TEST_FILE_NAME}.c")
   endif()
+  if(SUPPRESS_ERRORS)
+    set(maybe_no_log NO_LOG)
+  else()
+    set(maybe_no_log "")
+  endif()
   if(RUN_BINARY)
     try_run(MPI_RUN_RESULT_${LANG}_${MPI_TEST_FILE_NAME}_${MODE} MPI_RESULT_${LANG}_${MPI_TEST_FILE_NAME}_${MODE}
       SOURCE_FROM_VAR "${MPI_TEST_SOURCE_FILE}" MPI_TEST_SOURCE_CONTENT
+      ${maybe_no_log}
+      LOG_DESCRIPTION "The MPI test ${MPI_TEST_FILE_NAME} for ${LANG} in mode ${MODE}"
       COMPILE_DEFINITIONS ${MPI_TEST_COMPILE_DEFINITIONS}
       LINK_LIBRARIES MPI::MPI_${LANG}
       RUN_OUTPUT_VARIABLE MPI_RUN_OUTPUT_${LANG}_${MPI_TEST_FILE_NAME}_${MODE}
@@ -1270,19 +1282,12 @@ function(_MPI_try_staged_settings LANG MPI_TEST_FILE_NAME MODE RUN_BINARY SUPPRE
   else()
     try_compile(MPI_RESULT_${LANG}_${MPI_TEST_FILE_NAME}_${MODE}
       SOURCE_FROM_VAR "${MPI_TEST_SOURCE_FILE}" MPI_TEST_SOURCE_CONTENT
+      ${maybe_no_log}
+      LOG_DESCRIPTION "The MPI test ${MPI_TEST_FILE_NAME} for ${LANG} in mode ${MODE}"
       COMPILE_DEFINITIONS ${MPI_TEST_COMPILE_DEFINITIONS}
       LINK_LIBRARIES MPI::MPI_${LANG}
       COPY_FILE "${BIN_FILE}"
       OUTPUT_VARIABLE _MPI_TRY_${MPI_TEST_FILE_NAME}_${MODE}_OUTPUT)
-  endif()
-  if(NOT SUPPRESS_ERRORS)
-    if(NOT MPI_RESULT_${LANG}_${MPI_TEST_FILE_NAME}_${MODE})
-      file(APPEND ${CMAKE_BINARY_DIR}${CMAKE_FILES_DIRECTORY}/CMakeError.log
-          "The MPI test ${MPI_TEST_FILE_NAME} for ${LANG} in mode ${MODE} failed to compile with the following output:\n${_MPI_TRY_${MPI_TEST_FILE_NAME}_${MODE}_OUTPUT}\n\n")
-    elseif(DEFINED MPI_RUN_RESULT_${LANG}_${MPI_TEST_FILE_NAME}_${MODE} AND MPI_RUN_RESULT_${LANG}_${MPI_TEST_FILE_NAME}_${MODE})
-        file(APPEND ${CMAKE_BINARY_DIR}${CMAKE_FILES_DIRECTORY}/CMakeError.log
-          "The MPI test ${MPI_TEST_FILE_NAME} for ${LANG} in mode ${MODE} failed to run with the following output:\n${MPI_RUN_OUTPUT_${LANG}_${MPI_TEST_FILE_NAME}_${MODE}}\n\n")
-    endif()
   endif()
 endfunction()
 
@@ -1554,7 +1559,7 @@ foreach(LANG IN ITEMS C CXX Fortran)
           endif()
         endif()
 
-        # We are on a Cray, environment identfier: PE_ENV is set (CRAY), and
+        # We are on a Cray, environment identifier: PE_ENV is set (CRAY), and
         # have NOT found an mpic++-like compiler wrapper (previous block),
         # and we do NOT use the Cray cc/CC compiler wrappers as CC/CXX CMake
         # compiler.

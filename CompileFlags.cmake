@@ -8,7 +8,7 @@ if(WIN32 AND CMAKE_C_COMPILER_ID STREQUAL "Intel")
   set(_INTEL_WINDOWS 1)
 endif()
 
-if(WIN32 AND CMAKE_C_COMPILER_ID STREQUAL "Clang"
+if(WIN32 AND CMAKE_C_COMPILER_ID MATCHES "^(Clang|IntelLLVM)$"
    AND "x${CMAKE_CXX_SIMULATE_ID}" STREQUAL "xMSVC")
   set(_CLANG_MSVC_WINDOWS 1)
 endif()
@@ -22,21 +22,28 @@ if(MSVC OR _INTEL_WINDOWS OR _CLANG_MSVC_WINDOWS)
 else()
 endif()
 
-if(MSVC)
-  set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${CMAKE_CXX_LINKER_WRAPPER_FLAG}-stack:10000000")
-endif()
-
 # MSVC 14.28 enables C5105, but the Windows SDK 10.0.18362.0 triggers it.
 if(CMAKE_C_COMPILER_ID STREQUAL "MSVC" AND NOT CMAKE_C_COMPILER_VERSION VERSION_LESS 19.28)
   set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -wd5105")
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -wd5105")
 endif()
 
-if(_CLANG_MSVC_WINDOWS AND "x${CMAKE_CXX_COMPILER_FRONTEND_VARIANT}" STREQUAL "xGNU")
-  set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -Xlinker -stack:20000000")
+# Use a stack size large enough for CMake_DEFAULT_RECURSION_LIMIT.
+if(MSVC)
+  string(APPEND CMAKE_EXE_LINKER_FLAGS " ${CMAKE_CXX_LINKER_WRAPPER_FLAG}-stack:10000000")
+elseif(MINGW OR MSYS OR CYGWIN)
+  string(APPEND CMAKE_EXE_LINKER_FLAGS " -Wl,--stack,10000000")
+elseif(_CLANG_MSVC_WINDOWS AND "x${CMAKE_CXX_COMPILER_FRONTEND_VARIANT}" STREQUAL "xGNU")
+  string(APPEND CMAKE_EXE_LINKER_FLAGS " -Xlinker -stack:20000000")
 endif()
 
-#silence duplicate symbol warnings on AIX
+# Silence "Additional optimization may be attained by recompiling and
+# specifying MAXMEM option" warning on XLC (AIX)
+if(CMAKE_CXX_COMPILER_ID MATCHES "^(XL|XLClang)$")
+  string(APPEND CMAKE_CXX_FLAGS " -qmaxmem=-1")
+endif()
+
+# Silence duplicate symbol warnings on AIX
 if(CMAKE_SYSTEM_NAME MATCHES "AIX")
   if(NOT CMAKE_COMPILER_IS_GNUCXX)
     set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -bhalt:5 ")
@@ -87,11 +94,6 @@ if (CMAKE_CXX_COMPILER_ID STREQUAL SunPro AND
   if (NOT CMAKE_CXX_COMPILER_VERSION VERSION_LESS 5.13)
     if (NOT CMAKE_CXX_STANDARD OR CMAKE_CXX_STANDARD EQUAL 98)
       set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++03")
-    elseif(CMAKE_VERSION VERSION_LESS 3.8.20170502)
-      # CMake knows how to add this flag for compilation as C++11,
-      # but has not been taught that SunPro needs it for linking too.
-      # Add it in a place that will be used for both.
-      set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
     endif()
   else()
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -library=stlport4")

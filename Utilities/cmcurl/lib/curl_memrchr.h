@@ -7,7 +7,7 @@
  *                            | (__| |_| |  _ <| |___
  *                             \___|\___/|_| \_\_____|
  *
- * Copyright (C) 1998 - 2022, Daniel Stenberg, <daniel@haxx.se>, et al.
+ * Copyright (C) Daniel Stenberg, <daniel@haxx.se>, et al.
  *
  * This software is licensed as described in the file COPYING, which
  * you should have received as part of this distribution. The terms
@@ -28,19 +28,21 @@
 
 #ifdef HAVE_MEMRCHR
 
-#ifdef HAVE_STRING_H
-#  include <string.h>
-#endif
+#include <string.h>
 #ifdef HAVE_STRINGS_H
 #  include <strings.h>
 #endif
 
 #else /* HAVE_MEMRCHR */
+#if (!defined(CURL_DISABLE_HTTP) && !defined(CURL_DISABLE_COOKIES)) || \
+  defined(USE_OPENSSL) || \
+  defined(USE_SCHANNEL)
 
 void *Curl_memrchr(const void *s, int c, size_t n);
 
 #define memrchr(x,y,z) Curl_memrchr((x),(y),(z))
 
+#endif
 #endif /* HAVE_MEMRCHR */
 
 #endif /* HEADER_CURL_MEMRCHR_H */

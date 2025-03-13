@@ -14,10 +14,14 @@
 
 #include "cmsys/Directory.hxx"
 #include "cmsys/FStream.hxx"
+#include "cmsys/RegularExpression.hxx"
 
 #include "cmArgumentParser.h"
+#include "cmConfigureLog.h"
+#include "cmExperimental.h"
 #include "cmExportTryCompileFileGenerator.h"
 #include "cmGlobalGenerator.h"
+#include "cmList.h"
 #include "cmMakefile.h"
 #include "cmMessageType.h"
 #include "cmOutputConverter.h"
@@ -37,12 +41,14 @@ constexpr size_t lang_property_start = 0;
 constexpr size_t lang_property_size = 4;
 constexpr size_t pie_property_start = 4;
 constexpr size_t pie_property_size = 2;
+/* clang-format off */
 #define SETUP_LANGUAGE(name, lang)                                            \
   static const std::string name[lang_property_size + pie_property_size + 1] = \
     { "CMAKE_" #lang "_COMPILER_EXTERNAL_TOOLCHAIN",                          \
       "CMAKE_" #lang "_COMPILER_TARGET",                                      \
       "CMAKE_" #lang "_LINK_NO_PIE_SUPPORTED",                                \
       "CMAKE_" #lang "_PIE_SUPPORTED", "" }
+/* clang-format on */
 
 // NOLINTNEXTLINE(bugprone-suspicious-missing-comma)
 SETUP_LANGUAGE(c_properties, C);
@@ -67,11 +73,18 @@ SETUP_LANGUAGE(swift_properties, Swift);
 
 std::string const kCMAKE_CUDA_ARCHITECTURES = "CMAKE_CUDA_ARCHITECTURES";
 std::string const kCMAKE_CUDA_RUNTIME_LIBRARY = "CMAKE_CUDA_RUNTIME_LIBRARY";
+std::string const kCMAKE_CXX_SCAN_FOR_MODULES = "CMAKE_CXX_SCAN_FOR_MODULES";
 std::string const kCMAKE_ENABLE_EXPORTS = "CMAKE_ENABLE_EXPORTS";
+std::string const kCMAKE_EXECUTABLE_ENABLE_EXPORTS =
+  "CMAKE_EXECUTABLE_ENABLE_EXPORTS";
+std::string const kCMAKE_SHARED_LIBRARY_ENABLE_EXPORTS =
+  "CMAKE_SHARED_LIBRARY_ENABLE_EXPORTS";
 std::string const kCMAKE_HIP_ARCHITECTURES = "CMAKE_HIP_ARCHITECTURES";
+std::string const kCMAKE_HIP_PLATFORM = "CMAKE_HIP_PLATFORM";
 std::string const kCMAKE_HIP_RUNTIME_LIBRARY = "CMAKE_HIP_RUNTIME_LIBRARY";
 std::string const kCMAKE_ISPC_INSTRUCTION_SETS = "CMAKE_ISPC_INSTRUCTION_SETS";
 std::string const kCMAKE_ISPC_HEADER_SUFFIX = "CMAKE_ISPC_HEADER_SUFFIX";
+std::string const kCMAKE_LINKER_TYPE = "CMAKE_LINKER_TYPE";
 std::string const kCMAKE_LINK_SEARCH_END_STATIC =
   "CMAKE_LINK_SEARCH_END_STATIC";
 std::string const kCMAKE_LINK_SEARCH_START_STATIC =
@@ -117,7 +130,7 @@ ArgumentParser::Continue TryCompileLangProp(Arguments& args,
 ArgumentParser::Continue TryCompileCompileDefs(Arguments& args,
                                                cm::string_view val)
 {
-  cmExpandList(val, args.CompileDefs);
+  args.CompileDefs.append(val);
   return ArgumentParser::Continue::Yes;
 }
 
@@ -149,18 +162,23 @@ cmArgumentParser<Arguments> makeTryRunParser(
 auto const TryCompileBaseArgParser =
   cmArgumentParser<Arguments>{}
     .Bind(0, &Arguments::CompileResultVariable)
+    .Bind("LOG_DESCRIPTION"_s, &Arguments::LogDescription)
     .Bind("NO_CACHE"_s, &Arguments::NoCache)
+    .Bind("NO_LOG"_s, &Arguments::NoLog)
     .Bind("CMAKE_FLAGS"_s, &Arguments::CMakeFlags)
     .Bind("__CMAKE_INTERNAL"_s, &Arguments::CMakeInternal)
   /* keep semicolon on own line */;
 
 auto const TryCompileBaseSourcesArgParser =
   cmArgumentParser<Arguments>{ TryCompileBaseArgParser }
-    .Bind("SOURCES"_s, &Arguments::Sources)
+    .Bind("SOURCES_TYPE"_s, &Arguments::SetSourceType)
+    .BindWithContext("SOURCES"_s, &Arguments::Sources,
+                     &Arguments::SourceTypeContext)
     .Bind("COMPILE_DEFINITIONS"_s, TryCompileCompileDefs,
           ArgumentParser::ExpectAtLeast{ 0 })
     .Bind("LINK_LIBRARIES"_s, &Arguments::LinkLibraries)
     .Bind("LINK_OPTIONS"_s, &Arguments::LinkOptions)
+    .Bind("LINKER_LANGUAGE"_s, &Arguments::LinkerLanguage)
     .Bind("COPY_FILE"_s, &Arguments::CopyFileTo)
     .Bind("COPY_FILE_ERROR"_s, &Arguments::CopyFileError)
     .BIND_LANG_PROPS(C)
@@ -173,9 +191,12 @@ auto const TryCompileBaseSourcesArgParser =
 
 auto const TryCompileBaseNewSourcesArgParser =
   cmArgumentParser<Arguments>{ TryCompileBaseSourcesArgParser }
-    .Bind("SOURCE_FROM_CONTENT"_s, &Arguments::SourceFromContent)
-    .Bind("SOURCE_FROM_VAR"_s, &Arguments::SourceFromVar)
-    .Bind("SOURCE_FROM_FILE"_s, &Arguments::SourceFromFile)
+    .BindWithContext("SOURCE_FROM_CONTENT"_s, &Arguments::SourceFromContent,
+                     &Arguments::SourceTypeContext)
+    .BindWithContext("SOURCE_FROM_VAR"_s, &Arguments::SourceFromVar,
+                     &Arguments::SourceTypeContext)
+    .BindWithContext("SOURCE_FROM_FILE"_s, &Arguments::SourceFromFile,
+                     &Arguments::SourceTypeContext)
   /* keep semicolon on own line */;
 
 auto const TryCompileBaseProjectArgParser =
@@ -210,17 +231,40 @@ auto const TryRunOldArgParser = makeTryRunParser(TryCompileOldArgParser);
 std::string const TryCompileDefaultConfig = "DEBUG";
 }
 
+ArgumentParser::Continue cmCoreTryCompile::Arguments::SetSourceType(
+  cm::string_view sourceType)
+{
+  bool matched = false;
+  if (sourceType == "NORMAL"_s) {
+    this->SourceTypeContext = SourceType::Normal;
+    matched = true;
+  } else if (sourceType == "CXX_MODULE"_s) {
+    this->SourceTypeContext = SourceType::CxxModule;
+    matched = true;
+  }
+
+  if (!matched && this->SourceTypeError.empty()) {
+    // Only remember one error at a time; all other errors related to argument
+    // parsing are "indicate one error and return" anyways.
+    this->SourceTypeError =
+      cmStrCat("Invalid 'SOURCE_TYPE' '", sourceType,
+               "'; must be one of 'SOURCE' or 'CXX_MODULE'");
+  }
+  return ArgumentParser::Continue::Yes;
+}
+
 Arguments cmCoreTryCompile::ParseArgs(
   const cmRange<std::vector<std::string>::const_iterator>& args,
   const cmArgumentParser<Arguments>& parser,
   std::vector<std::string>& unparsedArguments)
 {
-  auto arguments = parser.Parse(args, &unparsedArguments, 0);
+  Arguments arguments{ this->Makefile };
+  parser.Parse(arguments, args, &unparsedArguments, 0);
   if (!arguments.MaybeReportError(*(this->Makefile)) &&
       !unparsedArguments.empty()) {
     std::string m = "Unknown arguments:";
     for (const auto& i : unparsedArguments) {
-      m = cmStrCat(m, "\n  \"", i, "\"");
+      m = cmStrCat(m, "\n  \"", i, '"');
     }
     this->Makefile->IssueMessage(MessageType::AUTHOR_WARNING, m);
   }
@@ -285,8 +329,8 @@ Arguments cmCoreTryCompile::ParseArgs(
   return arguments;
 }
 
-bool cmCoreTryCompile::TryCompileCode(Arguments& arguments,
-                                      cmStateEnums::TargetType targetType)
+cm::optional<cmTryCompileResult> cmCoreTryCompile::TryCompileCode(
+  Arguments& arguments, cmStateEnums::TargetType targetType)
 {
   this->OutputFile.clear();
   // which signature were we called with ?
@@ -302,7 +346,7 @@ bool cmCoreTryCompile::TryCompileCode(Arguments& arguments,
         arguments.SourceDirectoryOrFile->empty()) {
       this->Makefile->IssueMessage(MessageType::FATAL_ERROR,
                                    "No <srcdir> specified.");
-      return false;
+      return cm::nullopt;
     }
     sourceDirectory = *arguments.SourceDirectoryOrFile;
     projectName = *arguments.ProjectName;
@@ -322,7 +366,7 @@ bool cmCoreTryCompile::TryCompileCode(Arguments& arguments,
   if (!arguments.BinaryDirectory || arguments.BinaryDirectory->empty()) {
     this->Makefile->IssueMessage(MessageType::FATAL_ERROR,
                                  "No <bindir> specified.");
-    return false;
+    return cm::nullopt;
   }
   if (*arguments.BinaryDirectory == unique_binary_directory) {
     // leave empty until we're ready to create it, so we don't try to remove
@@ -334,8 +378,8 @@ bool cmCoreTryCompile::TryCompileCode(Arguments& arguments,
       this->Makefile->IssueMessage(
         MessageType::FATAL_ERROR,
         cmStrCat("<bindir> is not an absolute path:\n '",
-                 *arguments.BinaryDirectory, "'"));
-      return false;
+                 *arguments.BinaryDirectory, '\''));
+      return cm::nullopt;
     }
     this->BinaryDirectory = *arguments.BinaryDirectory;
     // compute the binary dir when TRY_COMPILE is called with a src file
@@ -366,8 +410,8 @@ bool cmCoreTryCompile::TryCompileCode(Arguments& arguments,
               cmStrCat("Only libraries may be used as try_compile or try_run "
                        "IMPORTED LINK_LIBRARIES.  Got ",
                        tgt->GetName(), " of type ",
-                       cmState::GetTargetTypeName(tgt->GetType()), "."));
-            return false;
+                       cmState::GetTargetTypeName(tgt->GetType()), '.'));
+            return cm::nullopt;
         }
         if (tgt->IsImported()) {
           targets.emplace_back(i);
@@ -379,28 +423,28 @@ bool cmCoreTryCompile::TryCompileCode(Arguments& arguments,
   if (arguments.CopyFileTo && arguments.CopyFileTo->empty()) {
     this->Makefile->IssueMessage(MessageType::FATAL_ERROR,
                                  "COPY_FILE must be followed by a file path");
-    return false;
+    return cm::nullopt;
   }
 
   if (arguments.CopyFileError && arguments.CopyFileError->empty()) {
     this->Makefile->IssueMessage(
       MessageType::FATAL_ERROR,
       "COPY_FILE_ERROR must be followed by a variable name");
-    return false;
+    return cm::nullopt;
   }
 
   if (arguments.CopyFileError && !arguments.CopyFileTo) {
     this->Makefile->IssueMessage(
       MessageType::FATAL_ERROR,
       "COPY_FILE_ERROR may be used only with COPY_FILE");
-    return false;
+    return cm::nullopt;
   }
 
   if (arguments.Sources && arguments.Sources->empty()) {
     this->Makefile->IssueMessage(
       MessageType::FATAL_ERROR,
       "SOURCES must be followed by at least one source file");
-    return false;
+    return cm::nullopt;
   }
 
   if (this->SrcFileSignature) {
@@ -409,19 +453,24 @@ bool cmCoreTryCompile::TryCompileCode(Arguments& arguments,
       this->Makefile->IssueMessage(
         MessageType::FATAL_ERROR,
         "SOURCE_FROM_CONTENT requires exactly two arguments");
-      return false;
+      return cm::nullopt;
     }
     if (arguments.SourceFromVar && arguments.SourceFromVar->size() % 2) {
       this->Makefile->IssueMessage(
         MessageType::FATAL_ERROR,
         "SOURCE_FROM_VAR requires exactly two arguments");
-      return false;
+      return cm::nullopt;
     }
     if (arguments.SourceFromFile && arguments.SourceFromFile->size() % 2) {
       this->Makefile->IssueMessage(
         MessageType::FATAL_ERROR,
         "SOURCE_FROM_FILE requires exactly two arguments");
-      return false;
+      return cm::nullopt;
+    }
+    if (!arguments.SourceTypeError.empty()) {
+      this->Makefile->IssueMessage(MessageType::FATAL_ERROR,
+                                   arguments.SourceTypeError);
+      return cm::nullopt;
     }
   } else {
     // only valid for srcfile signatures
@@ -430,19 +479,19 @@ bool cmCoreTryCompile::TryCompileCode(Arguments& arguments,
         MessageType::FATAL_ERROR,
         cmStrCat(arguments.LangProps.begin()->first,
                  " allowed only in source file signature"));
-      return false;
+      return cm::nullopt;
     }
     if (!arguments.CompileDefs.empty()) {
       this->Makefile->IssueMessage(
         MessageType::FATAL_ERROR,
         "COMPILE_DEFINITIONS allowed only in source file signature");
-      return false;
+      return cm::nullopt;
     }
     if (arguments.CopyFileTo) {
       this->Makefile->IssueMessage(
         MessageType::FATAL_ERROR,
         "COPY_FILE allowed only in source file signature");
-      return false;
+      return cm::nullopt;
     }
   }
 
@@ -462,71 +511,77 @@ bool cmCoreTryCompile::TryCompileCode(Arguments& arguments,
     e << "Attempt at a recursive or nested TRY_COMPILE in directory\n"
       << "  " << this->BinaryDirectory << "\n";
     this->Makefile->IssueMessage(MessageType::FATAL_ERROR, e.str());
-    return false;
+    return cm::nullopt;
   }
 
-  std::string outFileName = this->BinaryDirectory + "/CMakeLists.txt";
+  std::map<std::string, std::string> cmakeVariables;
+
+  std::string outFileName = cmStrCat(this->BinaryDirectory, "/CMakeLists.txt");
   // which signature are we using? If we are using var srcfile bindir
   if (this->SrcFileSignature) {
     // remove any CMakeCache.txt files so we will have a clean test
-    std::string ccFile = this->BinaryDirectory + "/CMakeCache.txt";
+    std::string ccFile = cmStrCat(this->BinaryDirectory, "/CMakeCache.txt");
     cmSystemTools::RemoveFile(ccFile);
 
     // Choose sources.
-    std::vector<std::string> sources;
+    std::vector<std::pair<std::string, Arguments::SourceType>> sources;
     if (arguments.Sources) {
       sources = std::move(*arguments.Sources);
     } else if (arguments.SourceDirectoryOrFile) {
-      sources.emplace_back(*arguments.SourceDirectoryOrFile);
+      sources.emplace_back(*arguments.SourceDirectoryOrFile,
+                           Arguments::SourceType::Directory);
     }
     if (arguments.SourceFromContent) {
       auto const k = arguments.SourceFromContent->size();
       for (auto i = decltype(k){ 0 }; i < k; i += 2) {
-        const auto& name = (*arguments.SourceFromContent)[i + 0];
-        const auto& content = (*arguments.SourceFromContent)[i + 1];
+        const auto& name = (*arguments.SourceFromContent)[i + 0].first;
+        const auto& content = (*arguments.SourceFromContent)[i + 1].first;
         auto out = this->WriteSource(name, content, "SOURCE_FROM_CONTENT");
         if (out.empty()) {
-          return false;
+          return cm::nullopt;
         }
-        sources.emplace_back(std::move(out));
+        sources.emplace_back(std::move(out),
+                             (*arguments.SourceFromContent)[i + 0].second);
       }
     }
     if (arguments.SourceFromVar) {
       auto const k = arguments.SourceFromVar->size();
       for (auto i = decltype(k){ 0 }; i < k; i += 2) {
-        const auto& name = (*arguments.SourceFromVar)[i + 0];
-        const auto& var = (*arguments.SourceFromVar)[i + 1];
+        const auto& name = (*arguments.SourceFromVar)[i + 0].first;
+        const auto& var = (*arguments.SourceFromVar)[i + 1].first;
         const auto& content = this->Makefile->GetDefinition(var);
         auto out = this->WriteSource(name, content, "SOURCE_FROM_VAR");
         if (out.empty()) {
-          return false;
+          return cm::nullopt;
         }
-        sources.emplace_back(std::move(out));
+        sources.emplace_back(std::move(out),
+                             (*arguments.SourceFromVar)[i + 0].second);
       }
     }
     if (arguments.SourceFromFile) {
       auto const k = arguments.SourceFromFile->size();
       for (auto i = decltype(k){ 0 }; i < k; i += 2) {
-        const auto& dst = (*arguments.SourceFromFile)[i + 0];
-        const auto& src = (*arguments.SourceFromFile)[i + 1];
+        const auto& dst = (*arguments.SourceFromFile)[i + 0].first;
+        const auto& src = (*arguments.SourceFromFile)[i + 1].first;
 
         if (!cmSystemTools::GetFilenamePath(dst).empty()) {
           const auto& msg =
-            cmStrCat("SOURCE_FROM_FILE given invalid filename \"", dst, "\"");
+            cmStrCat("SOURCE_FROM_FILE given invalid filename \"", dst, '"');
           this->Makefile->IssueMessage(MessageType::FATAL_ERROR, msg);
-          return false;
+          return cm::nullopt;
         }
 
-        auto dstPath = cmStrCat(this->BinaryDirectory, "/", dst);
+        auto dstPath = cmStrCat(this->BinaryDirectory, '/', dst);
         auto const result = cmSystemTools::CopyFileAlways(src, dstPath);
         if (!result.IsSuccess()) {
           const auto& msg = cmStrCat("SOURCE_FROM_FILE failed to copy \"", src,
                                      "\": ", result.GetString());
           this->Makefile->IssueMessage(MessageType::FATAL_ERROR, msg);
-          return false;
+          return cm::nullopt;
         }
 
-        sources.emplace_back(std::move(dstPath));
+        sources.emplace_back(std::move(dstPath),
+                             (*arguments.SourceFromFile)[i + 0].second);
       }
     }
     // TODO: ensure sources is not empty
@@ -534,23 +589,27 @@ bool cmCoreTryCompile::TryCompileCode(Arguments& arguments,
     // Detect languages to enable.
     cmGlobalGenerator* gg = this->Makefile->GetGlobalGenerator();
     std::set<std::string> testLangs;
-    for (std::string const& si : sources) {
+    for (auto const& source : sources) {
+      auto const& si = source.first;
       std::string ext = cmSystemTools::GetFilenameLastExtension(si);
       std::string lang = gg->GetLanguageFromExtension(ext.c_str());
       if (!lang.empty()) {
         testLangs.insert(lang);
       } else {
         std::ostringstream err;
-        err << "Unknown extension \"" << ext << "\" for file\n"
-            << "  " << si << "\n"
-            << "try_compile() works only for enabled languages.  "
-            << "Currently these are:\n  ";
+        err << "Unknown extension \"" << ext
+            << "\" for file\n"
+               "  "
+            << si
+            << "\n"
+               "try_compile() works only for enabled languages.  "
+               "Currently these are:\n  ";
         std::vector<std::string> langs;
         gg->GetEnabledLanguages(langs);
         err << cmJoin(langs, " ");
         err << "\nSee project() command to enable other languages.";
         this->Makefile->IssueMessage(MessageType::FATAL_ERROR, err.str());
-        return false;
+        return cm::nullopt;
       }
     }
 
@@ -570,14 +629,12 @@ bool cmCoreTryCompile::TryCompileCode(Arguments& arguments,
     // now create a CMakeLists.txt file in that directory
     FILE* fout = cmsys::SystemTools::Fopen(outFileName, "w");
     if (!fout) {
-      std::ostringstream e;
-      /* clang-format off */
-      e << "Failed to open\n"
-        << "  " << outFileName << "\n"
-        << cmSystemTools::GetLastSystemError();
-      /* clang-format on */
-      this->Makefile->IssueMessage(MessageType::FATAL_ERROR, e.str());
-      return false;
+      this->Makefile->IssueMessage(
+        MessageType::FATAL_ERROR,
+        cmStrCat("Failed to open\n"
+                 "  ",
+                 outFileName, '\n', cmSystemTools::GetLastSystemError()));
+      return cm::nullopt;
     }
 
     cmValue def = this->Makefile->GetDefinition("CMAKE_MODULE_PATH");
@@ -586,6 +643,7 @@ bool cmCoreTryCompile::TryCompileCode(Arguments& arguments,
             cmVersion::GetPatchVersion(), cmVersion::GetTweakVersion());
     if (def) {
       fprintf(fout, "set(CMAKE_MODULE_PATH \"%s\")\n", def->c_str());
+      cmakeVariables.emplace("CMAKE_MODULE_PATH", *def);
     }
 
     /* Set MSVC runtime library policy to match our selection.  */
@@ -640,17 +698,19 @@ bool cmCoreTryCompile::TryCompileCode(Arguments& arguments,
 
     std::string projectLangs;
     for (std::string const& li : testLangs) {
-      projectLangs += " " + li;
+      projectLangs += cmStrCat(' ', li);
       std::string rulesOverrideBase = "CMAKE_USER_MAKE_RULES_OVERRIDE";
-      std::string rulesOverrideLang = cmStrCat(rulesOverrideBase, "_", li);
+      std::string rulesOverrideLang = cmStrCat(rulesOverrideBase, '_', li);
       if (cmValue rulesOverridePath =
             this->Makefile->GetDefinition(rulesOverrideLang)) {
         fprintf(fout, "set(%s \"%s\")\n", rulesOverrideLang.c_str(),
                 rulesOverridePath->c_str());
+        cmakeVariables.emplace(rulesOverrideLang, *rulesOverridePath);
       } else if (cmValue rulesOverridePath2 =
                    this->Makefile->GetDefinition(rulesOverrideBase)) {
         fprintf(fout, "set(%s \"%s\")\n", rulesOverrideBase.c_str(),
                 rulesOverridePath2->c_str());
+        cmakeVariables.emplace(rulesOverrideBase, *rulesOverridePath2);
       }
     }
     fprintf(fout, "project(CMAKE_TRY_COMPILE%s)\n", projectLangs.c_str());
@@ -665,15 +725,21 @@ bool cmCoreTryCompile::TryCompileCode(Arguments& arguments,
       // The link and compile lines for ABI detection step need to not use
       // response files so we can extract implicit includes given to
       // the underlying host compiler
-      if (testLangs.find("CUDA") != testLangs.end()) {
-        fprintf(fout, "set(CMAKE_CUDA_USE_RESPONSE_FILE_FOR_INCLUDES OFF)\n");
-        fprintf(fout, "set(CMAKE_CUDA_USE_RESPONSE_FILE_FOR_LIBRARIES OFF)\n");
-        fprintf(fout, "set(CMAKE_CUDA_USE_RESPONSE_FILE_FOR_OBJECTS OFF)\n");
+      static std::array<std::string, 2> const noRSP{ { "CUDA", "HIP" } };
+      for (std::string const& lang : noRSP) {
+        if (testLangs.find(lang) != testLangs.end()) {
+          fprintf(fout, "set(CMAKE_%s_USE_RESPONSE_FILE_FOR_INCLUDES OFF)\n",
+                  lang.c_str());
+          fprintf(fout, "set(CMAKE_%s_USE_RESPONSE_FILE_FOR_LIBRARIES OFF)\n",
+                  lang.c_str());
+          fprintf(fout, "set(CMAKE_%s_USE_RESPONSE_FILE_FOR_OBJECTS OFF)\n",
+                  lang.c_str());
+        }
       }
     }
     fprintf(fout, "set(CMAKE_VERBOSE_MAKEFILE 1)\n");
     for (std::string const& li : testLangs) {
-      std::string langFlags = "CMAKE_" + li + "_FLAGS";
+      std::string langFlags = cmStrCat("CMAKE_", li, "_FLAGS");
       cmValue flags = this->Makefile->GetDefinition(langFlags);
       fprintf(fout, "set(CMAKE_%s_FLAGS %s)\n", li.c_str(),
               cmOutputConverter::EscapeForCMake(*flags).c_str());
@@ -681,6 +747,9 @@ bool cmCoreTryCompile::TryCompileCode(Arguments& arguments,
               "set(CMAKE_%s_FLAGS \"${CMAKE_%s_FLAGS}"
               " ${COMPILE_DEFINITIONS}\")\n",
               li.c_str(), li.c_str());
+      if (flags) {
+        cmakeVariables.emplace(langFlags, *flags);
+      }
     }
     switch (this->Makefile->GetPolicyStatus(cmPolicies::CMP0066)) {
       case cmPolicies::WARN:
@@ -717,6 +786,9 @@ bool cmCoreTryCompile::TryCompileCode(Arguments& arguments,
           cmValue flagsCfg = this->Makefile->GetDefinition(langFlagsCfg);
           fprintf(fout, "set(%s %s)\n", langFlagsCfg.c_str(),
                   cmOutputConverter::EscapeForCMake(*flagsCfg).c_str());
+          if (flagsCfg) {
+            cmakeVariables.emplace(langFlagsCfg, *flagsCfg);
+          }
         }
       } break;
     }
@@ -751,6 +823,9 @@ bool cmCoreTryCompile::TryCompileCode(Arguments& arguments,
             this->Makefile->GetDefinition("CMAKE_EXE_LINKER_FLAGS");
           fprintf(fout, "set(CMAKE_EXE_LINKER_FLAGS %s)\n",
                   cmOutputConverter::EscapeForCMake(*exeLinkFlags).c_str());
+          if (exeLinkFlags) {
+            cmakeVariables.emplace("CMAKE_EXE_LINKER_FLAGS", *exeLinkFlags);
+          }
         }
         break;
     }
@@ -764,24 +839,46 @@ bool cmCoreTryCompile::TryCompileCode(Arguments& arguments,
     if (!arguments.CompileDefs.empty()) {
       // Pass using bracket arguments to preserve content.
       fprintf(fout, "add_definitions([==[%s]==])\n",
-              cmJoin(arguments.CompileDefs, "]==] [==[").c_str());
+              arguments.CompileDefs.join("]==] [==[").c_str());
     }
 
     if (!targets.empty()) {
-      std::string fname = "/" + std::string(targetName) + "Targets.cmake";
+      std::string fname = cmStrCat('/', targetName, "Targets.cmake");
       cmExportTryCompileFileGenerator tcfg(gg, targets, this->Makefile,
                                            testLangs);
-      tcfg.SetExportFile((this->BinaryDirectory + fname).c_str());
+      tcfg.SetExportFile(cmStrCat(this->BinaryDirectory, fname).c_str());
       tcfg.SetConfig(tcConfig);
 
       if (!tcfg.GenerateImportFile()) {
         this->Makefile->IssueMessage(MessageType::FATAL_ERROR,
                                      "could not write export file.");
         fclose(fout);
-        return false;
+        return cm::nullopt;
       }
-      fprintf(fout, "\ninclude(\"${CMAKE_CURRENT_LIST_DIR}/%s\")\n\n",
+      fprintf(fout, "\ninclude(\"${CMAKE_CURRENT_LIST_DIR}/%s\")\n",
               fname.c_str());
+      // Create all relevant alias targets
+      if (arguments.LinkLibraries) {
+        const auto& aliasTargets = this->Makefile->GetAliasTargets();
+        for (std::string const& i : *arguments.LinkLibraries) {
+          auto alias = aliasTargets.find(i);
+          if (alias != aliasTargets.end()) {
+            const auto& aliasTarget =
+              this->Makefile->FindTargetToUse(alias->second);
+            // Create equivalent library/executable alias
+            if (aliasTarget->GetType() == cmStateEnums::EXECUTABLE) {
+              fprintf(fout, "add_executable(\"%s\" ALIAS \"%s\")\n", i.c_str(),
+                      alias->second.c_str());
+            } else {
+              // Other cases like UTILITY and GLOBAL_TARGET are excluded when
+              // arguments.LinkLibraries is initially parsed in this function.
+              fprintf(fout, "add_library(\"%s\" ALIAS \"%s\")\n", i.c_str(),
+                      alias->second.c_str());
+            }
+          }
+        }
+      }
+      fprintf(fout, "\n");
     }
 
     /* Set the appropriate policy information for ENABLE_EXPORTS */
@@ -798,6 +895,21 @@ bool cmCoreTryCompile::TryCompileCode(Arguments& arguments,
               ? "NEW"
               : "OLD");
 
+    /* Set the appropriate policy information for C++ module support */
+    fprintf(fout, "cmake_policy(SET CMP0155 %s)\n",
+            this->Makefile->GetPolicyStatus(cmPolicies::CMP0155) ==
+                cmPolicies::NEW
+              ? "NEW"
+              : "OLD");
+
+    /* Set the appropriate policy information for Swift compilation mode */
+    fprintf(
+      fout, "cmake_policy(SET CMP0157 %s)\n",
+      this->Makefile->GetDefinition("CMAKE_Swift_COMPILATION_MODE_DEFAULT")
+          .IsEmpty()
+        ? "OLD"
+        : "NEW");
+
     // Workaround for -Wl,-headerpad_max_install_names issue until we can avoid
     // adding that flag in the platform and compiler language files
     fprintf(fout,
@@ -809,17 +921,43 @@ bool cmCoreTryCompile::TryCompileCode(Arguments& arguments,
       fprintf(fout, "set(CMAKE_RUNTIME_OUTPUT_DIRECTORY \"%s\")\n",
               this->BinaryDirectory.c_str());
       /* Create the actual executable.  */
-      fprintf(fout, "add_executable(%s", targetName.c_str());
+      fprintf(fout, "add_executable(%s)\n", targetName.c_str());
     } else // if (targetType == cmStateEnums::STATIC_LIBRARY)
     {
       /* Put the static library at a known location (for COPY_FILE).  */
       fprintf(fout, "set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY \"%s\")\n",
               this->BinaryDirectory.c_str());
       /* Create the actual static library.  */
-      fprintf(fout, "add_library(%s STATIC", targetName.c_str());
+      fprintf(fout, "add_library(%s STATIC)\n", targetName.c_str());
     }
-    for (std::string const& si : sources) {
-      fprintf(fout, " \"%s\"", si.c_str());
+    fprintf(fout, "target_sources(%s PRIVATE\n", targetName.c_str());
+    std::string file_set_name;
+    bool in_file_set = false;
+    for (auto const& source : sources) {
+      auto const& si = source.first;
+      switch (source.second) {
+        case Arguments::SourceType::Normal: {
+          if (in_file_set) {
+            fprintf(fout, "  PRIVATE\n");
+            in_file_set = false;
+          }
+        } break;
+        case Arguments::SourceType::CxxModule: {
+          if (!in_file_set) {
+            file_set_name += 'a';
+            fprintf(fout,
+                    "  PRIVATE FILE_SET %s TYPE CXX_MODULES BASE_DIRS \"%s\" "
+                    "FILES\n",
+                    file_set_name.c_str(),
+                    this->Makefile->GetCurrentSourceDirectory().c_str());
+            in_file_set = true;
+          }
+        } break;
+        case Arguments::SourceType::Directory:
+          /* Handled elsewhere. */
+          break;
+      }
+      fprintf(fout, "  \"%s\"\n", si.c_str());
 
       // Add dependencies on any non-temporary sources.
       if (!IsTemporary(si)) {
@@ -936,10 +1074,23 @@ bool cmCoreTryCompile::TryCompileCode(Arguments& arguments,
       }
     }
 
+    if (arguments.LinkerLanguage) {
+      std::string LinkerLanguage = *arguments.LinkerLanguage;
+      if (testLangs.find(LinkerLanguage) == testLangs.end()) {
+        this->Makefile->IssueMessage(
+          MessageType::FATAL_ERROR,
+          "Linker language '" + LinkerLanguage +
+            "' must be enabled in project(LANGUAGES).");
+      }
+
+      fprintf(fout, "set_property(TARGET %s PROPERTY LINKER_LANGUAGE %s)\n",
+              targetName.c_str(), LinkerLanguage.c_str());
+    }
+
     if (arguments.LinkLibraries) {
       std::string libsToLink = " ";
       for (std::string const& i : *arguments.LinkLibraries) {
-        libsToLink += "\"" + cmTrimWhitespace(i) + "\" ";
+        libsToLink += cmStrCat('"', cmTrimWhitespace(i), "\" ");
       }
       fprintf(fout, "target_link_libraries(%s %s)\n", targetName.c_str(),
               libsToLink.c_str());
@@ -976,8 +1127,12 @@ bool cmCoreTryCompile::TryCompileCode(Arguments& arguments,
                 &swift_properties[lang_property_start + lang_property_size]);
     vars.insert(kCMAKE_CUDA_ARCHITECTURES);
     vars.insert(kCMAKE_CUDA_RUNTIME_LIBRARY);
+    vars.insert(kCMAKE_CXX_SCAN_FOR_MODULES);
     vars.insert(kCMAKE_ENABLE_EXPORTS);
+    vars.insert(kCMAKE_EXECUTABLE_ENABLE_EXPORTS);
+    vars.insert(kCMAKE_SHARED_LIBRARY_ENABLE_EXPORTS);
     vars.insert(kCMAKE_HIP_ARCHITECTURES);
+    vars.insert(kCMAKE_HIP_PLATFORM);
     vars.insert(kCMAKE_HIP_RUNTIME_LIBRARY);
     vars.insert(kCMAKE_ISPC_INSTRUCTION_SETS);
     vars.insert(kCMAKE_ISPC_HEADER_SUFFIX);
@@ -995,11 +1150,27 @@ bool cmCoreTryCompile::TryCompileCode(Arguments& arguments,
     vars.emplace("CMAKE_MSVC_RUNTIME_LIBRARY"_s);
     vars.emplace("CMAKE_WATCOM_RUNTIME_LIBRARY"_s);
     vars.emplace("CMAKE_MSVC_DEBUG_INFORMATION_FORMAT"_s);
+    vars.emplace("CMAKE_CXX_COMPILER_CLANG_SCAN_DEPS"_s);
+    vars.emplace("CMAKE_VS_USE_DEBUG_LIBRARIES"_s);
 
     if (cmValue varListStr = this->Makefile->GetDefinition(
           kCMAKE_TRY_COMPILE_PLATFORM_VARIABLES)) {
-      std::vector<std::string> varList = cmExpandedList(*varListStr);
+      cmList varList{ *varListStr };
       vars.insert(varList.begin(), varList.end());
+    }
+
+    if (this->Makefile->GetDefinition(kCMAKE_LINKER_TYPE)) {
+      // propagate various variables to support linker selection
+      vars.insert(kCMAKE_LINKER_TYPE);
+      auto defs = this->Makefile->GetDefinitions();
+      cmsys::RegularExpression linkerTypeDef{
+        "^CMAKE_[A-Za-z_-]+_USING_LINKER_"
+      };
+      for (auto const& def : defs) {
+        if (linkerTypeDef.find(def)) {
+          vars.insert(def);
+        }
+      }
     }
 
     if (this->Makefile->GetPolicyStatus(cmPolicies::CMP0083) ==
@@ -1036,15 +1207,47 @@ bool cmCoreTryCompile::TryCompileCode(Arguments& arguments,
     if (cmValue tcArchs = this->Makefile->GetDefinition(
           kCMAKE_TRY_COMPILE_OSX_ARCHITECTURES)) {
       vars.erase(kCMAKE_OSX_ARCHITECTURES);
-      std::string flag = "-DCMAKE_OSX_ARCHITECTURES=" + *tcArchs;
+      std::string flag = cmStrCat("-DCMAKE_OSX_ARCHITECTURES=", *tcArchs);
       arguments.CMakeFlags.emplace_back(std::move(flag));
+      cmakeVariables.emplace("CMAKE_OSX_ARCHITECTURES", *tcArchs);
+    }
+
+    // Pass down CMAKE_EXPERIMENTAL_* feature flags
+    for (std::size_t i = 0;
+         i < static_cast<std::size_t>(cmExperimental::Feature::Sentinel);
+         i++) {
+      auto const& data = cmExperimental::DataForFeature(
+        static_cast<cmExperimental::Feature>(i));
+      if (data.ForwardThroughTryCompile ==
+            cmExperimental::TryCompileCondition::Always ||
+          (data.ForwardThroughTryCompile ==
+             cmExperimental::TryCompileCondition::SkipCompilerChecks &&
+           arguments.CMakeInternal != "ABI"_s &&
+           arguments.CMakeInternal != "FEATURE_TESTING"_s)) {
+        vars.insert(data.Variable);
+        for (auto const& var : data.TryCompileVariables) {
+          vars.insert(var);
+        }
+      }
     }
 
     for (std::string const& var : vars) {
       if (cmValue val = this->Makefile->GetDefinition(var)) {
-        std::string flag = "-D" + var + "=" + *val;
+        std::string flag = cmStrCat("-D", var, '=', *val);
         arguments.CMakeFlags.emplace_back(std::move(flag));
+        cmakeVariables.emplace(var, *val);
       }
+    }
+  }
+
+  if (!this->SrcFileSignature &&
+      this->Makefile->GetState()->GetGlobalPropertyAsBool(
+        "PROPAGATE_TOP_LEVEL_INCLUDES_TO_TRY_COMPILE")) {
+    const std::string var = "CMAKE_PROJECT_TOP_LEVEL_INCLUDES";
+    if (cmValue val = this->Makefile->GetDefinition(var)) {
+      std::string flag = cmStrCat("-D", var, "=\'", *val, '\'');
+      arguments.CMakeFlags.emplace_back(std::move(flag));
+      cmakeVariables.emplace(var, *val);
     }
   }
 
@@ -1052,8 +1255,9 @@ bool cmCoreTryCompile::TryCompileCode(Arguments& arguments,
     // Forward the GHS variables to the inner project cache.
     for (std::string const& var : ghs_platform_vars) {
       if (cmValue val = this->Makefile->GetDefinition(var)) {
-        std::string flag = "-D" + var + "=" + "'" + *val + "'";
+        std::string flag = cmStrCat("-D", var, "=\'", *val, '\'');
         arguments.CMakeFlags.emplace_back(std::move(flag));
+        cmakeVariables.emplace(var, *val);
       }
     }
   }
@@ -1097,23 +1301,35 @@ bool cmCoreTryCompile::TryCompileCode(Arguments& arguments,
 
     if ((res == 0) && arguments.CopyFileTo) {
       std::string const& copyFile = *arguments.CopyFileTo;
-      if (this->OutputFile.empty() ||
-          !cmSystemTools::CopyFileAlways(this->OutputFile, copyFile)) {
-        std::ostringstream emsg;
+      cmsys::SystemTools::CopyStatus status =
+        cmSystemTools::CopyFileAlways(this->OutputFile, copyFile);
+      if (!status) {
+        std::string err = status.GetString();
+        switch (status.Path) {
+          case cmsys::SystemTools::CopyStatus::SourcePath:
+            err = cmStrCat(err, " (input)");
+            break;
+          case cmsys::SystemTools::CopyStatus::DestPath:
+            err = cmStrCat(err, " (output)");
+            break;
+          default:
+            break;
+        }
         /* clang-format off */
-        emsg << "Cannot copy output executable\n"
-             << "  '" << this->OutputFile << "'\n"
-             << "to destination specified by COPY_FILE:\n"
-             << "  '" << copyFile << "'\n";
+        err = cmStrCat(
+          "Cannot copy output executable\n"
+          "  '", this->OutputFile, "'\n"
+          "to destination specified by COPY_FILE:\n"
+          "  '", copyFile, "'\n"
+          "because:\n"
+          "  ", err, "\n",
+          this->FindErrorMessage);
         /* clang-format on */
-        if (!this->FindErrorMessage.empty()) {
-          emsg << this->FindErrorMessage;
-        }
         if (!arguments.CopyFileError) {
-          this->Makefile->IssueMessage(MessageType::FATAL_ERROR, emsg.str());
-          return false;
+          this->Makefile->IssueMessage(MessageType::FATAL_ERROR, err);
+          return cm::nullopt;
         }
-        copyFileErrorMessage = emsg.str();
+        copyFileErrorMessage = std::move(err);
       }
     }
 
@@ -1122,7 +1338,19 @@ bool cmCoreTryCompile::TryCompileCode(Arguments& arguments,
       this->Makefile->AddDefinition(copyFileError, copyFileErrorMessage);
     }
   }
-  return res == 0;
+
+  cmTryCompileResult result;
+  if (arguments.LogDescription) {
+    result.LogDescription = *arguments.LogDescription;
+  }
+  result.CMakeVariables = std::move(cmakeVariables);
+  result.SourceDirectory = sourceDirectory;
+  result.BinaryDirectory = this->BinaryDirectory;
+  result.Variable = *arguments.CompileResultVariable;
+  result.VariableCached = !arguments.NoCache;
+  result.Output = std::move(output);
+  result.ExitCode = res;
+  return cm::optional<cmTryCompileResult>(std::move(result));
 }
 
 bool cmCoreTryCompile::IsTemporary(std::string const& path)
@@ -1138,10 +1366,10 @@ void cmCoreTryCompile::CleanupFiles(std::string const& binDir)
   }
 
   if (!IsTemporary(binDir)) {
-    cmSystemTools::Error(
+    cmSystemTools::Error(cmStrCat(
       "TRY_COMPILE attempt to remove -rf directory that does not contain "
-      "CMakeTmp or CMakeScratch: \"" +
-      binDir + "\"");
+      "CMakeTmp or CMakeScratch: \"",
+      binDir, '"'));
     return;
   }
 
@@ -1154,8 +1382,7 @@ void cmCoreTryCompile::CleanupFiles(std::string const& binDir)
         // Do not delete NFS temporary files.
         !cmHasPrefix(fileName, ".nfs")) {
       if (deletedFiles.insert(fileName).second) {
-        std::string const fullPath =
-          std::string(binDir).append("/").append(fileName);
+        std::string const fullPath = cmStrCat(binDir, '/', fileName);
         if (cmSystemTools::FileIsSymlink(fullPath)) {
           cmSystemTools::RemoveFile(fullPath);
         } else if (cmSystemTools::FileIsDirectory(fullPath)) {
@@ -1239,12 +1466,12 @@ std::string cmCoreTryCompile::WriteSource(std::string const& filename,
 {
   if (!cmSystemTools::GetFilenamePath(filename).empty()) {
     const auto& msg =
-      cmStrCat(command, " given invalid filename \"", filename, "\"");
+      cmStrCat(command, " given invalid filename \"", filename, '"');
     this->Makefile->IssueMessage(MessageType::FATAL_ERROR, msg);
     return {};
   }
 
-  auto filepath = cmStrCat(this->BinaryDirectory, "/", filename);
+  auto filepath = cmStrCat(this->BinaryDirectory, '/', filename);
   cmsys::ofstream file{ filepath.c_str(), std::ios::out };
   if (!file) {
     const auto& msg =
@@ -1255,11 +1482,34 @@ std::string cmCoreTryCompile::WriteSource(std::string const& filename,
 
   file << content;
   if (!file) {
-    const auto& msg = cmStrCat(command, " failed to write \"", filename, "\"");
+    const auto& msg = cmStrCat(command, " failed to write \"", filename, '"');
     this->Makefile->IssueMessage(MessageType::FATAL_ERROR, msg);
     return {};
   }
 
   file.close();
   return filepath;
+}
+
+void cmCoreTryCompile::WriteTryCompileEventFields(
+  cmConfigureLog& log, cmTryCompileResult const& compileResult)
+{
+#ifndef CMAKE_BOOTSTRAP
+  if (compileResult.LogDescription) {
+    log.WriteValue("description"_s, *compileResult.LogDescription);
+  }
+  log.BeginObject("directories"_s);
+  log.WriteValue("source"_s, compileResult.SourceDirectory);
+  log.WriteValue("binary"_s, compileResult.BinaryDirectory);
+  log.EndObject();
+  if (!compileResult.CMakeVariables.empty()) {
+    log.WriteValue("cmakeVariables"_s, compileResult.CMakeVariables);
+  }
+  log.BeginObject("buildResult"_s);
+  log.WriteValue("variable"_s, compileResult.Variable);
+  log.WriteValue("cached"_s, compileResult.VariableCached);
+  log.WriteLiteralTextBlock("stdout"_s, compileResult.Output);
+  log.WriteValue("exitCode"_s, compileResult.ExitCode);
+  log.EndObject();
+#endif
 }

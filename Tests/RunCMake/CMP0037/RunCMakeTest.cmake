@@ -1,4 +1,5 @@
 include(RunCMake)
+set(RunCMake_IGNORE_POLICY_VERSION_DEPRECATION ON)
 
 if(RunCMake_GENERATOR MATCHES "^Ninja")
   # Detect ninja version so we know what tests can be supported.
@@ -43,6 +44,10 @@ run_cmake(OLD-cond-package)
 run_cmake(WARN-cond)
 run_cmake(WARN-cond-test)
 run_cmake(WARN-cond-package)
+
+run_cmake(alias-test-NEW)
+run_cmake(alias-test-OLD)
+run_cmake(alias-test-WARN)
 
 if(RunCMake_GENERATOR MATCHES "Make|Ninja")
   run_cmake(NEW-cond-package_source)

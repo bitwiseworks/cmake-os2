@@ -21,22 +21,19 @@ Provides a macro to check if a header file can be included in ``C``.
 The following variables may be set before calling this macro to modify
 the way the check is run:
 
-``CMAKE_REQUIRED_FLAGS``
-  string of compile command line flags.
-``CMAKE_REQUIRED_DEFINITIONS``
-  a :ref:`;-list <CMake Language Lists>` of macros to define (-DFOO=bar).
-``CMAKE_REQUIRED_INCLUDES``
-  a :ref:`;-list <CMake Language Lists>` of header search paths to pass to
-  the compiler.
-``CMAKE_REQUIRED_LINK_OPTIONS``
-  .. versionadded:: 3.14
-    a :ref:`;-list <CMake Language Lists>` of options to add to the link command.
-``CMAKE_REQUIRED_LIBRARIES``
-  a :ref:`;-list <CMake Language Lists>` of libraries to add to the link
-  command. See policy :policy:`CMP0075`.
-``CMAKE_REQUIRED_QUIET``
-  .. versionadded:: 3.1
-    execute quietly without messages.
+.. include:: /module/CMAKE_REQUIRED_FLAGS.txt
+
+.. include:: /module/CMAKE_REQUIRED_DEFINITIONS.txt
+
+.. include:: /module/CMAKE_REQUIRED_INCLUDES.txt
+
+.. include:: /module/CMAKE_REQUIRED_LINK_OPTIONS.txt
+
+.. include:: /module/CMAKE_REQUIRED_LIBRARIES.txt
+
+.. include:: /module/CMAKE_REQUIRED_LINK_DIRECTORIES.txt
+
+.. include:: /module/CMAKE_REQUIRED_QUIET.txt
 
 See the :module:`CheckIncludeFiles` module to check for multiple headers
 at once.  See the :module:`CheckIncludeFileCXX` module to check for headers
@@ -92,6 +89,13 @@ macro(CHECK_INCLUDE_FILE INCLUDE VARIABLE)
       unset(_CIF_CMP0075)
     endif()
 
+    if(CMAKE_REQUIRED_LINK_DIRECTORIES)
+      set(_CIF_LINK_DIRECTORIES
+        "-DLINK_DIRECTORIES:STRING=${CMAKE_REQUIRED_LINK_DIRECTORIES}")
+    else()
+      set(_CIF_LINK_DIRECTORIES)
+    endif()
+
     try_compile(${VARIABLE}
       SOURCE_FROM_VAR CheckIncludeFile.c _CIF_SOURCE_CONTENT
       COMPILE_DEFINITIONS ${CMAKE_REQUIRED_DEFINITIONS}
@@ -100,9 +104,11 @@ macro(CHECK_INCLUDE_FILE INCLUDE VARIABLE)
       CMAKE_FLAGS
       -DCOMPILE_DEFINITIONS:STRING=${MACRO_CHECK_INCLUDE_FILE_FLAGS}
       "${CHECK_INCLUDE_FILE_C_INCLUDE_DIRS}"
-      OUTPUT_VARIABLE OUTPUT)
+      "${_CIF_LINK_DIRECTORIES}"
+      )
     unset(_CIF_LINK_OPTIONS)
     unset(_CIF_LINK_LIBRARIES)
+    unset(_CIF_LINK_DIRECTORIES)
 
     if(${ARGC} EQUAL 3)
       set(CMAKE_C_FLAGS ${CMAKE_C_FLAGS_SAVE})
@@ -113,19 +119,11 @@ macro(CHECK_INCLUDE_FILE INCLUDE VARIABLE)
         message(CHECK_PASS "found")
       endif()
       set(${VARIABLE} 1 CACHE INTERNAL "Have include ${INCLUDE}")
-      file(APPEND ${CMAKE_BINARY_DIR}${CMAKE_FILES_DIRECTORY}/CMakeOutput.log
-        "Determining if the include file ${INCLUDE} "
-        "exists passed with the following output:\n"
-        "${OUTPUT}\n\n")
     else()
       if(NOT CMAKE_REQUIRED_QUIET)
         message(CHECK_FAIL "not found")
       endif()
       set(${VARIABLE} "" CACHE INTERNAL "Have include ${INCLUDE}")
-      file(APPEND ${CMAKE_BINARY_DIR}${CMAKE_FILES_DIRECTORY}/CMakeError.log
-        "Determining if the include file ${INCLUDE} "
-        "exists failed with the following output:\n"
-        "${OUTPUT}\n\n")
     endif()
   endif()
 endmacro()

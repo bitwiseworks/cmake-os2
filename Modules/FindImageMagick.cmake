@@ -5,7 +5,9 @@
 FindImageMagick
 ---------------
 
-Find ImageMagick binary suite.
+Find ImageMagick, software suite for displaying, converting and
+manipulating raster images.
+
 
 .. versionadded:: 3.9
   Added support for ImageMagick 7.
@@ -15,76 +17,94 @@ components in the :command:`find_package` call.  Typical components include,
 but are not limited to (future versions of ImageMagick might have
 additional components not listed here):
 
-::
-
-  animate
-  compare
-  composite
-  conjure
-  convert
-  display
-  identify
-  import
-  mogrify
-  montage
-  stream
-
-
+* ``animate``
+* ``compare``
+* ``composite``
+* ``conjure``
+* ``convert``
+* ``display``
+* ``identify``
+* ``import``
+* ``mogrify``
+* ``montage``
+* ``stream``
 
 If no component is specified in the :command:`find_package` call, then it only
-searches for the ImageMagick executable directory.  This code defines
-the following variables:
-
-::
-
-  ImageMagick_FOUND                  - TRUE if all components are found.
-  ImageMagick_EXECUTABLE_DIR         - Full path to executables directory.
-  ImageMagick_<component>_FOUND      - TRUE if <component> is found.
-  ImageMagick_<component>_EXECUTABLE - Full path to <component> executable.
-  ImageMagick_VERSION_STRING         - the version of ImageMagick found
-                                       (since CMake 2.8.8)
-
-
-
-``ImageMagick_VERSION_STRING`` will not work for old versions like 5.2.3.
+searches for the ImageMagick executable directory.
 
 There are also components for the following ImageMagick APIs:
 
-::
-
-  Magick++
-  MagickWand
-  MagickCore
+* ``Magick++``: ImageMagick C++ API, if found.
+* ``MagickWand``: ImageMagick MagickWand C API, if found.
+* ``MagickCore``: ImageMagick MagickCore low-level C API, if found.
 
 
+Imported targets
+^^^^^^^^^^^^^^^^
 
-For these components the following variables are set:
+.. versionadded:: 3.26
 
-::
+This module defines the following :prop_tgt:`IMPORTED` targets:
 
-  ImageMagick_FOUND                    - TRUE if all components are found.
-  ImageMagick_INCLUDE_DIRS             - Full paths to all include dirs.
-  ImageMagick_LIBRARIES                - Full paths to all libraries.
-  ImageMagick_<component>_FOUND        - TRUE if <component> is found.
-  ImageMagick_<component>_INCLUDE_DIRS - Full path to <component> include dirs.
-  ImageMagick_<component>_LIBRARIES    - Full path to <component> libraries.
+``ImageMagick::Magick++``
+  ImageMagick C++ API, if found.
+
+``ImageMagick::MagickWand``
+  ImageMagick MagickWand C API, if found.
+
+``ImageMagick::MagickCore``
+  ImageMagick MagickCore low-level C API, if found.
 
 
+Result Variables
+^^^^^^^^^^^^^^^^
 
-Example Usages:
+``ImageMagick_FOUND``
+  TRUE if all components are found.
 
-::
+``ImageMagick_EXECUTABLE_DIR``
+  Full path to executables directory.
 
-  find_package(ImageMagick)
-  find_package(ImageMagick COMPONENTS convert)
-  find_package(ImageMagick COMPONENTS convert mogrify display)
+``ImageMagick_INCLUDE_DIRS``
+  Full paths to all include dirs.
+
+``ImageMagick_LIBRARIES``
+  Full paths to all libraries.
+
+``ImageMagick_COMPILE_OPTIONS``
+  Compile options of all libraries.
+
+``ImageMagick_VERSION_STRING``
+  The version of ImageMagick found (since CMake 2.8.8).
+  Will not work for old versions like 5.2.3.
+
+``ImageMagick_<component>_FOUND``
+  TRUE if <component> is found.
+
+``ImageMagick_<component>_EXECUTABLE``
+  Full path to <component> executable.
+
+``ImageMagick_<component>_INCLUDE_DIRS``
+  Full path to <component> include dirs.
+
+``ImageMagick_<component>_COMPILE_OPTIONS``
+  .. versionadded:: 3.26
+
+  Compile options of <component>.
+
+``ImageMagick_<component>_LIBRARIES``
+  .. versionadded:: 3.31
+
+  Full path to <component> libraries.
+
+
+Example Usage
+^^^^^^^^^^^^^
+
+.. code-block:: cmake
+
   find_package(ImageMagick COMPONENTS Magick++)
-  find_package(ImageMagick COMPONENTS Magick++ convert)
-
-
-
-Note that the standard :command:`find_package` features are supported (i.e.,
-``QUIET``, ``REQUIRED``, etc.).
+  target_link_libraries(example PRIVATE ImageMagick::Magick++)
 #]=======================================================================]
 
 find_package(PkgConfig QUIET)
@@ -95,7 +115,9 @@ find_package(PkgConfig QUIET)
 function(FIND_IMAGEMAGICK_API component header)
   set(ImageMagick_${component}_FOUND FALSE PARENT_SCOPE)
 
-  pkg_check_modules(PC_${component} QUIET ${component})
+  if(PKG_CONFIG_FOUND)
+    pkg_check_modules(PC_${component} QUIET ${component})
+  endif()
 
   find_path(ImageMagick_${component}_INCLUDE_DIR
     NAMES ${header}
@@ -111,7 +133,9 @@ function(FIND_IMAGEMAGICK_API component header)
     NO_DEFAULT_PATH
     )
   find_path(ImageMagick_${component}_ARCH_INCLUDE_DIR
-    NAMES magick/magick-baseconfig.h
+    NAMES
+      magick/magick-baseconfig.h
+      MagickCore/magick-baseconfig.h
     HINTS
       ${PC_${component}_INCLUDEDIR}
       ${PC_${component}_INCLUDE_DIRS}
@@ -150,6 +174,14 @@ function(FIND_IMAGEMAGICK_API component header)
     set(ImageMagick_${component}_INCLUDE_DIRS
       ${ImageMagick_${component}_INCLUDE_DIRS} PARENT_SCOPE)
 
+    set(ImageMagick_${component}_LIBRARIES
+      ${ImageMagick_${component}_LIBRARY}
+      )
+    set(ImageMagick_${component}_LIBRARIES
+      ${ImageMagick_${component}_LIBRARIES} PARENT_SCOPE)
+
+    set(ImageMagick_${component}_COMPILE_OPTIONS ${PC_${component}_CFLAGS_OTHER})
+
     # Add the per-component include directories to the full include dirs.
     list(APPEND ImageMagick_INCLUDE_DIRS ${ImageMagick_${component}_INCLUDE_DIRS})
     list(REMOVE_DUPLICATES ImageMagick_INCLUDE_DIRS)
@@ -159,6 +191,19 @@ function(FIND_IMAGEMAGICK_API component header)
       ${ImageMagick_${component}_LIBRARY}
       )
     set(ImageMagick_LIBRARIES ${ImageMagick_LIBRARIES} PARENT_SCOPE)
+
+    list(APPEND ImageMagick_COMPILE_OPTIONS
+      ${ImageMagick_${component}_COMPILE_OPTIONS}
+      )
+    set(ImageMagick_COMPILE_OPTIONS ${ImageMagick_COMPILE_OPTIONS} PARENT_SCOPE)
+
+    if(NOT TARGET ImageMagick::${component})
+      add_library(ImageMagick::${component} UNKNOWN IMPORTED)
+      set_target_properties(ImageMagick::${component} PROPERTIES
+        INTERFACE_INCLUDE_DIRECTORIES "${ImageMagick_${component}_INCLUDE_DIRS}"
+        INTERFACE_COMPILE_OPTIONS "${ImageMagick_${component}_COMPILE_OPTIONS}"
+        IMPORTED_LOCATION "${ImageMagick_${component}_LIBRARY}")
+    endif()
   endif()
 endfunction()
 

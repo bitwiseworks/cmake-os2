@@ -11,21 +11,21 @@
 #include "cmCTest.h"
 #include "cmConsoleBuf.h"
 #include "cmDocumentation.h"
+#include "cmDocumentationEntry.h"
 #include "cmSystemTools.h"
 
 #include "CTest/cmCTestLaunch.h"
 #include "CTest/cmCTestScriptHandler.h"
 
-static const char* cmDocumentationName[][2] = {
-  { nullptr, "  ctest - Testing driver provided by CMake." },
-  { nullptr, nullptr }
+namespace {
+const cmDocumentationEntry cmDocumentationName = {
+  {},
+  "  ctest - Testing driver provided by CMake."
 };
 
-static const char* cmDocumentationUsage[][2] = { { nullptr,
-                                                   "  ctest [options]" },
-                                                 { nullptr, nullptr } };
+const cmDocumentationEntry cmDocumentationUsage = { {}, "  ctest [options]" };
 
-static const char* cmDocumentationOptions[][2] = {
+const cmDocumentationEntry cmDocumentationOptions[] = {
   { "--preset <preset>, --preset=<preset>",
     "Read arguments from a test preset." },
   { "--list-presets", "List available test presets." },
@@ -48,9 +48,9 @@ static const char* cmDocumentationOptions[][2] = {
     "Truncate 'tail' (default), 'middle' or 'head' of test output once "
     "maximum output size is reached" },
   { "-F", "Enable failover." },
-  { "-j <jobs>, --parallel <jobs>",
-    "Run the tests in parallel using the "
-    "given number of jobs." },
+  { "-j [<level>], --parallel [<level>]",
+    "Run tests in parallel, "
+    "optionally limited to a given level of parallelism." },
   { "-Q,--quiet", "Make ctest quiet." },
   { "-O <file>, --output-log <file>", "Output to log file" },
   { "--output-junit <file>", "Output test results to JUnit XML file." },
@@ -107,6 +107,9 @@ static const char* cmDocumentationOptions[][2] = {
     "Run a specific number of tests by number." },
   { "-U, --union", "Take the Union of -I and -R" },
   { "--rerun-failed", "Run only the tests that failed previously" },
+  { "--tests-from-file <file>", "Run the tests listed in the given file" },
+  { "--exclude-from-file <file>",
+    "Run tests except those listed in the given file" },
   { "--repeat until-fail:<n>, --repeat-until-fail <n>",
     "Require each test to run <n> times without failing in order to pass" },
   { "--repeat until-pass:<n>",
@@ -143,6 +146,7 @@ static const char* cmDocumentationOptions[][2] = {
   { "--tomorrow-tag", "Nightly or experimental starts with next day tag." },
   { "--overwrite", "Overwrite CTest configuration option." },
   { "--extra-submit <file>[;<file>]", "Submit extra files to the dashboard." },
+  { "--http-header <header>", "Append HTTP header when submitting" },
   { "--force-new-ctest-process",
     "Run child CTest instances as new processes" },
   { "--schedule-random", "Use a random order for scheduling tests" },
@@ -155,9 +159,9 @@ static const char* cmDocumentationOptions[][2] = {
   { "--no-compress-output", "Do not compress test output when submitting." },
   { "--print-labels", "Print all available test labels." },
   { "--no-tests=<[error|ignore]>",
-    "Regard no tests found either as 'error' or 'ignore' it." },
-  { nullptr, nullptr }
+    "Regard no tests found either as 'error' or 'ignore' it." }
 };
+} // anonymous namespace
 
 // this is a test driver program for cmCTest.
 int main(int argc, char const* const* argv)
@@ -173,7 +177,6 @@ int main(int argc, char const* const* argv)
   argc = encoding_args.argc();
   argv = encoding_args.argv();
 
-  cmSystemTools::DoNotInheritStdPipes();
   cmSystemTools::InitializeLibUV();
   cmSystemTools::FindCMakeResources(argv[0]);
 
@@ -186,8 +189,7 @@ int main(int argc, char const* const* argv)
 
   if (cmSystemTools::GetCurrentWorkingDirectory().empty()) {
     cmCTestLog(&inst, ERROR_MESSAGE,
-               "Current working directory cannot be established."
-                 << std::endl);
+               "Current working directory cannot be established.\n");
     return 1;
   }
 
@@ -199,10 +201,9 @@ int main(int argc, char const* const* argv)
         cmSystemTools::FileExists("DartTestfile.txt"))) {
     if (argc == 1) {
       cmCTestLog(&inst, ERROR_MESSAGE,
-                 "*********************************"
-                   << std::endl
-                   << "No test configuration file found!" << std::endl
-                   << "*********************************" << std::endl);
+                 "*********************************\n"
+                 "No test configuration file found!\n"
+                 "*********************************\n");
     }
     cmDocumentation doc;
     doc.addCTestStandardDocSections();
@@ -216,7 +217,7 @@ int main(int argc, char const* const* argv)
       doc.SetSection("Name", cmDocumentationName);
       doc.SetSection("Usage", cmDocumentationUsage);
       doc.PrependSection("Options", cmDocumentationOptions);
-      return doc.PrintRequestedDocumentation(std::cout) ? 0 : 1;
+      return !doc.PrintRequestedDocumentation(std::cout);
     }
   }
 

@@ -11,12 +11,14 @@
 #include <utility>
 #include <vector>
 
-#include "cmListFileCache.h"
+#include <cm/string_view>
 
+#include "cmListFileCache.h"
+#include "cmLocalGenerator.h"
+
+class cmake;
 class cmCompiledGeneratorExpression;
 class cmGeneratorTarget;
-class cmLocalGenerator;
-struct cmGeneratorExpressionContext;
 struct cmGeneratorExpressionDAGChecker;
 struct cmGeneratorExpressionEvaluator;
 
@@ -33,7 +35,8 @@ class cmGeneratorExpression
 {
 public:
   /** Construct. */
-  cmGeneratorExpression(cmListFileBacktrace backtrace = cmListFileBacktrace());
+  cmGeneratorExpression(cmake& cmakeInstance,
+                        cmListFileBacktrace backtrace = cmListFileBacktrace());
   ~cmGeneratorExpression();
 
   cmGeneratorExpression(cmGeneratorExpression const&) = delete;
@@ -58,12 +61,12 @@ public:
 
   static std::string Preprocess(const std::string& input,
                                 PreprocessContext context,
-                                bool resolveRelative = false);
+                                cm::string_view importPrefix = {});
 
   static void Split(const std::string& input,
                     std::vector<std::string>& output);
 
-  static std::string::size_type Find(const std::string& input);
+  static cm::string_view::size_type Find(const cm::string_view& input);
 
   static bool IsValidTargetName(const std::string& input);
 
@@ -75,13 +78,14 @@ public:
   }
   static inline bool StartsWithGeneratorExpression(const char* input)
   {
-    return input != nullptr && input[0] == '$' && input[1] == '<';
+    return input && input[0] == '$' && input[1] == '<';
   }
 
   static void ReplaceInstallPrefix(std::string& input,
                                    const std::string& replacement);
 
 private:
+  cmake& CMakeInstance;
   cmListFileBacktrace Backtrace;
 };
 
@@ -148,11 +152,8 @@ public:
                               std::map<std::string, std::string>& mapping);
 
 private:
-  const std::string& EvaluateWithContext(
-    cmGeneratorExpressionContext& context,
-    cmGeneratorExpressionDAGChecker* dagChecker) const;
-
-  cmCompiledGeneratorExpression(cmListFileBacktrace backtrace,
+  cmCompiledGeneratorExpression(cmake& cmakeInstance,
+                                cmListFileBacktrace backtrace,
                                 std::string input);
 
   friend class cmGeneratorExpression;
@@ -184,7 +185,8 @@ public:
                                    std::string config,
                                    cmGeneratorTarget const* headTarget,
                                    std::string language = std::string())
-    : LocalGenerator(localGenerator)
+    : GeneratorExpression(*localGenerator->GetCMakeInstance())
+    , LocalGenerator(localGenerator)
     , Config(std::move(config))
     , HeadTarget(headTarget)
     , Language(std::move(language))

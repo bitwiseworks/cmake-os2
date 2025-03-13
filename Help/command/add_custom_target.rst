@@ -12,6 +12,7 @@ Add a target with no output so it will always be built.
                     [WORKING_DIRECTORY dir]
                     [COMMENT comment]
                     [JOB_POOL job_pool]
+                    [JOB_SERVER_AWARE <bool>]
                     [VERBATIM] [USES_TERMINAL]
                     [COMMAND_EXPAND_LISTS]
                     [SOURCES src1 [src2...]])
@@ -59,8 +60,13 @@ The options are:
   .. versionadded:: 3.20
     Arguments to ``BYPRODUCTS`` may use a restricted set of
     :manual:`generator expressions <cmake-generator-expressions(7)>`.
-    :ref:`Target-dependent expressions <Target-Dependent Queries>` are not
-    permitted.
+    :ref:`Target-dependent expressions <Target-Dependent Expressions>`
+    are not permitted.
+
+  .. versionchanged:: 3.28
+    In custom targets using :ref:`file sets`, byproducts are now
+    considered private unless they are listed in a non-private file set.
+    See policy :policy:`CMP0154`.
 
 ``COMMAND``
   Specify the command-line(s) to execute at build time.
@@ -109,6 +115,10 @@ The options are:
   Display the given message before the commands are executed at
   build time.
 
+  .. versionadded:: 3.26
+    Arguments to ``COMMENT`` may use
+    :manual:`generator expressions <cmake-generator-expressions(7)>`.
+
 ``DEPENDS``
   Reference files and outputs of custom commands created with
   :command:`add_custom_command` command calls in the same directory
@@ -141,6 +151,19 @@ The options are:
   the ``console`` pool.
   Using a pool that is not defined by :prop_gbl:`JOB_POOLS` causes
   an error by ninja at build time.
+
+``JOB_SERVER_AWARE``
+  .. versionadded:: 3.28
+
+  Specify that the command is GNU Make job server aware.
+
+  For the :generator:`Unix Makefiles`, :generator:`MSYS Makefiles`, and
+  :generator:`MinGW Makefiles` generators this will add the ``+`` prefix to the
+  recipe line. See the `GNU Make Documentation`_ for more information.
+
+  This option is silently ignored by other generators.
+
+.. _`GNU Make Documentation`: https://www.gnu.org/software/make/manual/html_node/MAKE-Variable.html
 
 ``SOURCES``
   Specify additional source files to be included in the custom target.
@@ -181,3 +204,8 @@ Ninja Multi-Config
   ``add_custom_target`` supports the :generator:`Ninja Multi-Config`
   generator's cross-config capabilities. See the generator documentation
   for more information.
+
+See Also
+^^^^^^^^
+
+* :command:`add_custom_command`

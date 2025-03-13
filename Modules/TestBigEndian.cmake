@@ -87,16 +87,20 @@ macro(__TEST_BIG_ENDIAN_LEGACY_IMPL VARIABLE)
 
      try_compile(HAVE_${VARIABLE}
       SOURCE_FROM_VAR "${_test_file}" TEST_ENDIANESS_FILE_CONTENT
-      OUTPUT_VARIABLE OUTPUT
       COPY_FILE "${CMAKE_BINARY_DIR}${CMAKE_FILES_DIRECTORY}/TestEndianess.bin" )
 
       if(HAVE_${VARIABLE})
+
+        cmake_policy(PUSH)
+        cmake_policy(SET CMP0159 NEW) # file(STRINGS) with REGEX updates CMAKE_MATCH_<n>
 
         file(STRINGS "${CMAKE_BINARY_DIR}${CMAKE_FILES_DIRECTORY}/TestEndianess.bin"
             CMAKE_TEST_ENDIANESS_STRINGS_LE LIMIT_COUNT 1 REGEX "THIS IS LITTLE ENDIAN")
 
         file(STRINGS "${CMAKE_BINARY_DIR}${CMAKE_FILES_DIRECTORY}/TestEndianess.bin"
             CMAKE_TEST_ENDIANESS_STRINGS_BE LIMIT_COUNT 1 REGEX "THIS IS BIG ENDIAN")
+
+        cmake_policy(POP)
 
         # on mac, if there are universal binaries built both will be true
         # return the result depending on the machine on which cmake runs
@@ -125,14 +129,8 @@ macro(__TEST_BIG_ENDIAN_LEGACY_IMPL VARIABLE)
           message(CHECK_FAIL "TEST_BIG_ENDIAN found no result!")
           message(SEND_ERROR "TEST_BIG_ENDIAN found no result!")
         endif()
-
-        file(APPEND ${CMAKE_BINARY_DIR}${CMAKE_FILES_DIRECTORY}/CMakeOutput.log
-          "Determining if the system is big endian passed with the following output:\n${OUTPUT}\n${_test_file}:\n${TEST_ENDIANESS_FILE_CONTENT}\n\n")
-
       else()
         message(CHECK_FAIL "failed")
-        file(APPEND ${CMAKE_BINARY_DIR}${CMAKE_FILES_DIRECTORY}/CMakeError.log
-          "Determining if the system is big endian failed with the following output:\n${OUTPUT}\n${_test_file}:\n${TEST_ENDIANESS_FILE_CONTENT}\n\n")
         set(${VARIABLE})
       endif()
   endif()

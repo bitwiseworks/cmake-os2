@@ -63,7 +63,8 @@ File-Based API
 Platforms
 ---------
 
-* CMake now supports :ref:`Cross Compiling for iOS, tvOS, or watchOS`
+* CMake now supports
+  :ref:`Cross Compiling for iOS, tvOS, or watchOS <Cross Compiling for iOS, tvOS, visionOS, or watchOS>`
   using simple toolchain files.
 
 Command-Line
@@ -301,7 +302,7 @@ Autogen
 * A new :variable:`CMAKE_AUTOGEN_ORIGIN_DEPENDS` variable and
   :prop_tgt:`AUTOGEN_ORIGIN_DEPENDS` target property may be set to enable or
   disable forwarding of the origin target dependencies to the corresponding
-  ``_autogen`` target.
+  :ref:`<ORIGIN>_autogen` target.
 
 CTest
 -----

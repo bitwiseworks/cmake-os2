@@ -18,11 +18,11 @@
 #include <cm/optional>
 #include <cm/string_view>
 
-#include "cmsys/Process.h"
+#include <cm3p/uv.h>
+
 #include "cmsys/Status.hxx"      // IWYU pragma: export
 #include "cmsys/SystemTools.hxx" // IWYU pragma: export
 
-#include "cmCryptoHash.h"
 #include "cmDuration.h"
 #include "cmProcessOutput.h"
 
@@ -111,6 +111,9 @@ public:
   //! Return true if the path is a framework
   static bool IsPathToFramework(const std::string& path);
 
+  //! Return true if the path is a xcframework
+  static bool IsPathToXcFramework(const std::string& path);
+
   //! Return true if the path is a macOS non-framework shared library (aka
   //! .dylib)
   static bool IsPathToMacOSSharedLibrary(const std::string& path);
@@ -149,6 +152,11 @@ public:
     Always,
     OnlyIfDifferent,
   };
+  enum class CopyInputRecent
+  {
+    No,
+    Yes,
+  };
   enum class CopyResult
   {
     Success,
@@ -177,10 +185,9 @@ public:
                                          const mode_t* mode = nullptr);
 
   /** Copy a file. */
-  static bool CopySingleFile(const std::string& oldname,
-                             const std::string& newname);
   static CopyResult CopySingleFile(std::string const& oldname,
                                    std::string const& newname, CopyWhen when,
+                                   CopyInputRecent inputRecent,
                                    std::string* err = nullptr);
 
   enum class Replace
@@ -204,22 +211,8 @@ public:
                                  std::string* err = nullptr);
 
   //! Rename a file if contents are different, delete the source otherwise
-  static void MoveFileIfDifferent(const std::string& source,
-                                  const std::string& destination);
-
-#ifndef CMAKE_BOOTSTRAP
-  //! Compute the hash of a file
-  static std::string ComputeFileHash(const std::string& source,
-                                     cmCryptoHash::Algo algo);
-
-  /** Compute the md5sum of a string.  */
-  static std::string ComputeStringMD5(const std::string& input);
-
-#  ifdef _WIN32
-  //! Get the SHA thumbprint for a certificate file
-  static std::string ComputeCertificateThumbprint(const std::string& source);
-#  endif
-#endif
+  static cmsys::Status MoveFileIfDifferent(const std::string& source,
+                                           const std::string& destination);
 
   /**
    * Run a single executable command
@@ -298,7 +291,7 @@ public:
     std::vector<std::string>::const_iterator argBeg,
     std::vector<std::string>::const_iterator argEnd);
 
-  static size_t CalculateCommandLineLengthLimit();
+  static std::size_t CalculateCommandLineLengthLimit();
 
   static void DisableRunCommandOutput() { s_DisableRunCommandOutput = true; }
   static void EnableRunCommandOutput() { s_DisableRunCommandOutput = false; }
@@ -347,10 +340,20 @@ public:
    */
   static void ReportLastSystemError(const char* m);
 
-  /** a general output handler for cmsysProcess  */
-  static int WaitForLine(cmsysProcess* process, std::string& line,
-                         cmDuration timeout, std::vector<char>& out,
-                         std::vector<char>& err);
+  enum class WaitForLineResult
+  {
+    None,
+    STDOUT,
+    STDERR,
+    Timeout,
+  };
+
+  /** a general output handler for libuv  */
+  static WaitForLineResult WaitForLine(uv_loop_t* loop, uv_stream_t* outPipe,
+                                       uv_stream_t* errPipe, std::string& line,
+                                       cmDuration timeout,
+                                       std::vector<char>& out,
+                                       std::vector<char>& err);
 
   static void SetForceUnixPaths(bool v) { s_ForceUnixPaths = v; }
   static bool GetForceUnixPaths() { return s_ForceUnixPaths; }
@@ -394,6 +397,9 @@ public:
    */
   static std::string RelativeIfUnder(std::string const& top,
                                      std::string const& in);
+
+  static cm::optional<std::string> GetEnvVar(std::string const& var);
+  static std::vector<std::string> SplitEnvPath(std::string const& value);
 
 #ifndef CMAKE_BOOTSTRAP
   /** Remove an environment variable */
@@ -491,6 +497,7 @@ public:
                       const std::vector<std::string>& files, bool verbose);
   static bool CreateTar(const std::string& outFileName,
                         const std::vector<std::string>& files,
+                        const std::string& workingDirectory,
                         cmTarCompression compressType, bool verbose,
                         std::string const& mtime = std::string(),
                         std::string const& format = std::string(),
@@ -499,12 +506,6 @@ public:
                          const std::vector<std::string>& files,
                          cmTarExtractTimestamps extractTimestamps,
                          bool verbose);
-  // This should be called first thing in main
-  // it will keep child processes from inheriting the
-  // stdin and stdout of this process.  This is important
-  // if you want to be able to kill child processes and
-  // not get stuck waiting for all the output on the pipes.
-  static void DoNotInheritStdPipes();
 
   static void EnsureStdPipes();
 
@@ -523,6 +524,10 @@ public:
   static std::string const& GetCMClDepsCommand();
   static std::string const& GetCMakeRoot();
   static std::string const& GetHTMLDoc();
+
+  /** Get the CMake config directory **/
+  static cm::optional<std::string> GetSystemConfigDirectory();
+  static cm::optional<std::string> GetCMakeConfigDirectory();
 
   /** Get the CWD mapped through the KWSys translation map.  */
   static std::string GetCurrentWorkingDirectory();
@@ -581,6 +586,9 @@ public:
     unsigned int dwBuildNumber;
   };
   static WindowsVersion GetWindowsVersion();
+
+  /** Attempt to get full path to COMSPEC, default "cmd.exe" */
+  static std::string GetComspec();
 #endif
 
   /** Get the real path for a given path, removing all symlinks.

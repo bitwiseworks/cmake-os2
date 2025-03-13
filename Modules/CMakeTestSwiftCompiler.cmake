@@ -24,7 +24,10 @@ if(NOT CMAKE_Swift_COMPILER_WORKS)
   # Clear result from normal variable.
   unset(CMAKE_Swift_COMPILER_WORKS)
   # Puts test result in cache variable.
-  set(__CMAKE_Swift_TEST_SOURCE "print(\"CMake\")\n")
+  string(CONCAT __CMAKE_Swift_TEST_SOURCE
+  "public struct CMakeStruct {"
+  "  let x: Int"
+  "}")
   try_compile(CMAKE_Swift_COMPILER_WORKS
     SOURCE_FROM_VAR main.swift __CMAKE_Swift_TEST_SOURCE
     OUTPUT_VARIABLE __CMAKE_Swift_COMPILER_OUTPUT)
@@ -36,9 +39,6 @@ endif()
 
 if(NOT CMAKE_Swift_COMPILER_WORKS)
   PrintTestCompilerResult(CHECK_FAIL "broken")
-  file(APPEND ${CMAKE_BINARY_DIR}${CMAKE_FILES_DIRECTORY}/CMakeError.log
-    "Determining if the Swift compiler works failed with "
-    "the following output:\n${__CMAKE_Swift_COMPILER_OUTPUT}\n\n")
   string(REPLACE "\n" "\n  " _output "${__CMAKE_Swift_COMPILER_OUTPUT}")
   message(FATAL_ERROR "The Swift compiler\n  \"${CMAKE_Swift_COMPILER}\"\n"
     "is not able to compile a simple test program.\nIt fails "
@@ -47,9 +47,6 @@ if(NOT CMAKE_Swift_COMPILER_WORKS)
 else()
   if(Swift_TEST_WAS_RUN)
     PrintTestCompilerResult(CHECK_PASS "works")
-    file(APPEND ${CMAKE_BINARY_DIR}${CMAKE_FILES_DIRECTORY}/CMakeOutput.log
-      "Determining if the Swift compiler works passed with "
-      "the following output:\n${__CMAKE_Swift_COMPILER_OUTPUT}\n\n")
   endif()
 
   # Unlike C and CXX we do not yet detect any information about the Swift ABI.

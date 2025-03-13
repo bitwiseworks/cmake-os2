@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 2.8.4) # new enough for CMP0017
+cmake_minimum_required(VERSION 3.10)
 project(AllFindModules)
 
 # Avoid ctest truncation of output
@@ -96,8 +96,8 @@ foreach(VTEST ALSA ARMADILLO BZIP2 CUPS CURL EXPAT FREETYPE GETTEXT GIT HG
     check_version_string(${VTEST} ${VTEST}_VERSION_STRING)
 endforeach()
 
-foreach(VTEST BISON Boost CUDA DOXYGEN FLEX GIF GTK2
-        HDF5 JPEG LibArchive OPENSCENEGRAPH Ruby RUBY SWIG Protobuf)
+foreach(VTEST BISON Boost BZIP2 CUDA DOXYGEN FLEX GIF GTK2
+    HDF5 JPEG LibArchive LIBLZMA OPENSCENEGRAPH Ruby RUBY SWIG Protobuf ZLIB)
     check_version_string(${VTEST} ${VTEST}_VERSION)
 endforeach()
 

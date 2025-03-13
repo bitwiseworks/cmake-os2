@@ -33,9 +33,29 @@ Also sets the variables:
 
   Boolean value indicating whether the project is top-level.
 
-Further variables are set by the optional arguments described in the following.
-If any of these arguments is not used, then the corresponding variables are
+Further variables are set by the optional arguments described in `Options`_
+further below. Where an option is not given, its corresponding variable is
 set to the empty string.
+
+Note that variables of the form ``<name>_SOURCE_DIR`` and ``<name>_BINARY_DIR``
+may also be set by other commands before ``project()`` is called (see the
+:command:`FetchContent_MakeAvailable` command for one example).
+Projects should not rely on ``<PROJECT-NAME>_SOURCE_DIR`` or
+``<PROJECT-NAME>_BINARY_DIR`` holding a particular value outside of the scope
+of the call to ``project()`` or one of its child scopes.
+
+.. versionchanged:: 3.30
+  ``<PROJECT-NAME>_SOURCE_DIR``, ``<PROJECT-NAME>_BINARY_DIR``, and
+  ``<PROJECT-NAME>_IS_TOP_LEVEL``, if already set as normal variables when
+  ``project(<PROJECT-NAME> ...)`` is called, are updated by the call.
+  Cache entries by the same names are always set as before.
+  See release notes for 3.30.3, 3.30.4, and 3.30.5 for details.
+
+.. versionchanged:: 3.31
+  ``<PROJECT-NAME>_SOURCE_DIR``, ``<PROJECT-NAME>_BINARY_DIR``, and
+  ``<PROJECT-NAME>_IS_TOP_LEVEL`` are always set as normal variables by
+  ``project(<PROJECT-NAME> ...)``.  See policy :policy:`CMP0180`.
+  Cache entries by the same names are always set as before.
 
 Options
 ^^^^^^^
@@ -102,23 +122,12 @@ The options are:
   Can also be specified without ``LANGUAGES`` keyword per the first, short signature.
 
   Selects which programming languages are needed to build the project.
-  Supported languages include ``C``, ``CXX`` (i.e.  C++), ``CUDA``,
-  ``OBJC`` (i.e. Objective-C), ``OBJCXX``, ``Fortran``, ``HIP``, ``ISPC``, and ``ASM``.
-  By default ``C`` and ``CXX`` are enabled if no language options are given.
-  Specify language ``NONE``, or use the ``LANGUAGES`` keyword and list no languages,
-  to skip enabling any languages.
 
-  .. versionadded:: 3.8
-    Added ``CUDA`` support.
+.. include:: SUPPORTED_LANGUAGES.txt
 
-  .. versionadded:: 3.16
-    Added ``OBJC`` and ``OBJCXX`` support.
-
-  .. versionadded:: 3.18
-    Added ``ISPC`` support.
-
-  If enabling ``ASM``, list it last so that CMake can check whether
-  compilers for other languages like ``C`` work for assembly too.
+By default ``C`` and ``CXX`` are enabled if no language options are given.
+Specify language ``NONE``, or use the ``LANGUAGES`` keyword and list no languages,
+to skip enabling any languages.
 
 The variables set through the ``VERSION``, ``DESCRIPTION`` and ``HOMEPAGE_URL``
 options are intended for use as default values in package metadata and documentation.
@@ -134,12 +143,12 @@ The following outlines the steps performed during a ``project()`` call:
 
 * .. versionadded:: 3.15
     For every ``project()`` call regardless of the project
-    name, include the file named by :variable:`CMAKE_PROJECT_INCLUDE_BEFORE`,
-    if set.
+    name, include the file(s) and module(s) named by
+    :variable:`CMAKE_PROJECT_INCLUDE_BEFORE`, if set.
 
 * .. versionadded:: 3.17
     If the ``project()`` command specifies ``<PROJECT-NAME>`` as its project
-    name, include the file named by
+    name, include the file(s) and module(s) named by
     :variable:`CMAKE_PROJECT_<PROJECT-NAME>_INCLUDE_BEFORE`, if set.
 
 * Set the various project-specific variables detailed in the `Synopsis`_
@@ -167,11 +176,11 @@ The following outlines the steps performed during a ``project()`` call:
 
 * .. versionadded:: 3.15
     For every ``project()`` call regardless of the project
-    name, include the file named by :variable:`CMAKE_PROJECT_INCLUDE`,
-    if set.
+    name, include the file(s) and module(s) named by
+    :variable:`CMAKE_PROJECT_INCLUDE`, if set.
 
 * If the ``project()`` command specifies ``<PROJECT-NAME>`` as its project
-  name, include the file named by
+  name, include the file(s) and module(s) named by
   :variable:`CMAKE_PROJECT_<PROJECT-NAME>_INCLUDE`, if set.
 
 Usage
@@ -188,5 +197,6 @@ call exists, CMake will issue a warning and pretend there is a
   Call the ``project()`` command near the top of the top-level
   ``CMakeLists.txt``, but *after* calling :command:`cmake_minimum_required`.
   It is important to establish version and policy settings before invoking
-  other commands whose behavior they may affect.
+  other commands whose behavior they may affect and for this reason the
+  ``project()`` command will issue a warning if this order is not kept.
   See also policy :policy:`CMP0000`.

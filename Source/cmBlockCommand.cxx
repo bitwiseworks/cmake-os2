@@ -3,7 +3,8 @@
 
 #include "cmBlockCommand.h"
 
-#include <cstdint> // IWYU pragma: keep
+#include <cstdint>
+#include <initializer_list>
 #include <utility>
 
 #include <cm/memory>
@@ -124,6 +125,10 @@ bool cmBlockFunctionBlocker::Replay(std::vector<cmListFileFunction> functions,
     }
     if (status.GetContinueInvoked()) {
       inStatus.SetContinueInvoked();
+      return true;
+    }
+    if (status.HasExitCode()) {
+      inStatus.SetExitCode(status.GetExitCode());
       return true;
     }
     if (cmSystemTools::GetFatalErrorOccurred()) {

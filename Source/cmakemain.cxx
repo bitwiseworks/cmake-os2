@@ -17,6 +17,7 @@
 #include <vector>
 
 #include <cm/memory>
+#include <cm/optional>
 #include <cmext/algorithm>
 
 #include <cm3p/uv.h>
@@ -24,8 +25,10 @@
 #include "cmBuildOptions.h"
 #include "cmCommandLineArgument.h"
 #include "cmConsoleBuf.h"
-#include "cmDocumentationEntry.h" // IWYU pragma: keep
+#include "cmDocumentationEntry.h"
 #include "cmGlobalGenerator.h"
+#include "cmInstallScriptHandler.h"
+#include "cmList.h"
 #include "cmMakefile.h"
 #include "cmMessageMetadata.h"
 #include "cmState.h"
@@ -42,42 +45,47 @@
 #endif
 
 #include "cmsys/Encoding.hxx"
+#include "cmsys/RegularExpression.hxx"
 #include "cmsys/Terminal.h"
 
 namespace {
 #ifndef CMAKE_BOOTSTRAP
-const char* cmDocumentationName[][2] = {
-  { nullptr, "  cmake - Cross-Platform Makefile Generator." },
-  { nullptr, nullptr }
+const cmDocumentationEntry cmDocumentationName = {
+  {},
+  "  cmake - Cross-Platform Makefile Generator."
 };
 
-const char* cmDocumentationUsage[][2] = {
-  { nullptr,
+const cmDocumentationEntry cmDocumentationUsage[2] = {
+  { {},
     "  cmake [options] <path-to-source>\n"
     "  cmake [options] <path-to-existing-build>\n"
     "  cmake [options] -S <path-to-source> -B <path-to-build>" },
-  { nullptr,
+  { {},
     "Specify a source directory to (re-)generate a build system for "
     "it in the current working directory.  Specify an existing build "
-    "directory to re-generate its build system." },
-  { nullptr, nullptr }
+    "directory to re-generate its build system." }
 };
 
-const char* cmDocumentationUsageNote[][2] = {
-  { nullptr, "Run 'cmake --help' for more information." },
-  { nullptr, nullptr }
+const cmDocumentationEntry cmDocumentationUsageNote = {
+  {},
+  "Run 'cmake --help' for more information."
 };
 
-const char* cmDocumentationOptions[][2] = {
-  CMAKE_STANDARD_OPTIONS_TABLE,
+const cmDocumentationEntry cmDocumentationOptions[34] = {
   { "--preset <preset>,--preset=<preset>", "Specify a configure preset." },
   { "--list-presets[=<type>]", "List available presets." },
-  { "-E", "CMake command mode." },
+  { "--workflow [<options>]", "Run a workflow preset." },
+  { "-E", "CMake command mode. Run \"cmake -E\" for a summary of commands." },
   { "-L[A][H]", "List non-advanced cached variables." },
+  { "-LR[A][H] <regex>", "Show cached variables that match the regex." },
   { "--fresh",
     "Configure a fresh build tree, removing any existing cache file." },
-  { "--build <dir>", "Build a CMake-generated project binary tree." },
-  { "--install <dir>", "Install a CMake-generated project binary tree." },
+  { "--build <dir>",
+    "Build a CMake-generated project binary tree. Run \"cmake --build\" to "
+    "see compatible options and a quick help." },
+  { "--install <dir>",
+    "Install a CMake-generated project binary tree. Run \"cmake --install\" "
+    "to see compatible options and a quick help." },
   { "--open <dir>", "Open generated project in the associated application." },
   { "-N", "View mode only." },
   { "-P <file>", "Process script mode." },
@@ -86,6 +94,8 @@ const char* cmDocumentationOptions[][2] = {
     "Generate graphviz of dependencies, see CMakeGraphVizOptions.cmake for "
     "more." },
   { "--system-information [file]", "Dump information about this system." },
+  { "--print-config-dir",
+    "Print CMake config directory for user-wide FileAPI queries." },
   { "--log-level=<ERROR|WARNING|NOTICE|STATUS|VERBOSE|DEBUG|TRACE>",
     "Set the verbosity of messages from CMake files. "
     "--loglevel is also accepted for backward compatibility reasons." },
@@ -113,15 +123,12 @@ const char* cmDocumentationOptions[][2] = {
   { "--compile-no-warning-as-error",
     "Ignore COMPILE_WARNING_AS_ERROR property and "
     "CMAKE_COMPILE_WARNING_AS_ERROR variable." },
-#  if !defined(CMAKE_BOOTSTRAP)
   { "--profiling-format=<fmt>",
     "Output data for profiling CMake scripts. Supported formats: "
     "google-trace" },
   { "--profiling-output=<file>",
     "Select an output path for the profiling data enabled through "
-    "--profiling-format." },
-#  endif
-  { nullptr, nullptr }
+    "--profiling-format." }
 };
 
 #endif
@@ -172,11 +179,11 @@ void cmakemainMessageCallback(const std::string& m,
   // cannot use it to print messages.  Another implementation will
   // be needed to print colored messages on Windows.
   static_cast<void>(md);
-  std::cerr << m << cmakemainGetStack(cm) << '\n' << std::flush;
+  std::cerr << m << cmakemainGetStack(cm) << std::endl;
 #else
   cmsysTerminal_cfprintf(md.desiredColor, stderr, "%s", m.c_str());
   fflush(stderr); // stderr is buffered in some cases.
-  std::cerr << cmakemainGetStack(cm) << '\n' << std::flush;
+  std::cerr << cmakemainGetStack(cm) << std::endl;
 #endif
 }
 
@@ -195,6 +202,21 @@ void cmakemainProgressCallback(const std::string& m, float prog, cmake* cm)
   }
 }
 
+std::function<bool(std::string const& value)> getShowCachedCallback(
+  bool& show_flag, bool* help_flag = nullptr, std::string* filter = nullptr)
+{
+  return [=, &show_flag](std::string const& value) -> bool {
+    show_flag = true;
+    if (help_flag) {
+      *help_flag = true;
+    }
+    if (filter) {
+      *filter = value;
+    }
+    return true;
+  };
+}
+
 int do_cmake(int ac, char const* const* av)
 {
   if (cmSystemTools::GetCurrentWorkingDirectory().empty()) {
@@ -208,7 +230,7 @@ int do_cmake(int ac, char const* const* av)
   doc.addCMakeStandardDocSections();
   if (doc.CheckOptions(ac, av, "--")) {
     // Construct and print requested documentation.
-    cmake hcm(cmake::RoleInternal, cmState::Unknown);
+    cmake hcm(cmake::RoleInternal, cmState::Help);
     hcm.SetHomeDirectory("");
     hcm.SetHomeOutputDirectory("");
     hcm.AddCMakePaths();
@@ -228,8 +250,9 @@ int do_cmake(int ac, char const* const* av)
     }
     doc.AppendSection("Generators", generators);
     doc.PrependSection("Options", cmDocumentationOptions);
+    doc.PrependSection("Options", cmake::CMAKE_STANDARD_OPTIONS_TABLE);
 
-    return doc.PrintRequestedDocumentation(std::cout) ? 0 : 1;
+    return !doc.PrintRequestedDocumentation(std::cout);
   }
 #else
   if (ac == 1) {
@@ -245,6 +268,8 @@ int do_cmake(int ac, char const* const* av)
   bool list_cached = false;
   bool list_all_cached = false;
   bool list_help = false;
+  // (Regex) Filter on the cached variable(s) to print.
+  std::string filter_var_name;
   bool view_only = false;
   cmake::WorkingMode workingMode = cmake::NORMAL_MODE;
   std::vector<std::string> parsedArgs;
@@ -269,13 +294,25 @@ int do_cmake(int ac, char const* const* av)
     CommandArgument{ "-N", CommandArgument::Values::Zero,
                      CommandArgument::setToTrue(view_only) },
     CommandArgument{ "-LAH", CommandArgument::Values::Zero,
-                     CommandArgument::setToTrue(list_all_cached, list_help) },
+                     getShowCachedCallback(list_all_cached, &list_help) },
     CommandArgument{ "-LA", CommandArgument::Values::Zero,
-                     CommandArgument::setToTrue(list_all_cached) },
+                     getShowCachedCallback(list_all_cached) },
     CommandArgument{ "-LH", CommandArgument::Values::Zero,
-                     CommandArgument::setToTrue(list_cached, list_help) },
+                     getShowCachedCallback(list_cached, &list_help) },
     CommandArgument{ "-L", CommandArgument::Values::Zero,
-                     CommandArgument::setToTrue(list_cached) },
+                     getShowCachedCallback(list_cached) },
+    CommandArgument{
+      "-LRAH", CommandArgument::Values::One,
+      getShowCachedCallback(list_all_cached, &list_help, &filter_var_name) },
+    CommandArgument{
+      "-LRA", CommandArgument::Values::One,
+      getShowCachedCallback(list_all_cached, nullptr, &filter_var_name) },
+    CommandArgument{
+      "-LRH", CommandArgument::Values::One,
+      getShowCachedCallback(list_cached, &list_help, &filter_var_name) },
+    CommandArgument{
+      "-LR", CommandArgument::Values::One,
+      getShowCachedCallback(list_cached, nullptr, &filter_var_name) },
     CommandArgument{ "-P", "No script specified for argument -P",
                      CommandArgument::Values::One,
                      CommandArgument::RequiresSeparator::No,
@@ -307,6 +344,13 @@ int do_cmake(int ac, char const* const* av)
   for (decltype(inputArgs.size()) i = 0; i < inputArgs.size(); ++i) {
     std::string const& arg = inputArgs[i];
     bool matched = false;
+
+    // Only in script mode do we stop parsing instead
+    // of preferring the last mode flag provided
+    if (arg == "--" && workingMode == cmake::SCRIPT_MODE) {
+      parsedArgs = inputArgs;
+      break;
+    }
     for (auto const& m : arguments) {
       if (m.matches(arg)) {
         matched = true;
@@ -363,7 +407,15 @@ int do_cmake(int ac, char const* const* av)
   if (list_cached || list_all_cached) {
     std::cout << "-- Cache values" << std::endl;
     std::vector<std::string> keys = cm.GetState()->GetCacheEntryKeys();
+    cmsys::RegularExpression regex_var_name;
+    if (!filter_var_name.empty()) {
+      regex_var_name.compile(filter_var_name);
+    }
     for (std::string const& k : keys) {
+      if (regex_var_name.is_valid() && !regex_var_name.find(k)) {
+        continue;
+      }
+
       cmStateEnums::CacheEntryType t = cm.GetState()->GetCacheEntryType(k);
       if (t != cmStateEnums::INTERNAL && t != cmStateEnums::STATIC &&
           t != cmStateEnums::UNINITIALIZED) {
@@ -385,11 +437,20 @@ int do_cmake(int ac, char const* const* av)
     }
   }
 
-  // Always return a non-negative value.  Windows tools do not always
-  // interpret negative return values as errors.
+  // Always return a non-negative value (except exit code from SCRIPT_MODE).
+  // Windows tools do not always interpret negative return values as errors.
   if (res != 0) {
-    return 1;
+    auto scriptModeExitCode =
+      cm.HasScriptModeExitCode() ? cm.GetScriptModeExitCode() : 0;
+    res = scriptModeExitCode ? scriptModeExitCode : 1;
+#ifdef CMake_ENABLE_DEBUGGER
+    cm.StopDebuggerIfNeeded(res);
+#endif
+    return res;
   }
+#ifdef CMake_ENABLE_DEBUGGER
+  cm.StopDebuggerIfNeeded(0);
+#endif
   return 0;
 }
 
@@ -416,6 +477,17 @@ int extract_job_number(std::string const& command,
   }
   return jobs;
 }
+std::function<bool(std::string const&)> extract_job_number_lambda_builder(
+  std::string& dir, int& jobs, const std::string& flag)
+{
+  return [&dir, &jobs, flag](std::string const& value) -> bool {
+    jobs = extract_job_number(flag, value);
+    if (jobs < 0) {
+      dir.clear();
+    }
+    return true;
+  };
+};
 #endif
 
 int do_build(int ac, char const* const* av)
@@ -438,23 +510,13 @@ int do_build(int ac, char const* const* av)
   std::string presetName;
   bool listPresets = false;
 
-  auto jLambda = [&](std::string const& value) -> bool {
-    jobs = extract_job_number("-j", value);
-    if (jobs < 0) {
-      dir.clear();
-    }
-    return true;
-  };
-  auto parallelLambda = [&](std::string const& value) -> bool {
-    jobs = extract_job_number("--parallel", value);
-    if (jobs < 0) {
-      dir.clear();
-    }
-    return true;
-  };
+  auto jLambda = extract_job_number_lambda_builder(dir, jobs, "-j");
+  auto parallelLambda =
+    extract_job_number_lambda_builder(dir, jobs, "--parallel");
+
   auto targetLambda = [&](std::string const& value) -> bool {
     if (!value.empty()) {
-      std::vector<std::string> values = cmExpandedList(value);
+      cmList values{ value };
       for (auto const& v : values) {
         targets.emplace_back(v);
         if (v == "clean") {
@@ -522,25 +584,8 @@ int do_build(int ac, char const* const* av)
   if (ac >= 3) {
     std::vector<std::string> inputArgs;
 
-    bool hasPreset = false;
-    for (int i = 2; i < ac; ++i) {
-      if (strcmp(av[i], "--list-presets") == 0 ||
-          cmHasLiteralPrefix(av[i], "--preset=") ||
-          strcmp(av[i], "--preset") == 0) {
-        hasPreset = true;
-        break;
-      }
-    }
-
-    if (hasPreset) {
-      inputArgs.reserve(ac - 2);
-      cm::append(inputArgs, av + 2, av + ac);
-    } else {
-      dir = cmSystemTools::CollapseFullPath(av[2]);
-
-      inputArgs.reserve(ac - 3);
-      cm::append(inputArgs, av + 3, av + ac);
-    }
+    inputArgs.reserve(ac - 2);
+    cm::append(inputArgs, av + 2, av + ac);
 
     decltype(inputArgs.size()) i = 0;
     for (; i < inputArgs.size() && !nativeOptionsPassed; ++i) {
@@ -554,6 +599,11 @@ int do_build(int ac, char const* const* av)
           parsed = m.parse(arg, i, inputArgs);
           break;
         }
+      }
+      if (!matched && i == 0) {
+        dir = cmSystemTools::CollapseFullPath(arg);
+        matched = true;
+        parsed = true;
       }
       if (!(matched && parsed)) {
         dir.clear();
@@ -764,7 +814,7 @@ bool parse_default_directory_permissions(const std::string& permissions,
   std::ostringstream oss;
   for (auto i = 0u; i < parsedPermissions.size(); i++) {
     if (i != 0) {
-      oss << ";";
+      oss << ';';
     }
     oss << parsedPermissions[i];
   }
@@ -786,8 +836,13 @@ int do_install(int ac, char const* const* av)
   std::string defaultDirectoryPermissions;
   std::string prefix;
   std::string dir;
+  int jobs = 0;
   bool strip = false;
   bool verbose = cmSystemTools::HasEnv("VERBOSE");
+
+  auto jLambda = extract_job_number_lambda_builder(dir, jobs, "-j");
+  auto parallelLambda =
+    extract_job_number_lambda_builder(dir, jobs, "--parallel");
 
   auto verboseLambda = [&](std::string const&) -> bool {
     verbose = true;
@@ -805,6 +860,9 @@ int do_install(int ac, char const* const* av)
     CommandArgument{
       "--default-directory-permissions", CommandArgument::Values::One,
       CommandArgument::setToValue(defaultDirectoryPermissions) },
+    CommandArgument{ "-j", CommandArgument::Values::One, jLambda },
+    CommandArgument{ "--parallel", CommandArgument::Values::One,
+                     parallelLambda },
     CommandArgument{ "--prefix", CommandArgument::Values::One,
                      CommandArgument::setToValue(prefix) },
     CommandArgument{ "--strip", CommandArgument::Values::Zero,
@@ -821,7 +879,6 @@ int do_install(int ac, char const* const* av)
     inputArgs.reserve(ac - 3);
     cm::append(inputArgs, av + 3, av + ac);
     for (decltype(inputArgs.size()) i = 0; i < inputArgs.size(); ++i) {
-
       std::string const& arg = inputArgs[i];
       bool matched = false;
       bool parsed = false;
@@ -852,6 +909,10 @@ int do_install(int ac, char const* const* av)
       "  --component <comp> = Component-based install. Only install <comp>.\n"
       "  --default-directory-permissions <permission> \n"
       "     Default install permission. Use default permission <permission>.\n"
+      "  -j <jobs> --parallel <jobs>\n"
+      "     Build in parallel using the given number of jobs. \n"
+      "     The CMAKE_INSTALL_PARALLEL_LEVEL environment variable\n"
+      "     specifies a default parallel level when this option is not given.\n"
       "  --prefix <prefix>  = The installation prefix CMAKE_INSTALL_PREFIX.\n"
       "  --strip            = Performing install/strip.\n"
       "  -v --verbose       = Enable verbose output.\n"
@@ -905,9 +966,29 @@ int do_install(int ac, char const* const* av)
   }
 
   args.emplace_back("-P");
-  args.emplace_back(dir + "/cmake_install.cmake");
 
-  return cm.Run(args) ? 1 : 0;
+  auto handler = cmInstallScriptHandler(dir, component, args);
+  int ret = 0;
+  if (!handler.isParallel()) {
+    args.emplace_back(cmStrCat(dir, "/cmake_install.cmake"));
+    ret = int(bool(cm.Run(args)));
+  } else {
+    if (!jobs) {
+      jobs = 1;
+      auto envvar = cmSystemTools::GetEnvVar("CMAKE_INSTALL_PARALLEL_LEVEL");
+      if (envvar.has_value()) {
+        jobs = extract_job_number("", envvar.value());
+        if (jobs < 1) {
+          std::cerr << "Value of CMAKE_INSTALL_PARALLEL_LEVEL environment"
+                       " variable must be a positive integer.\n";
+          return 1;
+        }
+      }
+    }
+    ret = handler.install(jobs);
+  }
+
+  return int(ret > 0);
 #endif
 }
 
@@ -958,6 +1039,11 @@ int do_workflow(int ac, char const* const* av)
         break;
       }
     }
+    if (!matched && i == 0) {
+      inputArgs.insert(inputArgs.begin(), "--preset");
+      matched = true;
+      parsed = arguments[0].parse("--preset", i, inputArgs);
+    }
     if (!(matched && parsed)) {
       if (!matched) {
         presetName.clear();
@@ -971,7 +1057,7 @@ int do_workflow(int ac, char const* const* av)
   if (presetName.empty() && listPresets == WorkflowListPresets::No) {
     /* clang-format off */
     std::cerr <<
-      "Usage: cmake --workflow [options]\n"
+      "Usage: cmake --workflow <options>\n"
       "Options:\n"
       "  --preset <preset> = Workflow preset to execute.\n"
       "  --list-presets    = List available workflow presets.\n"
@@ -1069,6 +1155,13 @@ int main(int ac, char const* const* av)
     }
     if (strcmp(av[1], "-E") == 0) {
       return do_command(ac, av, std::move(consoleBuf));
+    }
+    if (strcmp(av[1], "--print-config-dir") == 0) {
+      std::cout << cmSystemTools::ConvertToOutputPath(
+                     cmSystemTools::GetCMakeConfigDirectory().value_or(
+                       std::string()))
+                << std::endl;
+      return 0;
     }
   }
   int ret = do_cmake(ac, av);

@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <atomic>
 #include <cstddef>
+#include <limits>
 #include <map>
 #include <mutex>
 #include <set>
@@ -27,6 +28,7 @@
 #include "cmCryptoHash.h"
 #include "cmFileTime.h"
 #include "cmGccDepfileReader.h"
+#include "cmGccDepfileReaderTypes.h"
 #include "cmGeneratedFileStream.h"
 #include "cmQtAutoGen.h"
 #include "cmQtAutoGenerator.h"
@@ -169,8 +171,12 @@ public:
     // -- Attributes
     // - Config
     bool MultiConfig = false;
+    bool CrossConfig = false;
+    bool UseBetterGraph = false;
     IntegerVersion QtVersion = { 4, 0 };
     unsigned int ThreadCount = 0;
+    unsigned int MaxCommandLineLength =
+      std::numeric_limits<unsigned int>::max();
     // - Directories
     std::string AutogenBuildDir;
     std::string AutogenIncludeDir;
@@ -189,7 +195,7 @@ public:
   {
   public:
     // -- Parse Cache
-    std::atomic<bool> ParseCacheChanged = ATOMIC_VAR_INIT(false);
+    std::atomic<bool> ParseCacheChanged{ false };
     cmFileTime ParseCacheTime;
     ParseCacheT ParseCache;
 
@@ -331,6 +337,15 @@ public:
     void LogCommandError(GenT genType, cm::string_view message,
                          std::vector<std::string> const& command,
                          std::string const& output) const;
+
+    /*
+     * Check if command line exceeds maximum length supported by OS
+     * (if on Windows) and switch to using a response file instead.
+     */
+    void MaybeWriteResponseFile(std::string const& outputFile,
+                                std::vector<std::string>& cmd) const;
+
+    static void MaybePrependCmdExe(std::vector<std::string>& cmd);
 
     /** @brief Run an external process. Use only during Process() call!  */
     bool RunProcess(GenT genType, cmWorkerPool::ProcessResultT& result,
@@ -497,10 +512,6 @@ public:
 
   protected:
     ParseCacheT::FileHandleT CacheEntry;
-
-  private:
-    void MaybeWriteMocResponseFile(std::string const& outputFile,
-                                   std::vector<std::string>& cmd) const;
   };
 
   /** uic compiles a file.  */
@@ -582,7 +593,7 @@ private:
   std::string SettingsStringMoc_;
   std::string SettingsStringUic_;
   // -- Worker thread pool
-  std::atomic<bool> JobError_ = ATOMIC_VAR_INIT(false);
+  std::atomic<bool> JobError_{ false };
   cmWorkerPool WorkerPool_;
   // -- Concurrent processing
   mutable std::mutex CMakeLibMutex_;
@@ -794,6 +805,99 @@ void cmQtAutoMocUicT::JobT::LogCommandError(
   this->Gen()->Log().ErrorCommand(genType, message, command, output);
 }
 
+/*
+ * Check if command line exceeds maximum length supported by OS
+ * (if on Windows) and switch to using a response file instead.
+ */
+void cmQtAutoMocUicT::JobT::MaybeWriteResponseFile(
+  std::string const& outputFile, std::vector<std::string>& cmd) const
+{
+#ifdef _WIN32
+  // Ensure cmd is less than CommandLineLengthMax characters
+  size_t commandLineLength = cmd.size(); // account for separating spaces
+  for (std::string const& str : cmd) {
+    commandLineLength += str.length();
+  }
+  if (commandLineLength >= this->BaseConst().MaxCommandLineLength) {
+    // Command line exceeds maximum size allowed by OS
+    // => create response file
+    std::string const responseFile = cmStrCat(outputFile, ".rsp");
+
+    cmsys::ofstream fout(responseFile.c_str());
+    if (!fout) {
+      this->LogError(
+        GenT::MOC,
+        cmStrCat("AUTOMOC was unable to create a response file at\n  ",
+                 this->MessagePath(responseFile)));
+      return;
+    }
+
+    auto it = cmd.begin();
+    while (++it != cmd.end()) {
+      fout << *it << "\n";
+    }
+    fout.close();
+
+    // Keep all but executable
+    cmd.resize(1);
+
+    // Specify response file
+    cmd.emplace_back(cmStrCat('@', responseFile));
+  }
+#else
+  static_cast<void>(outputFile);
+  static_cast<void>(cmd);
+#endif
+}
+
+/*
+ *  According to the CreateProcessW documentation which is the underlying
+ *  function for all RunProcess calls:
+ *
+ *  "To run a batch file, you must start the command interpreter; set"
+ *  "lpApplicationName to cmd.exe and set lpCommandLine to the following"
+ *  "arguments: /c plus the name of the batch file."
+ *
+ *  we should to take care of the correctness of the command line when
+ *  attempting to execute the batch files.
+ *
+ *  Also cmd.exe is unable to parse batch file names correctly if they
+ *  contain spaces. This function uses cmSystemTools::GetShortPath conversion
+ *  to suppress this behavior.
+ *
+ *  The function is noop on platforms different from the pure WIN32 one.
+ */
+void cmQtAutoMocUicT::JobT::MaybePrependCmdExe(
+  std::vector<std::string>& cmdLine)
+{
+#if defined(_WIN32) && !defined(__CYGWIN__)
+  if (!cmdLine.empty()) {
+    const auto& applicationName = cmdLine.at(0);
+    if (cmSystemTools::StringEndsWith(applicationName, ".bat") ||
+        cmSystemTools::StringEndsWith(applicationName, ".cmd")) {
+      std::vector<std::string> output;
+      output.reserve(cmdLine.size() + 2);
+      output.emplace_back(cmSystemTools::GetComspec());
+      output.emplace_back("/c");
+      std::string tmpShortPath;
+      if (applicationName.find(' ') != std::string::npos &&
+          cmSystemTools::GetShortPath(applicationName, tmpShortPath)) {
+        // If the batch file name contains spaces convert it to the windows
+        // short path. Otherwise it might cause issue when running cmd.exe.
+        output.emplace_back(tmpShortPath);
+      } else {
+        output.push_back(applicationName);
+      }
+      std::move(cmdLine.begin() + 1, cmdLine.end(),
+                std::back_inserter(output));
+      cmdLine = std::move(output);
+    }
+  }
+#else
+  static_cast<void>(cmdLine);
+#endif
+}
+
 bool cmQtAutoMocUicT::JobT::RunProcess(GenT genType,
                                        cmWorkerPool::ProcessResultT& result,
                                        std::vector<std::string> const& command,
@@ -802,7 +906,7 @@ bool cmQtAutoMocUicT::JobT::RunProcess(GenT genType,
   // Log command
   if (this->Log().Verbose()) {
     cm::string_view info;
-    if (infoMessage != nullptr) {
+    if (infoMessage) {
       info = *infoMessage;
     }
     this->Log().Info(
@@ -835,6 +939,11 @@ void cmQtAutoMocUicT::JobMocPredefsT::Process()
       cm::append(cmd, this->MocConst().OptionsDefinitions);
       // Add includes
       cm::append(cmd, this->MocConst().OptionsIncludes);
+      // Check if response file is necessary
+      MaybeWriteResponseFile(this->MocConst().PredefsFileAbs, cmd);
+
+      MaybePrependCmdExe(cmd);
+
       // Execute command
       if (!this->RunProcess(GenT::MOC, result, cmd, reason.get())) {
         this->LogCommandError(GenT::MOC,
@@ -882,7 +991,7 @@ bool cmQtAutoMocUicT::JobMocPredefsT::Update(std::string* reason) const
 {
   // Test if the file exists
   if (!this->MocEval().PredefsTime.Load(this->MocConst().PredefsFileAbs)) {
-    if (reason != nullptr) {
+    if (reason) {
       *reason = cmStrCat("Generating ",
                          this->MessagePath(this->MocConst().PredefsFileAbs),
                          ", because it doesn't exist.");
@@ -892,7 +1001,7 @@ bool cmQtAutoMocUicT::JobMocPredefsT::Update(std::string* reason) const
 
   // Test if the settings changed
   if (this->MocConst().SettingsChanged) {
-    if (reason != nullptr) {
+    if (reason) {
       *reason = cmStrCat("Generating ",
                          this->MessagePath(this->MocConst().PredefsFileAbs),
                          ", because the moc settings changed.");
@@ -906,7 +1015,7 @@ bool cmQtAutoMocUicT::JobMocPredefsT::Update(std::string* reason) const
     cmFileTime execTime;
     if (execTime.Load(exec)) {
       if (this->MocEval().PredefsTime.Older(execTime)) {
-        if (reason != nullptr) {
+        if (reason) {
           *reason = cmStrCat(
             "Generating ", this->MessagePath(this->MocConst().PredefsFileAbs),
             " because it is older than ", this->MessagePath(exec), '.');
@@ -1744,7 +1853,7 @@ bool cmQtAutoMocUicT::JobProbeDepsMocT::Probe(MappingT const& mapping,
   // Test if the output file exists
   cmFileTime outputFileTime;
   if (!outputFileTime.Load(outputFile)) {
-    if (reason != nullptr) {
+    if (reason) {
       *reason = cmStrCat("Generating ", this->MessagePath(outputFile),
                          ", because it doesn't exist, from ",
                          this->MessagePath(sourceFile));
@@ -1754,9 +1863,9 @@ bool cmQtAutoMocUicT::JobProbeDepsMocT::Probe(MappingT const& mapping,
 
   // Test if any setting changed
   if (this->MocConst().SettingsChanged) {
-    if (reason != nullptr) {
+    if (reason) {
       *reason = cmStrCat("Generating ", this->MessagePath(outputFile),
-                         ", because the uic settings changed, from ",
+                         ", because the moc settings changed, from ",
                          this->MessagePath(sourceFile));
     }
     return true;
@@ -1764,7 +1873,7 @@ bool cmQtAutoMocUicT::JobProbeDepsMocT::Probe(MappingT const& mapping,
 
   // Test if the source file is newer
   if (outputFileTime.Older(mapping.SourceFile->FileTime)) {
-    if (reason != nullptr) {
+    if (reason) {
       *reason = cmStrCat("Generating ", this->MessagePath(outputFile),
                          ", because it's older than its source file, from ",
                          this->MessagePath(sourceFile));
@@ -1775,7 +1884,7 @@ bool cmQtAutoMocUicT::JobProbeDepsMocT::Probe(MappingT const& mapping,
   // Test if the moc_predefs file is newer
   if (!this->MocConst().PredefsFileAbs.empty()) {
     if (outputFileTime.Older(this->MocEval().PredefsTime)) {
-      if (reason != nullptr) {
+      if (reason) {
         *reason = cmStrCat("Generating ", this->MessagePath(outputFile),
                            ", because it's older than ",
                            this->MessagePath(this->MocConst().PredefsFileAbs),
@@ -1787,7 +1896,7 @@ bool cmQtAutoMocUicT::JobProbeDepsMocT::Probe(MappingT const& mapping,
 
   // Test if the moc executable is newer
   if (outputFileTime.Older(this->MocConst().ExecutableTime)) {
-    if (reason != nullptr) {
+    if (reason) {
       *reason = cmStrCat("Generating ", this->MessagePath(outputFile),
                          ", because it's older than the moc executable, from ",
                          this->MessagePath(sourceFile));
@@ -1806,7 +1915,7 @@ bool cmQtAutoMocUicT::JobProbeDepsMocT::Probe(MappingT const& mapping,
       // Find dependency file
       auto const depMatch = this->FindDependency(sourceDir, dep);
       if (depMatch.first.empty()) {
-        if (reason != nullptr) {
+        if (reason) {
           *reason = cmStrCat("Generating ", this->MessagePath(outputFile),
                              " from ", this->MessagePath(sourceFile),
                              ", because its dependency ",
@@ -1819,7 +1928,7 @@ bool cmQtAutoMocUicT::JobProbeDepsMocT::Probe(MappingT const& mapping,
 
       // Test if dependency file is older
       if (outputFileTime.Older(depMatch.second)) {
-        if (reason != nullptr) {
+        if (reason) {
           *reason = cmStrCat("Generating ", this->MessagePath(outputFile),
                              ", because it's older than its dependency file ",
                              this->MessagePath(depMatch.first), ", from ",
@@ -1894,7 +2003,7 @@ bool cmQtAutoMocUicT::JobProbeDepsUicT::Probe(MappingT const& mapping,
   // Test if the build file exists
   cmFileTime outputFileTime;
   if (!outputFileTime.Load(outputFile)) {
-    if (reason != nullptr) {
+    if (reason) {
       *reason = cmStrCat("Generating ", this->MessagePath(outputFile),
                          ", because it doesn't exist, from ",
                          this->MessagePath(sourceFile));
@@ -1904,7 +2013,7 @@ bool cmQtAutoMocUicT::JobProbeDepsUicT::Probe(MappingT const& mapping,
 
   // Test if the uic settings changed
   if (this->UicConst().SettingsChanged) {
-    if (reason != nullptr) {
+    if (reason) {
       *reason = cmStrCat("Generating ", this->MessagePath(outputFile),
                          ", because the uic settings changed, from ",
                          this->MessagePath(sourceFile));
@@ -1914,7 +2023,7 @@ bool cmQtAutoMocUicT::JobProbeDepsUicT::Probe(MappingT const& mapping,
 
   // Test if the source file is newer
   if (outputFileTime.Older(mapping.SourceFile->FileTime)) {
-    if (reason != nullptr) {
+    if (reason) {
       *reason = cmStrCat("Generating ", this->MessagePath(outputFile),
                          " because it's older than the source file ",
                          this->MessagePath(sourceFile));
@@ -1924,7 +2033,7 @@ bool cmQtAutoMocUicT::JobProbeDepsUicT::Probe(MappingT const& mapping,
 
   // Test if the uic executable is newer
   if (outputFileTime.Older(this->UicConst().ExecutableTime)) {
-    if (reason != nullptr) {
+    if (reason) {
       *reason = cmStrCat("Generating ", this->MessagePath(outputFile),
                          ", because it's older than the uic executable, from ",
                          this->MessagePath(sourceFile));
@@ -1981,6 +2090,9 @@ void cmQtAutoMocUicT::JobCompileMocT::Process()
   std::string const& sourceFile = this->Mapping->SourceFile->FileName;
   std::string const& outputFile = this->Mapping->OutputFile;
 
+  // Remove output file in case the case of the source file has changed
+  cmSystemTools::RemoveFile(outputFile);
+
   // Compose moc command
   std::vector<std::string> cmd;
   {
@@ -2030,7 +2142,8 @@ void cmQtAutoMocUicT::JobCompileMocT::Process()
     // Add source file
     cmd.push_back(sourceFile);
 
-    MaybeWriteMocResponseFile(outputFile, cmd);
+    MaybeWriteResponseFile(outputFile, cmd);
+    MaybePrependCmdExe(cmd);
   }
 
   // Execute moc command
@@ -2076,51 +2189,6 @@ void cmQtAutoMocUicT::JobCompileMocT::Process()
   }
 }
 
-/*
- * Check if command line exceeds maximum length supported by OS
- * (if on Windows) and switch to using a response file instead.
- */
-void cmQtAutoMocUicT::JobCompileMocT::MaybeWriteMocResponseFile(
-  std::string const& outputFile, std::vector<std::string>& cmd) const
-{
-#ifdef _WIN32
-  // Ensure cmd is less than CommandLineLengthMax characters
-  size_t commandLineLength = cmd.size(); // account for separating spaces
-  for (std::string const& str : cmd) {
-    commandLineLength += str.length();
-  }
-  if (commandLineLength >= CommandLineLengthMax) {
-    // Command line exceeds maximum size allowed by OS
-    // => create response file
-    std::string const responseFile = cmStrCat(outputFile, ".rsp");
-
-    cmsys::ofstream fout(responseFile.c_str());
-    if (!fout) {
-      this->LogError(
-        GenT::MOC,
-        cmStrCat("AUTOMOC was unable to create a response file at\n  ",
-                 this->MessagePath(responseFile)));
-      return;
-    }
-
-    auto it = cmd.begin();
-    while (++it != cmd.end()) {
-      fout << *it << "\n";
-    }
-    fout.close();
-
-    // Keep all but executable
-    cmd.resize(1);
-
-    // Specify response file
-    cmd.push_back(cmStrCat('@', responseFile));
-  }
-#else
-  static_cast<void>(outputFile);
-  static_cast<void>(cmd);
-#endif
-}
-
 void cmQtAutoMocUicT::JobCompileUicT::Process()
 {
   std::string const& sourceFile = this->Mapping->SourceFile->FileName;
@@ -2141,6 +2209,8 @@ void cmQtAutoMocUicT::JobCompileUicT::Process()
   cmd.emplace_back("-o");
   cmd.emplace_back(outputFile);
   cmd.emplace_back(sourceFile);
+
+  MaybePrependCmdExe(cmd);
 
   cmWorkerPool::ProcessResultT result;
   if (this->RunProcess(GenT::UIC, result, cmd, this->Reason.get())) {
@@ -2269,10 +2339,9 @@ cmQtAutoMocUicT::JobDepFilesMergeT::initialDependencies() const
 void cmQtAutoMocUicT::JobDepFilesMergeT::Process()
 {
   if (this->Log().Verbose()) {
-    this->Log().Info(
-      GenT::MOC,
-      cmStrCat("Merging MOC dependencies into ",
-               this->MessagePath(this->BaseConst().DepFile.c_str())));
+    this->Log().Info(GenT::MOC,
+                     cmStrCat("Merging MOC dependencies into ",
+                              this->MessagePath(this->BaseConst().DepFile)));
   }
   auto processDepFile =
     [this](const std::string& mocOutputFile) -> std::vector<std::string> {
@@ -2369,11 +2438,18 @@ bool cmQtAutoMocUicT::InitFromInfo(InfoT const& info)
 {
   // -- Required settings
   if (!info.GetBool("MULTI_CONFIG", this->BaseConst_.MultiConfig, true) ||
+      !info.GetBool("CROSS_CONFIG", this->BaseConst_.CrossConfig, true) ||
+      !info.GetBool("USE_BETTER_GRAPH", this->BaseConst_.UseBetterGraph,
+                    true) ||
       !info.GetUInt("QT_VERSION_MAJOR", this->BaseConst_.QtVersion.Major,
                     true) ||
       !info.GetUInt("QT_VERSION_MINOR", this->BaseConst_.QtVersion.Minor,
                     true) ||
       !info.GetUInt("PARALLEL", this->BaseConst_.ThreadCount, false) ||
+#ifdef _WIN32
+      !info.GetUInt("AUTOGEN_COMMAND_LINE_LENGTH_MAX",
+                    this->BaseConst_.MaxCommandLineLength, false) ||
+#endif
       !info.GetString("BUILD_DIR", this->BaseConst_.AutogenBuildDir, true) ||
       !info.GetStringConfig("INCLUDE_DIR", this->BaseConst_.AutogenIncludeDir,
                             true) ||
@@ -2381,18 +2457,48 @@ bool cmQtAutoMocUicT::InitFromInfo(InfoT const& info)
                       true) ||
       !info.GetStringConfig("PARSE_CACHE_FILE",
                             this->BaseConst_.ParseCacheFile, true) ||
-      !info.GetString("DEP_FILE", this->BaseConst_.DepFile, false) ||
-      !info.GetString("DEP_FILE_RULE_NAME", this->BaseConst_.DepFileRuleName,
-                      false) ||
       !info.GetStringConfig("SETTINGS_FILE", this->SettingsFile_, true) ||
       !info.GetArray("CMAKE_LIST_FILES", this->BaseConst_.ListFiles, true) ||
       !info.GetArray("HEADER_EXTENSIONS", this->BaseConst_.HeaderExtensions,
-                     true) ||
-      !info.GetString("QT_MOC_EXECUTABLE", this->MocConst_.Executable,
-                      false) ||
-      !info.GetString("QT_UIC_EXECUTABLE", this->UicConst_.Executable,
-                      false)) {
+                     true)) {
     return false;
+  }
+  if (this->BaseConst().UseBetterGraph) {
+    if (!info.GetStringConfig("DEP_FILE", this->BaseConst_.DepFile, false) ||
+        !info.GetStringConfig("DEP_FILE_RULE_NAME",
+                              this->BaseConst_.DepFileRuleName, false)) {
+      return false;
+    }
+
+    if (this->BaseConst_.CrossConfig) {
+      std::string const mocExecutableWithConfig =
+        "QT_MOC_EXECUTABLE_" + this->ExecutableConfig();
+      std::string const uicExecutableWithConfig =
+        "QT_UIC_EXECUTABLE_" + this->ExecutableConfig();
+      if (!info.GetString(mocExecutableWithConfig, this->MocConst_.Executable,
+                          false) ||
+          !info.GetString(uicExecutableWithConfig, this->UicConst_.Executable,
+                          false)) {
+        return false;
+      }
+    } else {
+      if (!info.GetStringConfig("QT_MOC_EXECUTABLE",
+                                this->MocConst_.Executable, false) ||
+          !info.GetStringConfig("QT_UIC_EXECUTABLE",
+                                this->UicConst_.Executable, false)) {
+        return false;
+      }
+    }
+  } else {
+    if (!info.GetString("QT_MOC_EXECUTABLE", this->MocConst_.Executable,
+                        false) ||
+        !info.GetString("QT_UIC_EXECUTABLE", this->UicConst_.Executable,
+                        false) ||
+        !info.GetString("DEP_FILE", this->BaseConst_.DepFile, false) ||
+        !info.GetString("DEP_FILE_RULE_NAME", this->BaseConst_.DepFileRuleName,
+                        false)) {
+      return false;
+    }
   }
 
   // -- Checks
@@ -3060,7 +3166,8 @@ std::string cmQtAutoMocUicT::AbsoluteIncludePath(
 
 } // End of unnamed namespace
 
-bool cmQtAutoMocUic(cm::string_view infoFile, cm::string_view config)
+bool cmQtAutoMocUic(cm::string_view infoFile, cm::string_view config,
+                    cm::string_view executableConfig)
 {
-  return cmQtAutoMocUicT().Run(infoFile, config);
+  return cmQtAutoMocUicT().Run(infoFile, config, executableConfig);
 }

@@ -4,14 +4,18 @@
 
 #include <sstream>
 #include <string>
+#include <unordered_map>
 #include <utility>
 #include <vector>
 
+#include <cm/optional>
+#include <cmext/algorithm>
 #include <cmext/string_view>
 
 #include "cmsys/RegularExpression.hxx"
 
 #include "cmGeneratorExpression.h"
+#include "cmList.h"
 #include "cmListFileCache.h"
 #include "cmLocalGenerator.h"
 #include "cmMakefile.h"
@@ -78,12 +82,24 @@ bool cmFileSetVisibilityIsForInterface(cmFileSetVisibility vis)
   return false;
 }
 
-cmFileSet::cmFileSet(std::string name, std::string type,
+bool cmFileSetTypeCanBeIncluded(std::string const& type)
+{
+  return type == "HEADERS"_s;
+}
+
+cmFileSet::cmFileSet(cmake& cmakeInstance, std::string name, std::string type,
                      cmFileSetVisibility visibility)
-  : Name(std::move(name))
+  : CMakeInstance(cmakeInstance)
+  , Name(std::move(name))
   , Type(std::move(type))
   , Visibility(visibility)
 {
+}
+
+void cmFileSet::CopyEntries(cmFileSet const* fs)
+{
+  cm::append(this->DirectoryEntries, fs->DirectoryEntries);
+  cm::append(this->FileEntries, fs->FileEntries);
 }
 
 void cmFileSet::ClearDirectoryEntries()
@@ -112,8 +128,8 @@ cmFileSet::CompileFileEntries() const
   std::vector<std::unique_ptr<cmCompiledGeneratorExpression>> result;
 
   for (auto const& entry : this->FileEntries) {
-    for (auto const& ex : cmExpandedList(entry.Value)) {
-      cmGeneratorExpression ge(entry.Backtrace);
+    for (auto const& ex : cmList{ entry.Value }) {
+      cmGeneratorExpression ge(this->CMakeInstance, entry.Backtrace);
       auto cge = ge.Parse(ex);
       result.push_back(std::move(cge));
     }
@@ -128,8 +144,8 @@ cmFileSet::CompileDirectoryEntries() const
   std::vector<std::unique_ptr<cmCompiledGeneratorExpression>> result;
 
   for (auto const& entry : this->DirectoryEntries) {
-    for (auto const& ex : cmExpandedList(entry.Value)) {
-      cmGeneratorExpression ge(entry.Backtrace);
+    for (auto const& ex : cmList{ entry.Value }) {
+      cmGeneratorExpression ge(this->CMakeInstance, entry.Backtrace);
       auto cge = ge.Parse(ex);
       result.push_back(std::move(cge));
     }
@@ -144,20 +160,44 @@ std::vector<std::string> cmFileSet::EvaluateDirectoryEntries(
   const cmGeneratorTarget* target,
   cmGeneratorExpressionDAGChecker* dagChecker) const
 {
+  struct DirCacheEntry
+  {
+    std::string collapsedDir;
+    cm::optional<cmSystemTools::FileId> fileId;
+  };
+
+  std::unordered_map<std::string, DirCacheEntry> dirCache;
   std::vector<std::string> result;
   for (auto const& cge : cges) {
     auto entry = cge->Evaluate(lg, config, target, dagChecker);
-    auto dirs = cmExpandedList(entry);
+    cmList dirs{ entry };
     for (std::string dir : dirs) {
       if (!cmSystemTools::FileIsFullPath(dir)) {
         dir = cmStrCat(lg->GetCurrentSourceDirectory(), '/', dir);
       }
-      auto collapsedDir = cmSystemTools::CollapseFullPath(dir);
+
+      auto dirCacheResult = dirCache.emplace(dir, DirCacheEntry());
+      auto& dirCacheEntry = dirCacheResult.first->second;
+      const auto isNewCacheEntry = dirCacheResult.second;
+
+      if (isNewCacheEntry) {
+        cmSystemTools::FileId fileId;
+        auto isFileIdValid = cmSystemTools::GetFileId(dir, fileId);
+        dirCacheEntry.collapsedDir = cmSystemTools::CollapseFullPath(dir);
+        dirCacheEntry.fileId =
+          isFileIdValid ? cm::optional<decltype(fileId)>(fileId) : cm::nullopt;
+      }
+
       for (auto const& priorDir : result) {
-        auto collapsedPriorDir = cmSystemTools::CollapseFullPath(priorDir);
-        if (!cmSystemTools::SameFile(collapsedDir, collapsedPriorDir) &&
-            (cmSystemTools::IsSubDirectory(collapsedDir, collapsedPriorDir) ||
-             cmSystemTools::IsSubDirectory(collapsedPriorDir, collapsedDir))) {
+        auto priorDirCacheEntry = dirCache.at(priorDir);
+        bool sameFile = dirCacheEntry.fileId.has_value() &&
+          priorDirCacheEntry.fileId.has_value() &&
+          (*dirCacheEntry.fileId == *priorDirCacheEntry.fileId);
+        if (!sameFile &&
+            (cmSystemTools::IsSubDirectory(dirCacheEntry.collapsedDir,
+                                           priorDirCacheEntry.collapsedDir) ||
+             cmSystemTools::IsSubDirectory(priorDirCacheEntry.collapsedDir,
+                                           dirCacheEntry.collapsedDir))) {
           lg->GetCMakeInstance()->IssueMessage(
             MessageType::FATAL_ERROR,
             cmStrCat(
@@ -183,7 +223,7 @@ void cmFileSet::EvaluateFileEntry(
   cmGeneratorExpressionDAGChecker* dagChecker) const
 {
   auto files = cge->Evaluate(lg, config, target, dagChecker);
-  for (std::string file : cmExpandedList(files)) {
+  for (std::string file : cmList{ files }) {
     if (!cmSystemTools::FileIsFullPath(file)) {
       file = cmStrCat(lg->GetCurrentSourceDirectory(), '/', file);
     }

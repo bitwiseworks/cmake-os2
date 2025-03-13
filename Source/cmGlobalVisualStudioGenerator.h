@@ -10,7 +10,7 @@
 #include <string>
 #include <vector>
 
-#include "cm_codecvt.hxx"
+#include "cm_codecvt_Encoding.hxx"
 
 #include "cmGlobalGenerator.h"
 #include "cmTargetDepend.h"
@@ -34,17 +34,13 @@ public:
   /** Known versions of Visual Studio.  */
   enum class VSVersion : uint16_t
   {
-    VS9 = 90,
-    VS11 = 110,
-    VS12 = 120,
-    /* VS13 = 130 was skipped */
     VS14 = 140,
     VS15 = 150,
     VS16 = 160,
     VS17 = 170
   };
 
-  virtual ~cmGlobalVisualStudioGenerator();
+  ~cmGlobalVisualStudioGenerator() override;
 
   VSVersion GetVersion() const;
   void SetVersion(VSVersion v);
@@ -120,9 +116,9 @@ public:
 
   /** Get encoding used by generator for generated source files
    */
-  codecvt::Encoding GetMakefileEncoding() const override
+  codecvt_Encoding GetMakefileEncoding() const override
   {
-    return codecvt::ANSI;
+    return codecvt_Encoding::ANSI;
   }
 
   class TargetSet : public std::set<cmGeneratorTarget const*>
@@ -133,8 +129,8 @@ public:
     std::string First;
 
   public:
-    TargetCompare(std::string const& first)
-      : First(first)
+    TargetCompare(std::string first)
+      : First(std::move(first))
     {
     }
     bool operator()(cmGeneratorTarget const* l,
@@ -164,6 +160,8 @@ protected:
   cmGlobalVisualStudioGenerator(cmake* cm,
                                 std::string const& platformInGeneratorName);
 
+  virtual bool InitializePlatform(cmMakefile* mf);
+
   void AddExtraIDETargets() override;
 
   // Does this VS version link targets to each other if there are
@@ -185,15 +183,11 @@ protected:
   VSDependMap VSTargetDepends;
   void ComputeVSTargetDepends(cmGeneratorTarget*);
 
-  bool CheckTargetLinks(cmGeneratorTarget& target, const std::string& name);
-  std::string GetUtilityForTarget(cmGeneratorTarget& target,
-                                  const std::string&);
   virtual std::string WriteUtilityDepend(cmGeneratorTarget const*) = 0;
   std::string GetUtilityDepend(const cmGeneratorTarget* target);
   using UtilityDependsMap = std::map<cmGeneratorTarget const*, std::string>;
   UtilityDependsMap UtilityDepends;
 
-protected:
   VSVersion Version;
   bool ExpressEdition;
 

@@ -11,7 +11,6 @@
 #include "cmInstallGenerator.h"
 #include "cmInstallType.h"
 #include "cmListFileCache.h"
-#include "cmScriptGenerator.h"
 
 class cmGeneratorTarget;
 class cmLocalGenerator;
@@ -39,6 +38,10 @@ public:
     NamelinkModeSkip
   };
   void SetNamelinkMode(NamelinkModeType mode) { this->NamelinkMode = mode; }
+  void SetImportlinkMode(NamelinkModeType mode)
+  {
+    this->ImportlinkMode = mode;
+  }
 
   std::string GetInstallFilename(const std::string& config) const;
 
@@ -50,7 +53,8 @@ public:
     NameNormal,
     NameImplib,
     NameSO,
-    NameReal
+    NameReal,
+    NameImplibReal
   };
 
   static std::string GetInstallFilename(const cmGeneratorTarget* target,
@@ -121,6 +125,7 @@ protected:
   cmGeneratorTarget* Target = nullptr;
   std::string const FilePermissions;
   NamelinkModeType NamelinkMode;
+  NamelinkModeType ImportlinkMode;
   bool const ImportLibrary;
   bool const Optional;
 };

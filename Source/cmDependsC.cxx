@@ -8,6 +8,7 @@
 
 #include "cmFileTime.h"
 #include "cmGlobalUnixMakefileGenerator3.h"
+#include "cmList.h"
 #include "cmLocalUnixMakefileGenerator3.h"
 #include "cmMakefile.h"
 #include "cmStringAlgorithms.h"
@@ -95,7 +96,7 @@ bool cmDependsC::WriteDependencies(const std::set<std::string>& sources,
   // loaded in ValidDeps with this path as a key.
   std::string obj_i = this->LocalGenerator->MaybeRelativeToTopBinDir(obj);
 
-  if (this->ValidDeps != nullptr) {
+  if (this->ValidDeps) {
     auto const tmpIt = this->ValidDeps->find(obj_i);
     if (tmpIt != this->ValidDeps->end()) {
       dependencies.insert(tmpIt->second.begin(), tmpIt->second.end());
@@ -294,7 +295,7 @@ void cmDependsC::ReadCacheFile()
           }
         }
       }
-    } else if (cacheEntry != nullptr) {
+    } else if (cacheEntry) {
       UnscannedEntry entry;
       entry.FileName = line;
       if (cmSystemTools::GetLineFromStream(fin, line)) {
@@ -393,10 +394,10 @@ void cmDependsC::Scan(std::istream& is, const std::string& directory,
 void cmDependsC::SetupTransforms()
 {
   // Get the transformation rules.
-  std::vector<std::string> transformRules;
   cmMakefile* mf = this->LocalGenerator->GetMakefile();
-  mf->GetDefExpandList("CMAKE_INCLUDE_TRANSFORMS", transformRules, true);
-  for (std::string const& tr : transformRules) {
+  cmList transformRules{ mf->GetDefinition("CMAKE_INCLUDE_TRANSFORMS"),
+                         cmList::EmptyElements::Yes };
+  for (auto const& tr : transformRules) {
     this->ParseTransform(tr);
   }
 

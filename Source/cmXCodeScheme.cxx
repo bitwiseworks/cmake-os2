@@ -7,12 +7,14 @@
 #include <utility>
 
 #include <cmext/algorithm>
+#include <cmext/string_view>
 
 #include "cmsys/String.h"
 
 #include "cmGeneratedFileStream.h"
 #include "cmGeneratorExpression.h"
 #include "cmGeneratorTarget.h"
+#include "cmList.h"
 #include "cmStateTypes.h"
 #include "cmStringAlgorithms.h"
 #include "cmSystemTools.h"
@@ -75,7 +77,7 @@ void cmXCodeScheme::WriteXCodeXCScheme(std::ostream& fout,
   WriteBuildAction(xout, container);
   WriteTestAction(xout, FindConfiguration("Debug"), container);
   WriteLaunchAction(xout, FindConfiguration(launchConfiguration), container);
-  WriteProfileAction(xout, FindConfiguration("Release"));
+  WriteProfileAction(xout, FindConfiguration("Release"), container);
   WriteAnalyzeAction(xout, FindConfiguration("Debug"));
   WriteArchiveAction(xout, FindConfiguration("Release"));
 
@@ -120,7 +122,7 @@ void cmXCodeScheme::WriteTestAction(cmXMLWriter& xout,
   xout.Attribute("shouldUseLaunchSchemeArgsEnv", "YES");
 
   xout.StartElement("Testables");
-  for (auto test : this->Tests) {
+  for (auto const* test : this->Tests) {
     xout.StartElement("TestableReference");
     xout.BreakAttributes();
     xout.Attribute("skipped", "NO");
@@ -156,7 +158,7 @@ void cmXCodeScheme::WriteLaunchAction(cmXMLWriter& xout,
     cmValue launchMode =
       this->Target->GetTarget()->GetProperty("XCODE_SCHEME_LAUNCH_MODE");
     std::string value = "0"; // == 'AUTO'
-    if (launchMode && *launchMode == "WAIT") {
+    if (launchMode && *launchMode == "WAIT"_s) {
       value = "1";
     }
     xout.Attribute("launchStyle", value);
@@ -238,17 +240,12 @@ void cmXCodeScheme::WriteLaunchAction(cmXMLWriter& xout,
   // Diagnostics tab end
 
   if (IsExecutable(this->Target)) {
-    xout.StartElement("BuildableProductRunnable");
-    xout.BreakAttributes();
-    xout.Attribute("runnableDebuggingMode", "0");
-
+    WriteBuildableProductRunnable(xout, this->Target, container);
   } else {
     xout.StartElement("MacroExpansion");
+    WriteBuildableReference(xout, this->Target, container);
+    xout.EndElement();
   }
-
-  WriteBuildableReference(xout, this->Target, container);
-
-  xout.EndElement(); // MacroExpansion
 
   // Info tab begin
 
@@ -270,7 +267,7 @@ void cmXCodeScheme::WriteLaunchAction(cmXMLWriter& xout,
 
   if (cmValue argList =
         this->Target->GetTarget()->GetProperty("XCODE_SCHEME_ARGUMENTS")) {
-    std::vector<std::string> arguments = cmExpandedList(*argList);
+    cmList arguments{ *argList };
     if (!arguments.empty()) {
       xout.StartElement("CommandLineArguments");
 
@@ -290,7 +287,7 @@ void cmXCodeScheme::WriteLaunchAction(cmXMLWriter& xout,
 
   if (cmValue envList =
         this->Target->GetTarget()->GetProperty("XCODE_SCHEME_ENVIRONMENT")) {
-    std::vector<std::string> envs = cmExpandedList(*envList);
+    cmList envs{ *envList };
     if (!envs.empty()) {
       xout.StartElement("EnvironmentVariables");
 
@@ -372,7 +369,7 @@ bool cmXCodeScheme::WriteLaunchActionBooleanAttribute(
   bool defaultValue)
 {
   cmValue property = Target->GetTarget()->GetProperty(varName);
-  bool isOn = (!property && defaultValue) || cmIsOn(property);
+  bool isOn = (!property && defaultValue) || property.IsOn();
 
   if (isOn) {
     xout.Attribute(attrName.c_str(), "YES");
@@ -402,7 +399,8 @@ bool cmXCodeScheme::WriteLaunchActionAdditionalOption(
 }
 
 void cmXCodeScheme::WriteProfileAction(cmXMLWriter& xout,
-                                       const std::string& configuration)
+                                       const std::string& configuration,
+                                       const std::string& container)
 {
   xout.StartElement("ProfileAction");
   xout.BreakAttributes();
@@ -413,6 +411,11 @@ void cmXCodeScheme::WriteProfileAction(cmXMLWriter& xout,
   WriteLaunchActionBooleanAttribute(xout, "debugDocumentVersioning",
                                     "XCODE_SCHEME_DEBUG_DOCUMENT_VERSIONING",
                                     true);
+
+  if (IsExecutable(this->Target)) {
+    WriteBuildableProductRunnable(xout, this->Target, container);
+  }
+
   xout.EndElement();
 }
 
@@ -435,6 +438,17 @@ void cmXCodeScheme::WriteArchiveAction(cmXMLWriter& xout,
   xout.EndElement();
 }
 
+void cmXCodeScheme::WriteBuildableProductRunnable(cmXMLWriter& xout,
+                                                  const cmXCodeObject* xcObj,
+                                                  const std::string& container)
+{
+  xout.StartElement("BuildableProductRunnable");
+  xout.BreakAttributes();
+  xout.Attribute("runnableDebuggingMode", "0");
+  WriteBuildableReference(xout, xcObj, container);
+  xout.EndElement();
+}
+
 void cmXCodeScheme::WriteBuildableReference(cmXMLWriter& xout,
                                             const cmXCodeObject* xcObj,
                                             const std::string& container)
@@ -446,7 +460,7 @@ void cmXCodeScheme::WriteBuildableReference(cmXMLWriter& xout,
   std::string const noConfig; // FIXME: What config to use here?
   xout.Attribute("BuildableName", xcObj->GetTarget()->GetFullName(noConfig));
   xout.Attribute("BlueprintName", xcObj->GetTarget()->GetName());
-  xout.Attribute("ReferencedContainer", "container:" + container);
+  xout.Attribute("ReferencedContainer", cmStrCat("container:", container));
   xout.EndElement();
 }
 

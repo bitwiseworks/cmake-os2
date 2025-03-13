@@ -262,8 +262,8 @@ installers.  The most commonly-used variables are:
   Lists each of the executables and associated text label to be used to
   create Start Menu shortcuts.  For example, setting this to the list
   ``ccmake;CMake`` will create a shortcut named "CMake" that will execute the
-  installed executable ``ccmake``.  Not all CPack generators use it (at least
-  NSIS, and WIX do).
+  installed executable :program:`ccmake`. Not all CPack generators use it (at least
+  NSIS, Inno Setup and WIX do).
 
 .. variable:: CPACK_STRIP_FILES
 
@@ -478,27 +478,30 @@ The following variables are for advanced uses of CPack:
   .. versionadded:: 3.25
 
   Specify the ``readelf`` executable path used by CPack.
-  The default value will be ``CMAKE_READELF`` when set.  Otherwise,
-  the default value will be empty and CPack will use :command:`find_program`
-  to determine the ``readelf`` path when needed.
+  The default value will be taken from the ``CMAKE_READELF`` variable, if set,
+  which may be populated by an internal CMake module.  If ``CMAKE_READELF``
+  is not set, CPack will use :command:`find_program` to determine the
+  ``readelf`` path when needed.
 
 .. variable:: CPACK_OBJCOPY_EXECUTABLE
 
   .. versionadded:: 3.25
 
   Specify the ``objcopy`` executable path used by CPack.
-  The default value will be ``CMAKE_OBJCOPY`` when set.  Otherwise,
-  the default value will be empty and CPack will use :command:`find_program`
-  to determine the ``objcopy`` path when needed.
+  The default value will be taken from the ``CMAKE_OBJCOPY`` variable, if set,
+  which may be populated by an internal CMake module.  If ``CMAKE_OBJCOPY``
+  is not set, CPack will use :command:`find_program` to determine the
+  ``objcopy`` path when needed.
 
 .. variable:: CPACK_OBJDUMP_EXECUTABLE
 
   .. versionadded:: 3.25
 
   Specify the ``objdump`` executable path used by CPack.
-  The default value will be ``CMAKE_OBJDUMP`` when set.  Otherwise,
-  the default value will be empty and CPack will use :command:`find_program`
-  to determine the ``objdump`` path when needed.
+  The default value will be taken from the ``CMAKE_OBJDUMP`` variable, if set,
+  which may be populated by an internal CMake module.  If ``CMAKE_OBJDUMP``
+  is not set, CPack will use :command:`find_program` to determine the
+  ``objdump`` path when needed.
 
 #]=======================================================================]
 
@@ -738,14 +741,16 @@ if(NOT CPACK_GENERATOR)
         )
     endif()
   else()
-    option(CPACK_BINARY_7Z    "Enable to build 7-Zip packages" OFF)
-    option(CPACK_BINARY_NSIS  "Enable to build NSIS packages" ON)
-    option(CPACK_BINARY_NUGET "Enable to build NuGet packages" OFF)
-    option(CPACK_BINARY_WIX   "Enable to build WiX packages" OFF)
-    option(CPACK_BINARY_ZIP   "Enable to build ZIP packages" OFF)
+    option(CPACK_BINARY_7Z        "Enable to build 7-Zip packages" OFF)
+    option(CPACK_BINARY_NSIS      "Enable to build NSIS packages" ON)
+    option(CPACK_BINARY_INNOSETUP "Enable to build Inno Setup packages" OFF)
+    option(CPACK_BINARY_NUGET     "Enable to build NuGet packages" OFF)
+    option(CPACK_BINARY_WIX       "Enable to build WiX packages" OFF)
+    option(CPACK_BINARY_ZIP       "Enable to build ZIP packages" OFF)
     mark_as_advanced(
       CPACK_BINARY_7Z
       CPACK_BINARY_NSIS
+      CPACK_BINARY_INNOSETUP
       CPACK_BINARY_NUGET
       CPACK_BINARY_WIX
       CPACK_BINARY_ZIP
@@ -762,6 +767,7 @@ if(NOT CPACK_GENERATOR)
   cpack_optional_append(CPACK_GENERATOR  CPACK_BINARY_FREEBSD      FREEBSD)
   cpack_optional_append(CPACK_GENERATOR  CPACK_BINARY_IFW          IFW)
   cpack_optional_append(CPACK_GENERATOR  CPACK_BINARY_NSIS         NSIS)
+  cpack_optional_append(CPACK_GENERATOR  CPACK_BINARY_INNOSETUP    INNOSETUP)
   cpack_optional_append(CPACK_GENERATOR  CPACK_BINARY_NUGET        NuGet)
   cpack_optional_append(CPACK_GENERATOR  CPACK_BINARY_PRODUCTBUILD productbuild)
   cpack_optional_append(CPACK_GENERATOR  CPACK_BINARY_RPM          RPM)
@@ -863,14 +869,54 @@ if(NOT DEFINED CPACK_DMG_SLA_USE_RESOURCE_FILE_LICENSE
         "${_CMP0133_warning}\n"
         "For compatibility, CMake will enable the SLA in the CPack DragNDrop Generator."
         )
+      unset(_CMP0133_warning)
     endif()
     _cpack_set_default(CPACK_DMG_SLA_USE_RESOURCE_FILE_LICENSE ON)
   endif()
   unset(_CPack_CMP0133)
 endif()
 
+# Inno Setup specific variables
+if(CMAKE_SIZEOF_VOID_P EQUAL 4)
+  _cpack_set_default(CPACK_INNOSETUP_ARCHITECTURE "x86")
+elseif(CMAKE_SIZEOF_VOID_P EQUAL 8)
+  _cpack_set_default(CPACK_INNOSETUP_ARCHITECTURE "x64")
+endif()
+
 # WiX specific variables
 _cpack_set_default(CPACK_WIX_SIZEOF_VOID_P "${CMAKE_SIZEOF_VOID_P}")
+if(NOT DEFINED CPACK_WIX_INSTALL_SCOPE)
+  cmake_policy(GET CMP0172 _CPack_CMP0172)
+  if("x${_CPack_CMP0172}x" STREQUAL "xNEWx")
+    _cpack_set_default(CPACK_WIX_INSTALL_SCOPE perMachine)
+  elseif(NOT "x${_CPack_CMP0172}x" STREQUAL "xOLDx" AND CMAKE_POLICY_WARNING_CMP0172)
+    cmake_policy(GET_WARNING CMP0172 _CMP0172_warning)
+    message(AUTHOR_WARNING
+      "${_CMP0172_warning}\n"
+      "For compatibility, CMake will not enable per-machine installation by default in the CPack WIX Generator."
+      )
+    unset(_CMP0172_warning)
+  endif()
+  unset(_CPack_CMP0172)
+endif()
+
+# productbuild specific variables
+cmake_policy(GET CMP0161 _CPack_CMP0161)
+if("x${_CPack_CMP0161}x" STREQUAL "xNEWx")
+  _cpack_set_default(CPACK_PRODUCTBUILD_DOMAINS ON)
+elseif(APPLE AND CPACK_BINARY_PRODUCTBUILD AND
+       NOT DEFINED CPACK_PRODUCTBUILD_DOMAINS AND
+       NOT "x${_CPack_CMP0161}x" STREQUAL "xOLDx")
+  cmake_policy(GET_WARNING CMP0161 _CMP0161_warning)
+  message(AUTHOR_WARNING
+    "${_CMP0161_warning}\n"
+    "For compatibility, CPACK_PRODUCTBUILD_DOMAINS will remain unset. "
+    "Explicitly setting CPACK_PRODUCTBUILD_DOMAINS or setting policy CMP0161 "
+    "to NEW will prevent this warning."
+  )
+  unset(_CMP0161_warning)
+endif()
+unset(_CPack_CMP0161)
 
 # set sysroot so SDK tools can be used
 if(CMAKE_OSX_SYSROOT)

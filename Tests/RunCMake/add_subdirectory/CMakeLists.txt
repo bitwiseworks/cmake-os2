@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.2)
+cmake_minimum_required(VERSION 3.10)
 
 # Have to set policy here due to policy scope
 if(DEFINED CMP0082_VALUE)

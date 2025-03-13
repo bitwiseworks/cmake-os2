@@ -84,7 +84,7 @@ Toolchain Features
 ==================
 
 CMake provides the :command:`try_compile` command and wrapper macros such as
-:module:`CheckCXXSourceCompiles`, :module:`CheckCXXSymbolExists` and
+:module:`CheckSourceCompiles`, :module:`CheckCXXSymbolExists` and
 :module:`CheckIncludeFile` to test capability and availability of various
 toolchain features. These APIs test the toolchain in some way and cache the
 result so that the test does not have to be performed again the next time
@@ -273,7 +273,7 @@ supported out of the box.  Other versions may require one to set
 Cross Compiling for Windows 10 Universal Applications
 -----------------------------------------------------
 
-A toolchain file to configure a Visual Studio generator for a
+A toolchain file to configure :ref:`Visual Studio Generators` for a
 Windows 10 Universal Application may look like this:
 
 .. code-block:: cmake
@@ -283,9 +283,10 @@ Windows 10 Universal Application may look like this:
 
 A Windows 10 Universal Application targets both Windows Store and
 Windows Phone.  Specify the :variable:`CMAKE_SYSTEM_VERSION` variable
-to be ``10.0`` to build with the latest available Windows 10 SDK.
-Specify a more specific version (e.g. ``10.0.10240.0`` for RTM)
-to build with the corresponding SDK.
+to be ``10.0`` or higher.
+
+CMake selects a Windows SDK as described by documentation of the
+:variable:`CMAKE_VS_WINDOWS_TARGET_PLATFORM_VERSION` variable.
 
 Cross Compiling for Windows Phone
 ---------------------------------
@@ -572,17 +573,17 @@ See also target properties:
 * :prop_tgt:`ANDROID_SKIP_ANT_STEP`
 * :prop_tgt:`ANDROID_STL_TYPE`
 
-.. _`Cross Compiling for iOS, tvOS, or watchOS`:
+.. _`Cross Compiling for iOS, tvOS, visionOS, or watchOS`:
 
-Cross Compiling for iOS, tvOS, or watchOS
------------------------------------------
+Cross Compiling for iOS, tvOS, visionOS, or watchOS
+---------------------------------------------------
 
-For cross-compiling to iOS, tvOS, or watchOS, the :generator:`Xcode`
+For cross-compiling to iOS, tvOS, visionOS, or watchOS, the :generator:`Xcode`
 generator is recommended.  The :generator:`Unix Makefiles` or
 :generator:`Ninja` generators can also be used, but they require the
 project to handle more areas like target CPU selection and code signing.
 
-Any of the three systems can be targeted by setting the
+Any of the Apple device platforms can be targeted by setting the
 :variable:`CMAKE_SYSTEM_NAME` variable to a value from the table below.
 By default, the latest Device SDK is chosen.  As for all Apple platforms,
 a different SDK (e.g. a simulator) can be selected by setting the
@@ -590,13 +591,14 @@ a different SDK (e.g. a simulator) can be selected by setting the
 necessary (see :ref:`Switching Between Device and Simulator` below).
 A list of available SDKs can be obtained by running ``xcodebuild -showsdks``.
 
-=======  ================= ==================== ================
-OS       CMAKE_SYSTEM_NAME Device SDK (default) Simulator SDK
-=======  ================= ==================== ================
-iOS      iOS               iphoneos             iphonesimulator
-tvOS     tvOS              appletvos            appletvsimulator
-watchOS  watchOS           watchos              watchsimulator
-=======  ================= ==================== ================
+========  ================= ==================== ================ ============
+OS        CMAKE_SYSTEM_NAME Device SDK (default) Simulator SDK    Catalyst SDK
+========  ================= ==================== ================ ============
+iOS       iOS               iphoneos             iphonesimulator  macosx
+tvOS      tvOS              appletvos            appletvsimulator N/A
+visionOS  visionOS          xros                 xrsimulator      N/A
+watchOS   watchOS           watchos              watchsimulator   N/A
+========  ================= ==================== ================ ============
 
 For example, to create a CMake configuration for iOS, the following
 command is sufficient:
@@ -607,11 +609,13 @@ command is sufficient:
 
 Variable :variable:`CMAKE_OSX_ARCHITECTURES` can be used to set architectures
 for both device and simulator. Variable :variable:`CMAKE_OSX_DEPLOYMENT_TARGET`
-can be used to set an iOS/tvOS/watchOS deployment target.
+can be used to set an iOS/tvOS/visionOS/watchOS deployment target.
 
-Next configuration will install fat 5 architectures iOS library
-and add the ``-miphoneos-version-min=9.3``/``-mios-simulator-version-min=9.3``
-flags to the compiler:
+The next example installs five architectures in a universal binary for an iOS
+library.  It adds the relevant ``-miphoneos-version-min=9.3`` or
+``-mios-simulator-version-min=9.3`` compiler flag where appropriate.
+Note that the :variable:`CMAKE_IOS_INSTALL_COMBINED` variable used in the
+example is now deprecated, so this approach is no longer recommended.
 
 .. code-block:: console
 

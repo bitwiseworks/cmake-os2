@@ -14,6 +14,7 @@
 #include "cmGeneratedFileStream.h"
 #include "cmGeneratorTarget.h"
 #include "cmGlobalGenerator.h"
+#include "cmList.h"
 #include "cmLocalGenerator.h"
 #include "cmMakefile.h"
 #include "cmRange.h"
@@ -45,7 +46,7 @@ cmExtraCodeBlocksGenerator::GetFactory()
 {
   static cmExternalMakefileProjectGeneratorSimpleFactory<
     cmExtraCodeBlocksGenerator>
-    factory("CodeBlocks", "Generates CodeBlocks project files.");
+    factory("CodeBlocks", "Generates CodeBlocks project files (deprecated).");
 
   if (factory.GetSupportedGlobalGenerators().empty()) {
 #if defined(_WIN32)
@@ -493,7 +494,7 @@ void cmExtraCodeBlocksGenerator::AppendTarget(
   xml.StartElement("Target");
   xml.Attribute("title", targetName);
 
-  if (target != nullptr) {
+  if (target) {
     int cbTargetType = this->GetCBTargetType(target);
     std::string workingDir = lg->GetCurrentBinaryDirectory();
     if (target->GetType() == cmStateEnums::EXECUTABLE) {
@@ -567,13 +568,13 @@ void cmExtraCodeBlocksGenerator::AppendTarget(
     std::string systemIncludeDirs = makefile->GetSafeDefinition(
       "CMAKE_EXTRA_GENERATOR_CXX_SYSTEM_INCLUDE_DIRS");
     if (!systemIncludeDirs.empty()) {
-      cm::append(allIncludeDirs, cmExpandedList(systemIncludeDirs));
+      cm::append(allIncludeDirs, cmList{ systemIncludeDirs });
     }
 
     systemIncludeDirs = makefile->GetSafeDefinition(
       "CMAKE_EXTRA_GENERATOR_C_SYSTEM_INCLUDE_DIRS");
     if (!systemIncludeDirs.empty()) {
-      cm::append(allIncludeDirs, cmExpandedList(systemIncludeDirs));
+      cm::append(allIncludeDirs, cmList{ systemIncludeDirs });
     }
 
     auto end = cmRemoveDuplicates(allIncludeDirs);

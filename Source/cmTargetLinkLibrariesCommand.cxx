@@ -3,6 +3,7 @@
 #include "cmTargetLinkLibrariesCommand.h"
 
 #include <cassert>
+#include <cstddef>
 #include <memory>
 #include <sstream>
 #include <unordered_set>
@@ -84,8 +85,7 @@ bool cmTargetLinkLibrariesCommand(std::vector<std::string> const& args,
   }
 
   // Lookup the target for which libraries are specified.
-  cmTarget* target =
-    mf.GetCMakeInstance()->GetGlobalGenerator()->FindTarget(args[0]);
+  cmTarget* target = mf.GetGlobalGenerator()->FindTarget(args[0]);
   if (!target) {
     for (const auto& importedTarget : mf.GetOwnedImportedTargets()) {
       if (importedTarget->GetName() == args[0]) {
@@ -552,6 +552,7 @@ bool TLL::HandleLibrary(ProcessingState currentProcessingState,
       currentProcessingState == ProcessingPlainPrivateInterface) {
     if (this->Target->GetType() == cmStateEnums::STATIC_LIBRARY ||
         this->Target->GetType() == cmStateEnums::OBJECT_LIBRARY) {
+      // TODO: Detect and no-op `$<COMPILE_ONLY>` genexes here.
       std::string configLib =
         this->Target->GetDebugGeneratorExpressions(lib, llt);
       if (cmGeneratorExpression::IsValidTargetName(lib) ||

@@ -1,9 +1,11 @@
-#include "testVisualStudioSlnParser.h"
-
 #include <iostream>
 
 #include "cmVisualStudioSlnData.h"
 #include "cmVisualStudioSlnParser.h"
+
+#include "testConfig.h"
+
+#define SLN_EXTENSION "sln-file"
 
 static bool parsedRight(cmVisualStudioSlnParser& parser,
                         const std::string& file, cmSlnData& data,
@@ -27,7 +29,7 @@ static bool parsedRight(cmVisualStudioSlnParser& parser,
   return false;
 }
 
-int testVisualStudioSlnParser(int, char* [])
+int testVisualStudioSlnParser(int, char*[])
 {
   cmVisualStudioSlnParser parser;
 
@@ -80,7 +82,6 @@ int testVisualStudioSlnParser(int, char* [])
       "cmsysProcessFwd9x",
       "cmsysTestDynload",
       "cmsysTestProcess",
-      "cmsysTestSharedForward",
       "cmsysTestsC",
       "cmsysTestsCxx",
       "cmsys_c",

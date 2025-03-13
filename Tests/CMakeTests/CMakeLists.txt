@@ -7,7 +7,6 @@ macro(AddCMakeTest TestName PreArgs)
   add_test(NAME CMake.${TestName}
     COMMAND ${CMAKE_EXECUTABLE} ${PreArgs}
     -P "${CMAKE_CURRENT_BINARY_DIR}/${TestName}Test.cmake" ${ARGN})
-  set_tests_properties("CMake.${TestName}" PROPERTIES LABELS "CMake;command")
 endmacro()
 
 
@@ -31,16 +30,6 @@ AddCMakeTest(CompilerIdVendor "")
 AddCMakeTest(ProcessorCount "-DKWSYS_TEST_EXE=$<TARGET_FILE:cmsysTestsCxx>")
 AddCMakeTest(PushCheckState "")
 AddCMakeTest(While "")
-
-AddCMakeTest(FileDownload "")
-set_tests_properties(CMake.FileDownload PROPERTIES
-  PASS_REGULAR_EXPRESSION "file already exists with expected MD5 sum"
-  FAIL_REGULAR_EXPRESSION "Unexpected status|incorrectly interpreted"
-  )
-AddCMakeTest(FileDownloadBadHash "")
-set_property(TEST CMake.FileDownloadBadHash PROPERTY
-  WILL_FAIL TRUE
-  )
 
 AddCMakeTest(FileUpload "")
 

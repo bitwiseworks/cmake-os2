@@ -2,9 +2,12 @@
    file Copyright.txt or https://cmake.org/licensing for details.  */
 #include "cmGeneratorExpression.h"
 
+#include <algorithm>
 #include <cassert>
 #include <memory>
 #include <utility>
+
+#include <cm/string_view>
 
 #include "cmsys/RegularExpression.hxx"
 
@@ -13,11 +16,16 @@
 #include "cmGeneratorExpressionEvaluator.h"
 #include "cmGeneratorExpressionLexer.h"
 #include "cmGeneratorExpressionParser.h"
+#include "cmList.h"
+#include "cmLocalGenerator.h"
 #include "cmStringAlgorithms.h"
 #include "cmSystemTools.h"
+#include "cmake.h"
 
-cmGeneratorExpression::cmGeneratorExpression(cmListFileBacktrace backtrace)
-  : Backtrace(std::move(backtrace))
+cmGeneratorExpression::cmGeneratorExpression(cmake& cmakeInstance,
+                                             cmListFileBacktrace backtrace)
+  : CMakeInstance(cmakeInstance)
+  , Backtrace(std::move(backtrace))
 {
 }
 
@@ -29,7 +37,8 @@ std::unique_ptr<cmCompiledGeneratorExpression> cmGeneratorExpression::Parse(
   std::string input) const
 {
   return std::unique_ptr<cmCompiledGeneratorExpression>(
-    new cmCompiledGeneratorExpression(this->Backtrace, std::move(input)));
+    new cmCompiledGeneratorExpression(this->CMakeInstance, this->Backtrace,
+                                      std::move(input)));
 }
 
 std::string cmGeneratorExpression::Evaluate(
@@ -39,7 +48,13 @@ std::string cmGeneratorExpression::Evaluate(
   cmGeneratorTarget const* currentTarget, std::string const& language)
 {
   if (Find(input) != std::string::npos) {
-    cmCompiledGeneratorExpression cge(cmListFileBacktrace(), std::move(input));
+#ifndef CMAKE_BOOTSTRAP
+    auto profilingRAII = lg->GetCMakeInstance()->CreateProfilingEntry(
+      "genex_compile_eval", input);
+#endif
+
+    cmCompiledGeneratorExpression cge(*lg->GetCMakeInstance(),
+                                      cmListFileBacktrace(), std::move(input));
     return cge.Evaluate(lg, config, headTarget, dagChecker, currentTarget,
                         language);
   }
@@ -57,13 +72,6 @@ const std::string& cmCompiledGeneratorExpression::Evaluate(
     currentTarget ? currentTarget : headTarget, this->EvaluateForBuildsystem,
     this->Backtrace, language);
 
-  return this->EvaluateWithContext(context, dagChecker);
-}
-
-const std::string& cmCompiledGeneratorExpression::EvaluateWithContext(
-  cmGeneratorExpressionContext& context,
-  cmGeneratorExpressionDAGChecker* dagChecker) const
-{
   if (!this->NeedsEvaluation) {
     return this->Input;
   }
@@ -97,10 +105,15 @@ const std::string& cmCompiledGeneratorExpression::EvaluateWithContext(
 }
 
 cmCompiledGeneratorExpression::cmCompiledGeneratorExpression(
-  cmListFileBacktrace backtrace, std::string input)
+  cmake& cmakeInstance, cmListFileBacktrace backtrace, std::string input)
   : Backtrace(std::move(backtrace))
   , Input(std::move(input))
 {
+#ifndef CMAKE_BOOTSTRAP
+  auto profilingRAII =
+    cmakeInstance.CreateProfilingEntry("genex_compile", this->Input);
+#endif
+
   cmGeneratorExpressionLexer l;
   std::vector<cmGeneratorExpressionToken> tokens = l.Tokenize(this->Input);
   this->NeedsEvaluation = l.GetSawGeneratorExpression();
@@ -182,7 +195,7 @@ static std::string stripAllGeneratorExpressions(const std::string& input)
 }
 
 static void prefixItems(const std::string& content, std::string& result,
-                        const std::string& prefix)
+                        const cm::string_view& prefix)
 {
   std::vector<std::string> entries;
   cmGeneratorExpression::Split(content, entries);
@@ -200,7 +213,7 @@ static void prefixItems(const std::string& content, std::string& result,
 
 static std::string stripExportInterface(
   const std::string& input, cmGeneratorExpression::PreprocessContext context,
-  bool resolveRelative)
+  cm::string_view importPrefix)
 {
   std::string result;
 
@@ -210,23 +223,33 @@ static std::string stripExportInterface(
   while (true) {
     std::string::size_type bPos = input.find("$<BUILD_INTERFACE:", lastPos);
     std::string::size_type iPos = input.find("$<INSTALL_INTERFACE:", lastPos);
+    std::string::size_type lPos =
+      input.find("$<BUILD_LOCAL_INTERFACE:", lastPos);
 
-    if (bPos == std::string::npos && iPos == std::string::npos) {
+    pos = std::min({ bPos, iPos, lPos });
+    if (pos == std::string::npos) {
       break;
     }
 
-    if (bPos == std::string::npos) {
-      pos = iPos;
-    } else if (iPos == std::string::npos) {
-      pos = bPos;
-    } else {
-      pos = (bPos < iPos) ? bPos : iPos;
-    }
-
     result += input.substr(lastPos, pos - lastPos);
-    const bool gotInstallInterface = input[pos + 2] == 'I';
-    pos += gotInstallInterface ? sizeof("$<INSTALL_INTERFACE:") - 1
-                               : sizeof("$<BUILD_INTERFACE:") - 1;
+    enum class FoundGenex
+    {
+      BuildInterface,
+      InstallInterface,
+      BuildLocalInterface,
+    } foundGenex = FoundGenex::BuildInterface;
+    if (pos == bPos) {
+      foundGenex = FoundGenex::BuildInterface;
+      pos += cmStrLen("$<BUILD_INTERFACE:");
+    } else if (pos == iPos) {
+      foundGenex = FoundGenex::InstallInterface;
+      pos += cmStrLen("$<INSTALL_INTERFACE:");
+    } else if (pos == lPos) {
+      foundGenex = FoundGenex::BuildLocalInterface;
+      pos += cmStrLen("$<BUILD_LOCAL_INTERFACE:");
+    } else {
+      assert(false && "Invalid position found");
+    }
     nestingLevel = 1;
     const char* c = input.c_str() + pos;
     const char* const cStart = c;
@@ -242,13 +265,13 @@ static std::string stripExportInterface(
           continue;
         }
         if (context == cmGeneratorExpression::BuildInterface &&
-            !gotInstallInterface) {
+            foundGenex == FoundGenex::BuildInterface) {
           result += input.substr(pos, c - cStart);
         } else if (context == cmGeneratorExpression::InstallInterface &&
-                   gotInstallInterface) {
+                   foundGenex == FoundGenex::InstallInterface) {
           const std::string content = input.substr(pos, c - cStart);
-          if (resolveRelative) {
-            prefixItems(content, result, "${_IMPORT_PREFIX}/");
+          if (!importPrefix.empty()) {
+            prefixItems(content, result, importPrefix);
           } else {
             result += content;
           }
@@ -258,9 +281,18 @@ static std::string stripExportInterface(
     }
     const std::string::size_type traversed = (c - cStart) + 1;
     if (!*c) {
-      result += std::string(gotInstallInterface ? "$<INSTALL_INTERFACE:"
-                                                : "$<BUILD_INTERFACE:") +
-        input.substr(pos, traversed);
+      auto remaining = input.substr(pos, traversed);
+      switch (foundGenex) {
+        case FoundGenex::BuildInterface:
+          result = cmStrCat(result, "$<BUILD_INTERFACE:", remaining);
+          break;
+        case FoundGenex::InstallInterface:
+          result = cmStrCat(result, "$<INSTALL_INTERFACE:", remaining);
+          break;
+        case FoundGenex::BuildLocalInterface:
+          result = cmStrCat(result, "$<BUILD_LOCAL_INTERFACE:", remaining);
+          break;
+      }
     }
     pos += traversed;
     lastPos = pos;
@@ -329,13 +361,13 @@ void cmGeneratorExpression::Split(const std::string& input,
 
 std::string cmGeneratorExpression::Preprocess(const std::string& input,
                                               PreprocessContext context,
-                                              bool resolveRelative)
+                                              cm::string_view importPrefix)
 {
   if (context == StripAllGeneratorExpressions) {
     return stripAllGeneratorExpressions(input);
   }
   if (context == BuildInterface || context == InstallInterface) {
-    return stripExportInterface(input, context, resolveRelative);
+    return stripExportInterface(input, context, importPrefix);
   }
 
   assert(false &&
@@ -343,14 +375,15 @@ std::string cmGeneratorExpression::Preprocess(const std::string& input,
   return std::string();
 }
 
-std::string::size_type cmGeneratorExpression::Find(const std::string& input)
+cm::string_view::size_type cmGeneratorExpression::Find(
+  const cm::string_view& input)
 {
-  const std::string::size_type openpos = input.find("$<");
-  if (openpos != std::string::npos &&
-      input.find('>', openpos) != std::string::npos) {
+  const cm::string_view::size_type openpos = input.find("$<");
+  if (openpos != cm::string_view::npos &&
+      input.find('>', openpos) != cm::string_view::npos) {
     return openpos;
   }
-  return std::string::npos;
+  return cm::string_view::npos;
 }
 
 bool cmGeneratorExpression::IsValidTargetName(const std::string& input)
@@ -370,7 +403,7 @@ void cmGeneratorExpression::ReplaceInstallPrefix(
 
   while ((pos = input.find("$<INSTALL_PREFIX>", lastPos)) !=
          std::string::npos) {
-    std::string::size_type endPos = pos + sizeof("$<INSTALL_PREFIX>") - 1;
+    std::string::size_type endPos = pos + cmStrLen("$<INSTALL_PREFIX>");
     input.replace(pos, endPos - pos, replacement);
     lastPos = endPos;
   }
@@ -392,10 +425,14 @@ const std::string& cmGeneratorExpressionInterpreter::Evaluate(
     this->GeneratorExpression.Parse(std::move(expression));
 
   // Specify COMPILE_OPTIONS to DAGchecker, same semantic as COMPILE_FLAGS
-  cmGeneratorExpressionDAGChecker dagChecker(
+  cmGeneratorExpressionDAGChecker dagChecker{
     this->HeadTarget,
-    property == "COMPILE_FLAGS" ? "COMPILE_OPTIONS" : property, nullptr,
-    nullptr);
+    property == "COMPILE_FLAGS" ? "COMPILE_OPTIONS" : property,
+    nullptr,
+    nullptr,
+    this->LocalGenerator,
+    this->Config,
+  };
 
   return this->CompiledGeneratorExpression->Evaluate(
     this->LocalGenerator, this->Config, this->HeadTarget, &dagChecker, nullptr,

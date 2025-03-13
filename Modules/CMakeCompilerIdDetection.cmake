@@ -42,11 +42,6 @@ function(compiler_id_detection outvar lang)
 
     # Order is relevant here. For example, compilers which pretend to be
     # GCC must appear before the actual GCC.
-    if ("x${lang}" STREQUAL "xCXX")
-      list(APPEND ordered_compilers
-        Comeau
-      )
-    endif()
     list(APPEND ordered_compilers
       Intel
       IntelLLVM
@@ -65,12 +60,14 @@ function(compiler_id_detection outvar lang)
       VisualAge
       NVHPC
       PGI
+      CrayClang
       Cray
       TI
       FujitsuClang
       Fujitsu
       GHS
       Tasking
+      OrangeC
     )
     if ("x${lang}" STREQUAL "xC")
       list(APPEND ordered_compilers
@@ -83,6 +80,7 @@ function(compiler_id_detection outvar lang)
       ARMCC
       AppleClang
       ARMClang
+      TIClang
     )
     list(APPEND ordered_compilers
       Clang
@@ -99,6 +97,10 @@ function(compiler_id_detection outvar lang)
     endif()
 
     if("x${lang}" STREQUAL "xCUDA")
+      set(ordered_compilers NVIDIA Clang)
+    endif()
+
+    if("x${lang}" STREQUAL "xHIP")
       set(ordered_compilers NVIDIA Clang)
     endif()
 

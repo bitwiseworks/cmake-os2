@@ -31,6 +31,13 @@ The following components are supported:
     * ``Development.Embed``: search for artifacts for Python embedding
       developments.
 
+  .. versionadded:: 3.26
+
+    * ``Development.SABIModule``: search for artifacts for Python module
+      developments using the
+      `Stable Application Binary Interface <https://docs.python.org/3/c-api/stable.html>`_.
+      This component is available only for version ``3.2`` and upper.
+
 * ``NumPy``: search for NumPy include directories.
 
 .. versionadded:: 3.14
@@ -56,7 +63,7 @@ To manage concurrent versions 3 and 2 of Python, use :module:`FindPython3` and
 
   If components ``Interpreter`` and ``Development`` (or one of its
   sub-components) are both specified, this module search only for interpreter
-  with same platform architecture as the one defined by ``CMake``
+  with same platform architecture as the one defined by CMake
   configuration. This constraint does not apply if only ``Interpreter``
   component is specified.
 
@@ -70,15 +77,37 @@ This module defines the following :ref:`Imported Targets <Imported Targets>`:
   :prop_gbl:`CMAKE_ROLE` is ``PROJECT``.
 
 ``Python::Interpreter``
-  Python interpreter. Target defined if component ``Interpreter`` is found.
+  Python interpreter. This target is defined only if the ``Interpreter``
+  component is found.
+``Python::InterpreterDebug``
+  .. versionadded:: 3.30
+
+  Python debug interpreter. This target is defined only if the ``Interpreter``
+  component is found and the ``Python_EXECUTABLE_DEBUG`` variable is defined.
+  The target is only defined on the ``Windows`` platform.
+
+``Python::InterpreterMultiConfig``
+  .. versionadded:: 3.30
+
+  Python interpreter. The release or debug version of the interpreter will be
+  used, based on the context (platform, configuration).
+  This target is defined only if the ``Interpreter`` component is found
+
 ``Python::Compiler``
-  Python compiler. Target defined if component ``Compiler`` is found.
+  Python compiler. This target is defined only if the ``Compiler`` component is
+  found.
 
 ``Python::Module``
   .. versionadded:: 3.15
 
   Python library for Python module. Target defined if component
   ``Development.Module`` is found.
+
+``Python::SABIModule``
+  .. versionadded:: 3.26
+
+  Python library for Python module using the Stable Application Binary
+  Interface. Target defined if component ``Development.SABIModule`` is found.
 
 ``Python::Python``
   Python library for Python embedding. Target defined if component
@@ -101,6 +130,20 @@ This module will set the following variables in your project
   System has the Python interpreter.
 ``Python_EXECUTABLE``
   Path to the Python interpreter.
+``Python_EXECUTABLE_DEBUG``
+  .. versionadded:: 3.30
+
+  Path to the debug Python interpreter. It is only defined on the ``Windows``
+  platform.
+
+``Python_INTERPRETER``
+  .. versionadded:: 3.30
+
+  Path to the Python interpreter, defined as a
+  :manual:`generator expression <cmake-generator-expressions(7)>` selecting
+  the ``Python_EXECUTABLE`` or ``Python_EXECUTABLE_DEBUG`` variable based on
+  the context (platform, configuration).
+
 ``Python_INTERPRETER_ID``
   A short string unique to the interpreter. Possible values include:
     * Python
@@ -112,39 +155,38 @@ This module will set the following variables in your project
 ``Python_STDLIB``
   Standard platform independent installation directory.
 
-  Information returned by
-  ``distutils.sysconfig.get_python_lib(plat_specific=False,standard_lib=True)``
-  or else ``sysconfig.get_path('stdlib')``.
+  Information returned by ``sysconfig.get_path('stdlib')``.
 ``Python_STDARCH``
   Standard platform dependent installation directory.
 
-  Information returned by
-  ``distutils.sysconfig.get_python_lib(plat_specific=True,standard_lib=True)``
-  or else ``sysconfig.get_path('platstdlib')``.
+  Information returned by ``sysconfig.get_path('platstdlib')``.
 ``Python_SITELIB``
   Third-party platform independent installation directory.
 
-  Information returned by
-  ``distutils.sysconfig.get_python_lib(plat_specific=False,standard_lib=False)``
-  or else ``sysconfig.get_path('purelib')``.
+  Information returned by ``sysconfig.get_path('purelib')``.
 ``Python_SITEARCH``
   Third-party platform dependent installation directory.
 
-  Information returned by
-  ``distutils.sysconfig.get_python_lib(plat_specific=True,standard_lib=False)``
-  or else ``sysconfig.get_path('platlib')``.
+  Information returned by ``sysconfig.get_path('platlib')``.
 
 ``Python_SOABI``
   .. versionadded:: 3.17
 
   Extension suffix for modules.
 
-  Information returned by
-  ``distutils.sysconfig.get_config_var('SOABI')`` or computed from
-  ``distutils.sysconfig.get_config_var('EXT_SUFFIX')`` or
-  ``python-config --extension-suffix``. If package ``distutils.sysconfig`` is
-  not available, ``sysconfig.get_config_var('SOABI')`` or
-  ``sysconfig.get_config_var('EXT_SUFFIX')`` are used.
+  Information computed from ``sysconfig.get_config_var('EXT_SUFFIX')`` or
+  ``sysconfig.get_config_var('SOABI')`` or
+  ``python3-config --extension-suffix``.
+
+``Python_SOSABI``
+  .. versionadded:: 3.26
+
+  Extension suffix for modules using the Stable Application Binary Interface.
+
+  Information computed from ``importlib.machinery.EXTENSION_SUFFIXES`` if the
+  COMPONENT ``Interpreter`` was specified. Otherwise, the extension is ``abi3``
+  except for ``Windows``, ``MSYS`` and ``CYGWIN`` for which this is an empty
+  string.
 
 ``Python_Compiler_FOUND``
   System has the Python compiler.
@@ -167,6 +209,12 @@ This module will set the following variables in your project
 
   System has the Python development artifacts for Python module.
 
+``Python_Development.SABIModule_FOUND``
+  .. versionadded:: 3.26
+
+  System has the Python development artifacts for Python module using the
+  Stable Application Binary Interface.
+
 ``Python_Development.Embed_FOUND``
   .. versionadded:: 3.18
 
@@ -175,6 +223,17 @@ This module will set the following variables in your project
 ``Python_INCLUDE_DIRS``
 
   The Python include directories.
+
+``Python_DEFINITIONS``
+  .. versionadded:: 3.30.3
+
+  The Python preprocessor definitions.
+
+``Python_DEBUG_POSTFIX``
+  .. versionadded:: 3.30
+
+  Postfix of debug python module. This variable can be used to define the
+  :prop_tgt:`DEBUG_POSTFIX` target property.
 
 ``Python_LINK_OPTIONS``
   .. versionadded:: 3.19
@@ -188,6 +247,18 @@ This module will set the following variables in your project
   The Python library directories.
 ``Python_RUNTIME_LIBRARY_DIRS``
   The Python runtime library directories.
+``Python_SABI_LIBRARIES``
+  .. versionadded:: 3.26
+
+  The Python libraries for the Stable Application Binary Interface.
+``Python_SABI_LIBRARY_DIRS``
+  .. versionadded:: 3.26
+
+  The Python ``SABI`` library directories.
+``Python_RUNTIME_SABI_LIBRARY_DIRS``
+  .. versionadded:: 3.26
+
+  The Python runtime ``SABI`` library directories.
 ``Python_VERSION``
   Python version.
 ``Python_VERSION_MAJOR``
@@ -244,42 +315,54 @@ Hints
 
     This hint will be honored only when searched for ``Python`` version 3.
 
-  .. note::
+  The ``Python_FIND_ABI`` variable is a 4-tuple specifying, in that order,
+  ``pydebug`` (``d``), ``pymalloc`` (``m``), ``unicode`` (``u``) and
+  ``gil_disabled`` (``t``) flags.
 
-    If ``Python_FIND_ABI`` is not defined, any ABI will be searched.
+  .. versionadded:: 3.30
+    A fourth element, specifying the ``gil_disabled`` flag (i.e. free
+    threaded python), is added and is optional. If not specified, the value is
+    ``OFF``.
 
-  The ``Python_FIND_ABI`` variable is a 3-tuple specifying, in that order,
-  ``pydebug`` (``d``), ``pymalloc`` (``m``) and ``unicode`` (``u``) flags.
   Each element can be set to one of the following:
 
   * ``ON``: Corresponding flag is selected.
   * ``OFF``: Corresponding flag is not selected.
   * ``ANY``: The two possibilities (``ON`` and ``OFF``) will be searched.
 
-  From this 3-tuple, various ABIs will be searched starting from the most
-  specialized to the most general. Moreover, ``debug`` versions will be
-  searched **after** ``non-debug`` ones.
+  .. note::
+
+    If ``Python3_FIND_ABI`` is not defined, any ABI, excluding the
+    ``gil_disabled`` flag, will be searched.
+
+  From this 4-tuple, various ABIs will be searched starting from the most
+  specialized to the most general. Moreover, when ``ANY`` is specified for
+  ``pydebug`` and ``gil_disabled``, ``debug`` and ``free threaded`` versions
+  will be searched **after** ``non-debug`` and ``non-gil-disabled`` ones.
 
   For example, if we have::
 
-    set (Python_FIND_ABI "ON" "ANY" "ANY")
+    set (Python_FIND_ABI "ON" "ANY" "ANY" "ON")
 
   The following flags combinations will be appended, in that order, to the
-  artifact names: ``dmu``, ``dm``, ``du``, and ``d``.
+  artifact names: ``tdmu``, ``tdm``, ``tdu``, and ``td``.
 
   And to search any possible ABIs::
 
-    set (Python_FIND_ABI "ANY" "ANY" "ANY")
+    set (Python_FIND_ABI "ANY" "ANY" "ANY" "ANY")
 
   The following combinations, in that order, will be used: ``mu``, ``m``,
-  ``u``, ``<empty>``, ``dmu``, ``dm``, ``du`` and ``d``.
+  ``u``, ``<empty>``, ``dmu``, ``dm``, ``du``, ``d``, ``tmu``, ``tm``, ``tu``,
+  ``t``, ``tdmu``, ``tdm``, ``tdu``, and ``td``.
 
   .. note::
 
-    This hint is useful only on ``POSIX`` systems. So, on ``Windows`` systems,
+    This hint is useful only on ``POSIX`` systems except for the
+    ``gil_disabled`` flag. So, on ``Windows`` systems,
     when ``Python_FIND_ABI`` is defined, ``Python`` distributions from
-    `python.org <https://www.python.org/>`_ will be found only if value for
-    each flag is ``OFF`` or ``ANY``.
+    `python.org <https://www.python.org/>`_ will be found only if the value for
+    each flag is ``OFF`` or ``ANY`` except for the fourth one
+    (``gil_disabled``).
 
 ``Python_FIND_STRATEGY``
   .. versionadded:: 3.15
@@ -294,6 +377,8 @@ Hints
   * ``LOCATION``: Stops lookup as soon as a version satisfying version
     constraints is founded.
     This is the default if policy :policy:`CMP0094` is set to ``NEW``.
+
+  See also ``Python_FIND_UNVERSIONED_NAMES``.
 
 ``Python_FIND_REGISTRY``
   .. versionadded:: 3.13
@@ -366,7 +451,7 @@ Hints
     See `IronPython <https://ironpython.net>`_.
   * ``PyPy``: This implementation use ``RPython`` language and
     ``RPython translation toolchain`` to produce the python interpreter.
-    See `PyPy <https://www.pypy.org>`_.
+    See `PyPy <https://pypy.org>`_.
 
   The default value is:
 
@@ -402,6 +487,8 @@ Hints
     This is the default.
   * ``NEVER``: The generic name are not searched at all.
 
+  See also ``Python_FIND_STRATEGY``.
+
 Artifacts Specification
 ^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -426,6 +513,13 @@ setting the following variables:
   variables ``Python_LIBRARIES``, ``Python_LIBRARY_DIRS`` and
   ``Python_RUNTIME_LIBRARY_DIRS``.
 
+``Python_SABI_LIBRARY``
+  .. versionadded:: 3.26
+
+  The path to the library for Stable Application Binary Interface. It will be
+  used to compute the variables ``Python_SABI_LIBRARIES``,
+  ``Python_SABI_LIBRARY_DIRS`` and ``Python_RUNTIME_SABI_LIBRARY_DIRS``.
+
 ``Python_INCLUDE_DIR``
   The path to the directory of the ``Python`` headers. It will be used to
   compute the variable ``Python_INCLUDE_DIRS``.
@@ -449,7 +543,7 @@ setting the following variables:
 
 By default, this module supports multiple calls in different directories of a
 project with different version/component requirements while providing correct
-and consistent results for each call. To support this behavior, ``CMake`` cache
+and consistent results for each call. To support this behavior, CMake cache
 is not used in the traditional way which can be problematic for interactive
 specification. So, to enable also interactive specification, module behavior
 can be controlled with the following variable:
@@ -471,10 +565,11 @@ Commands
 This module defines the command ``Python_add_library`` (when
 :prop_gbl:`CMAKE_ROLE` is ``PROJECT``), which has the same semantics as
 :command:`add_library` and adds a dependency to target ``Python::Python`` or,
-when library type is ``MODULE``, to target ``Python::Module`` and takes care of
-Python module naming rules::
+when library type is ``MODULE``, to target ``Python::Module`` or
+``Python::SABIModule`` (when ``USE_SABI`` option is specified) and takes care
+of Python module naming rules::
 
-  Python_add_library (<name> [STATIC | SHARED | MODULE [WITH_SOABI]]
+  Python_add_library (<name> [STATIC | SHARED | MODULE [USE_SABI <version>] [WITH_SOABI]]
                       <source1> [<source2> ...])
 
 If the library type is not specified, ``MODULE`` is assumed.
@@ -482,6 +577,23 @@ If the library type is not specified, ``MODULE`` is assumed.
 .. versionadded:: 3.17
   For ``MODULE`` library type, if option ``WITH_SOABI`` is specified, the
   module suffix will include the ``Python_SOABI`` value, if any.
+
+.. versionadded:: 3.26
+  For ``MODULE`` type, if the option ``USE_SABI`` is specified, the
+  preprocessor definition ``Py_LIMITED_API`` will be specified, as ``PRIVATE``,
+  for the target ``<name>`` with the value computed from ``<version>`` argument.
+  The expected format for ``<version>`` is ``major[.minor]``, where each
+  component is a numeric value. If ``minor`` component is specified, the
+  version should be, at least, ``3.2`` which is the version where the
+  `Stable Application Binary Interface <https://docs.python.org/3/c-api/stable.html>`_
+  was introduced. Specifying only major version ``3`` is equivalent to ``3.2``.
+
+  When option ``WITH_SOABI`` is also specified,  the module suffix will include
+  the ``Python_SOSABI`` value, if any.
+
+.. versionadded:: 3.30
+  For ``MODULE`` type, the :prop_tgt:`DEBUG_POSTFIX` target property is
+  initialized with the value of ``Python_DEBUG_POSTFIX`` variable if defined.
 #]=======================================================================]
 
 

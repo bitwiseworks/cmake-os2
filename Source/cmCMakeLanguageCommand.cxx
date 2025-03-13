@@ -5,7 +5,6 @@
 #include <algorithm>
 #include <array>
 #include <cstddef>
-#include <memory>
 #include <string>
 #include <utility>
 
@@ -17,10 +16,11 @@
 #include "cmArgumentParserTypes.h"
 #include "cmDependencyProvider.h"
 #include "cmExecutionStatus.h"
+#include "cmExperimental.h"
 #include "cmGlobalGenerator.h"
 #include "cmListFileCache.h"
 #include "cmMakefile.h"
-#include "cmMessageType.h"
+#include "cmMessageType.h" // IWYU pragma: keep
 #include "cmRange.h"
 #include "cmState.h"
 #include "cmStringAlgorithms.h"
@@ -303,7 +303,7 @@ bool cmCMakeLanguageCommandSET_DEPENDENCY_PROVIDER(
   state->SetDependencyProvider({ parsedArgs.Command, methods });
   state->SetGlobalProperty(
     fcmasProperty,
-    supportsFetchContentMakeAvailableSerial ? parsedArgs.Command.c_str() : "");
+    supportsFetchContentMakeAvailableSerial ? parsedArgs.Command : "");
 
   return true;
 }
@@ -326,6 +326,37 @@ bool cmCMakeLanguageCommandGET_MESSAGE_LOG_LEVEL(
 
   const std::string& outputVariable = expandedArgs[1];
   makefile.AddDefinition(outputVariable, outputValue);
+  return true;
+}
+
+bool cmCMakeLanguageCommandGET_EXPERIMENTAL_FEATURE_ENABLED(
+  std::vector<cmListFileArgument> const& args, cmExecutionStatus& status)
+{
+  cmMakefile& makefile = status.GetMakefile();
+  std::vector<std::string> expandedArgs;
+  makefile.ExpandArguments(args, expandedArgs);
+
+  if (expandedArgs.size() != 3) {
+    return FatalError(status,
+                      "sub-command GET_EXPERIMENTAL_FEATURE_ENABLED expects "
+                      "exactly two arguments");
+  }
+
+  auto const& featureName = expandedArgs[1];
+  auto const& variableName = expandedArgs[2];
+
+  if (auto feature = cmExperimental::FeatureByName(featureName)) {
+    if (cmExperimental::HasSupportEnabled(makefile, *feature)) {
+      makefile.AddDefinition(variableName, "TRUE");
+    } else {
+      makefile.AddDefinition(variableName, "FALSE");
+    }
+  } else {
+    return FatalError(status,
+                      cmStrCat("Experimental feature name \"", featureName,
+                               "\" does not exist."));
+  }
+
   return true;
 }
 }
@@ -357,6 +388,32 @@ bool cmCMakeLanguageCommand(std::vector<cmListFileArgument> const& args,
 
   if (!moreArgs()) {
     return FatalError(status, "called with incorrect number of arguments");
+  }
+  if (expArgs[expArg] == "EXIT"_s) {
+    ++expArg; // consume "EXIT".
+
+    if (!moreArgs()) {
+      return FatalError(status, "EXIT requires one argument");
+    }
+
+    auto workingMode =
+      status.GetMakefile().GetCMakeInstance()->GetWorkingMode();
+    if (workingMode != cmake::SCRIPT_MODE) {
+      return FatalError(status, "EXIT can be used only in SCRIPT mode");
+    }
+
+    long retCode = 0;
+
+    if (!cmStrToLong(expArgs[expArg], &retCode)) {
+      return FatalError(status,
+                        cmStrCat("EXIT requires one integral argument, got \"",
+                                 expArgs[expArg], '\"'));
+    }
+
+    if (workingMode == cmake::SCRIPT_MODE) {
+      status.SetExitCode(static_cast<int>(retCode));
+    }
+    return true;
   }
 
   if (expArgs[expArg] == "SET_DEPENDENCY_PROVIDER"_s) {
@@ -478,6 +535,11 @@ bool cmCMakeLanguageCommand(std::vector<cmListFileArgument> const& args,
 
   if (expArgs[expArg] == "GET_MESSAGE_LOG_LEVEL") {
     return cmCMakeLanguageCommandGET_MESSAGE_LOG_LEVEL(args, status);
+  }
+
+  if (expArgs[expArg] == "GET_EXPERIMENTAL_FEATURE_ENABLED") {
+    return cmCMakeLanguageCommandGET_EXPERIMENTAL_FEATURE_ENABLED(args,
+                                                                  status);
   }
 
   return FatalError(status, "called with unknown meta-operation");

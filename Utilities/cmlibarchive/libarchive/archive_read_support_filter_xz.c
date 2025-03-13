@@ -26,8 +26,6 @@
 
 #include "archive_platform.h"
 
-__FBSDID("$FreeBSD$");
-
 #ifdef HAVE_ERRNO_H
 #include <errno.h>
 #endif
@@ -478,8 +476,8 @@ xz_lzma_bidder_init(struct archive_read_filter *self)
 	struct private_data *state;
 	int ret;
 
-	state = (struct private_data *)calloc(sizeof(*state), 1);
-	out_block = (unsigned char *)malloc(out_block_size);
+	state = calloc(1, sizeof(*state));
+	out_block = malloc(out_block_size);
 	if (state == NULL || out_block == NULL) {
 		archive_set_error(&self->archive->archive, ENOMEM,
 		    "Can't allocate data for xz decompression");
@@ -612,9 +610,11 @@ lzip_tail(struct archive_read_filter *self)
 	/* Check the crc32 value of the uncompressed data of the current
 	 * member */
 	if (state->crc32 != archive_le32dec(f)) {
+#ifndef DONT_FAIL_ON_CRC_ERROR
 		archive_set_error(&self->archive->archive, ARCHIVE_ERRNO_MISC,
 		    "Lzip: CRC32 error");
 		return (ARCHIVE_FAILED);
+#endif
 	}
 
 	/* Check the uncompressed size of the current member */
@@ -654,13 +654,16 @@ xz_filter_read(struct archive_read_filter *self, const void **p)
 	struct private_data *state;
 	size_t decompressed;
 	ssize_t avail_in;
+	int64_t member_in;
 	int ret;
 
 	state = (struct private_data *)self->data;
 
+	redo:
 	/* Empty our output buffer. */
 	state->stream.next_out = state->out_block;
 	state->stream.avail_out = state->out_block_size;
+	member_in = state->member_in;
 
 	/* Try to fill the output buffer. */
 	while (state->stream.avail_out > 0 && !state->eof) {
@@ -705,9 +708,18 @@ xz_filter_read(struct archive_read_filter *self, const void **p)
 	decompressed = state->stream.next_out - state->out_block;
 	state->total_out += decompressed;
 	state->member_out += decompressed;
-	if (decompressed == 0)
+	if (decompressed == 0) {
+		if (member_in != state->member_in &&
+		    self->code == ARCHIVE_FILTER_LZIP &&
+		    state->eof) {
+			ret = lzip_tail(self);
+			if (ret != ARCHIVE_OK)
+				return (ret);
+			if (!state->eof)
+				goto redo;
+		}
 		*p = NULL;
-	else {
+	} else {
 		*p = state->out_block;
 		if (self->code == ARCHIVE_FILTER_LZIP) {
 			state->crc32 = lzma_crc32(state->out_block,

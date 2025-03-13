@@ -22,6 +22,7 @@ These commands are always available.
    /command/cmake_minimum_required
    /command/cmake_parse_arguments
    /command/cmake_path
+   /command/cmake_pkg_config
    /command/cmake_policy
    /command/configure_file
    /command/continue
@@ -87,6 +88,7 @@ These commands are available only in CMake projects.
    /command/add_test
    /command/aux_source_directory
    /command/build_command
+   /command/cmake_file_api
    /command/create_test_sourcelist
    /command/define_property
    /command/enable_language

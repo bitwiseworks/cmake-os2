@@ -6,7 +6,6 @@
 #include <algorithm>
 #include <iterator>
 #include <map>
-#include <memory>
 #include <string>
 #include <unordered_set>
 #include <utility>
@@ -64,7 +63,7 @@ bool cmDependsCompiler::CheckDependencies(
           continue;
         }
         // This is a dependee line
-        if (currentDependencies != nullptr) {
+        if (currentDependencies) {
           currentDependencies->emplace_back(line.substr(1));
         }
       }
@@ -128,7 +127,7 @@ bool cmDependsCompiler::CheckDependencies(
           }
 
           std::string line;
-          if (!isValidPath) {
+          if (!isValidPath && !source.empty()) {
             // insert source as first dependency
             depends.push_back(source);
           }
@@ -158,14 +157,16 @@ bool cmDependsCompiler::CheckDependencies(
           }
 
           // ensure source file is the first dependency
-          if (depends.front() != source) {
-            cm::erase(depends, source);
-            if (!isValidPath) {
-              depends.insert(depends.begin(), source);
+          if (!source.empty()) {
+            if (depends.front() != source) {
+              cm::erase(depends, source);
+              if (!isValidPath) {
+                depends.insert(depends.begin(), source);
+              }
+            } else if (isValidPath) {
+              // remove first dependency because it must not be filtered out
+              depends.erase(depends.begin());
             }
-          } else if (isValidPath) {
-            // remove first dependency because it must not be filtered out
-            depends.erase(depends.begin());
           }
         } else {
           // unknown format, ignore it
@@ -174,8 +175,10 @@ bool cmDependsCompiler::CheckDependencies(
 
         if (isValidPath) {
           cm::erase_if(depends, isValidPath);
-          // insert source as first dependency
-          depends.insert(depends.begin(), source);
+          if (!source.empty()) {
+            // insert source as first dependency
+            depends.insert(depends.begin(), source);
+          }
         }
 
         dependencies[target] = std::move(depends);

@@ -9,6 +9,7 @@
 #include "cmFileTime.h"
 #include "cmFileTimeCache.h"
 #include "cmGeneratedFileStream.h"
+#include "cmList.h"
 #include "cmLocalUnixMakefileGenerator3.h"
 #include "cmMakefile.h"
 #include "cmStringAlgorithms.h"
@@ -28,11 +29,11 @@ bool cmDepends::Write(std::ostream& makeDepends, std::ostream& internalDepends)
   std::map<std::string, std::set<std::string>> dependencies;
   {
     // Lookup the set of sources to scan.
-    std::vector<std::string> pairs;
+    cmList pairs;
     {
       std::string const srcLang = "CMAKE_DEPENDS_CHECK_" + this->Language;
       cmMakefile* mf = this->LocalGenerator->GetMakefile();
-      cmExpandList(mf->GetSafeDefinition(srcLang), pairs);
+      pairs.assign(mf->GetSafeDefinition(srcLang));
     }
     for (auto si = pairs.begin(); si != pairs.end();) {
       // Get the source and object file.
@@ -153,7 +154,7 @@ bool cmDepends::CheckDependencies(std::istream& internalDepends,
     dependee = line.substr(1);
 
     // Add dependee to depender's list
-    if (currentDependencies != nullptr) {
+    if (currentDependencies) {
       currentDependencies->push_back(dependee);
     }
 
@@ -209,7 +210,7 @@ bool cmDepends::CheckDependencies(std::istream& internalDepends,
 
       // Remove the information of this depender from the map, it needs
       // to be rescanned
-      if (currentDependencies != nullptr) {
+      if (currentDependencies) {
         validDeps.erase(depender);
         currentDependencies = nullptr;
       }

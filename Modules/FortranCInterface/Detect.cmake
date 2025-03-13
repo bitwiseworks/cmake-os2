@@ -10,7 +10,7 @@ if(NOT EXISTS ${FortranCInterface_BINARY_DIR}/Output.cmake
     OR NOT EXISTS ${FortranCInterface_BINARY_DIR}/Input.cmake
     OR NOT ${FortranCInterface_BINARY_DIR}/Output.cmake
       IS_NEWER_THAN ${FortranCInterface_BINARY_DIR}/Input.cmake
-    OR NOT ${FortranCInterface_SOURCE_DIR}/Output.cmake
+    OR NOT ${FortranCInterface_BINARY_DIR}/Output.cmake
       IS_NEWER_THAN ${FortranCInterface_SOURCE_DIR}/Output.cmake.in
     OR NOT ${FortranCInterface_BINARY_DIR}/Output.cmake
       IS_NEWER_THAN ${FortranCInterface_SOURCE_DIR}/CMakeLists.txt
@@ -51,6 +51,7 @@ try_compile(FortranCInterface_COMPILED
   TARGET FortranCInterface
   SOURCE_DIR ${FortranCInterface_SOURCE_DIR}
   BINARY_DIR ${FortranCInterface_BINARY_DIR}
+  LOG_DESCRIPTION "Fortran/C interface test project"
   CMAKE_FLAGS
     "-DCMAKE_C_FLAGS:STRING=${CMAKE_C_FLAGS}"
     "-DCMAKE_Fortran_FLAGS:STRING=${CMAKE_Fortran_FLAGS}"
@@ -58,7 +59,7 @@ try_compile(FortranCInterface_COMPILED
     "-DCMAKE_Fortran_FLAGS_RELEASE:STRING=${CMAKE_Fortran_FLAGS_RELEASE}"
     ${_FortranCInterface_OSX_ARCH}
     ${_FortranCInterface_EXE_LINKER_FLAGS}
-  OUTPUT_VARIABLE FortranCInterface_OUTPUT)
+  )
 set(FortranCInterface_COMPILED ${FortranCInterface_COMPILED})
 unset(FortranCInterface_COMPILED CACHE)
 unset(_FortranCInterface_EXE_LINKER_FLAGS)
@@ -70,16 +71,16 @@ if(FortranCInterface_COMPILED)
   include(${FortranCInterface_BINARY_DIR}/exe-Release.cmake OPTIONAL)
 else()
   set(_result "Failed to compile")
-  file(APPEND ${CMAKE_BINARY_DIR}${CMAKE_FILES_DIRECTORY}/CMakeError.log
-    "Fortran/C interface test project failed with the following output:\n"
-    "${FortranCInterface_OUTPUT}\n")
 endif()
 
 # Load symbols from INFO:symbol[] strings in the executable.
 set(FortranCInterface_SYMBOLS)
 if(FortranCInterface_EXE)
+  cmake_policy(PUSH)
+  cmake_policy(SET CMP0159 NEW) # file(STRINGS) with REGEX updates CMAKE_MATCH_<n>
   file(STRINGS "${FortranCInterface_EXE}" _info_strings
     LIMIT_COUNT 8 REGEX "INFO:[A-Za-z0-9_]+\\[[^]]*\\]")
+  cmake_policy(POP)
   foreach(info ${_info_strings})
     if("${info}" MATCHES "INFO:symbol\\[([^]]*)\\]")
       list(APPEND FortranCInterface_SYMBOLS ${CMAKE_MATCH_1})
@@ -95,8 +96,8 @@ set(_case_MYSUB "UPPER")
 set(_case_MY_SUB "UPPER")
 set(_global_regex  "^(_*)(mysub|MYSUB)([_$]*)$")
 set(_global__regex "^(_*)(my_sub|MY_SUB)([_$]*)$")
-set(_module_regex "^(_*)([A-Za-z$]*)(mymodule|MYMODULE)([A-Za-z_$]*)(mysub|MYSUB)([_$]*)$")
-set(_module__regex "^(_*)([A-Za-z$]*)(my_module|MY_MODULE)([A-Za-z_$]*)(my_sub|MY_SUB)([_$]*)$")
+set(_module_regex "^([A-Za-z_$]*)(mymodule|MYMODULE)([A-Za-z_$]*)(mysub|MYSUB)([_$]*)$")
+set(_module__regex "^([A-Za-z_$]*)(my_module|MY_MODULE)([A-Za-z_$]*)(my_sub|MY_SUB)([_$]*)$")
 
 # Parse the symbol names.
 foreach(symbol ${FortranCInterface_SYMBOLS})
@@ -115,7 +116,7 @@ foreach(symbol ${FortranCInterface_SYMBOLS})
 
     # Look for module symbols.
     string(REGEX REPLACE "${_module_${form}regex}"
-                         "\\1\\2;\\3;\\4;\\5;\\6" pieces "${symbol}")
+                         "\\1;\\2;\\3;\\4;\\5" pieces "${symbol}")
     list(LENGTH pieces len)
     if(len EQUAL 5)
       set(FortranCInterface_MODULE_${form}SYMBOL "${symbol}")
@@ -179,7 +180,6 @@ endforeach()
 # Record the detection results.
 configure_file(${FortranCInterface_SOURCE_DIR}/Output.cmake.in
                ${FortranCInterface_BINARY_DIR}/Output.cmake @ONLY)
-file(APPEND ${FortranCInterface_BINARY_DIR}/Output.cmake "\n")
 
 # Report the results.
 if(FortranCInterface_GLOBAL_FOUND)

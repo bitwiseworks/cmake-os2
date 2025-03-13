@@ -10,15 +10,22 @@ add_cuda_test_macro(CudaOnly.CompileFlags CudaOnlyCompileFlags)
 add_cuda_test_macro(CudaOnly.EnableStandard CudaOnlyEnableStandard)
 add_cuda_test_macro(CudaOnly.ExportPTX CudaOnlyExportPTX)
 add_cuda_test_macro(CudaOnly.SharedRuntimePlusToolkit CudaOnlySharedRuntimePlusToolkit)
-add_cuda_test_macro(CudaOnly.Standard98 CudaOnlyStandard98)
+add_cuda_test_macro(CudaOnly.StaticRuntimePlusToolkit CudaOnlyStaticRuntimePlusToolkit)
+if(NOT WIN32 OR NOT CMake_TEST_CUDA STREQUAL "Clang") # MSVC std lib needs C++14
+  add_cuda_test_macro(CudaOnly.Standard98 CudaOnlyStandard98)
+endif()
+set(CudaOnly.Toolkit_BUILD_OPTIONS -DHAS_CUPTI:BOOL=${CMake_TEST_CUDA_CUPTI})
 add_cuda_test_macro(CudaOnly.Toolkit CudaOnlyToolkit)
 add_cuda_test_macro(CudaOnly.ToolkitBeforeLang CudaOnlyToolkitBeforeLang)
 add_cuda_test_macro(CudaOnly.ToolkitMultipleDirs CudaOnlyToolkitMultipleDirs)
+add_cuda_test_macro(CudaOnly.TryCompileTargetStatic CudaOnlyTryCompileTargetStatic)
+add_cuda_test_macro(CudaOnly.Unity CudaOnlyUnity)
 add_cuda_test_macro(CudaOnly.WithDefs CudaOnlyWithDefs)
 add_cuda_test_macro(CudaOnly.CircularLinkLine CudaOnlyCircularLinkLine)
 add_cuda_test_macro(CudaOnly.ResolveDeviceSymbols CudaOnlyResolveDeviceSymbols)
 add_cuda_test_macro(CudaOnly.SeparateCompilation main/CudaOnlySeparateCompilation)
 add_cuda_test_macro(CudaOnly.SeparateCompilationPTX CudaOnlySeparateCompilationPTX)
+add_cuda_test_macro(CudaOnly.SeparateCompilationTargetObjects CudaOnlySeparateCompilationTargetObjects)
 
 if(CMake_TEST_CUDA AND NOT CMake_TEST_CUDA STREQUAL "Clang")
   # Clang doesn't have flags for selecting the runtime.
@@ -26,12 +33,9 @@ if(CMake_TEST_CUDA AND NOT CMake_TEST_CUDA STREQUAL "Clang")
 
   # Only NVCC defines __CUDACC_DEBUG__ when compiling in debug mode.
   add_cuda_test_macro(CudaOnly.GPUDebugFlag CudaOnlyGPUDebugFlag)
-endif()
-
-# The CUDA only ships the shared version of the toolkit libraries
-# on windows
-if(NOT WIN32)
-  add_cuda_test_macro(CudaOnly.StaticRuntimePlusToolkit CudaOnlyStaticRuntimePlusToolkit)
+  add_cuda_test_macro(CudaOnly.CUBIN CudaOnlyCUBIN)
+  add_cuda_test_macro(CudaOnly.Fatbin CudaOnlyFatbin)
+  add_cuda_test_macro(CudaOnly.OptixIR CudaOnlyOptixIR)
 endif()
 
 add_cuda_test_macro(CudaOnly.DeviceLTO CudaOnlyDeviceLTO)

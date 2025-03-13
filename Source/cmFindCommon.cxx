@@ -9,6 +9,7 @@
 #include <cmext/algorithm>
 
 #include "cmExecutionStatus.h"
+#include "cmList.h"
 #include "cmMakefile.h"
 #include "cmMessageType.h"
 #include "cmPolicies.h"
@@ -25,7 +26,7 @@ cmFindCommon::PathLabel cmFindCommon::PathLabel::CMakeEnvironment(
   "CMAKE_ENVIRONMENT");
 cmFindCommon::PathLabel cmFindCommon::PathLabel::Hints("HINTS");
 cmFindCommon::PathLabel cmFindCommon::PathLabel::SystemEnvironment(
-  "SYSTM_ENVIRONMENT");
+  "SYSTEM_ENVIRONMENT");
 cmFindCommon::PathLabel cmFindCommon::PathLabel::CMakeSystem("CMAKE_SYSTEM");
 cmFindCommon::PathLabel cmFindCommon::PathLabel::Guess("GUESS");
 
@@ -206,12 +207,13 @@ void cmFindCommon::SelectDefaultSearchModes()
   for (auto const& path : search_paths) {
     cmValue def = this->Makefile->GetDefinition(path.second);
     if (def) {
-      path.first = !cmIsOn(*def);
+      path.first = !def.IsOn();
     }
   }
 }
 
-void cmFindCommon::RerootPaths(std::vector<std::string>& paths)
+void cmFindCommon::RerootPaths(std::vector<std::string>& paths,
+                               std::string* debugBuffer)
 {
 #if 0
   for(std::string const& p : paths)
@@ -237,28 +239,51 @@ void cmFindCommon::RerootPaths(std::vector<std::string>& paths)
     return;
   }
 
-  // Construct the list of path roots with no trailing slashes.
-  std::vector<std::string> roots;
-  if (rootPath) {
-    cmExpandList(*rootPath, roots);
+  if (this->DebugMode && debugBuffer) {
+    *debugBuffer = cmStrCat(
+      *debugBuffer, "Prepending the following roots to each prefix:\n");
   }
+
+  auto debugRoot = [this, debugBuffer](const std::string& name,
+                                       cmValue value) {
+    if (this->DebugMode && debugBuffer) {
+      *debugBuffer = cmStrCat(*debugBuffer, name, "\n");
+      cmList roots{ value };
+      if (roots.empty()) {
+        *debugBuffer = cmStrCat(*debugBuffer, "  none\n");
+      }
+      for (auto const& root : roots) {
+        *debugBuffer = cmStrCat(*debugBuffer, "  ", root, "\n");
+      }
+    }
+  };
+
+  // Construct the list of path roots with no trailing slashes.
+  cmList roots;
+  debugRoot("CMAKE_FIND_ROOT_PATH", rootPath);
+  if (rootPath) {
+    roots.assign(*rootPath);
+  }
+  debugRoot("CMAKE_SYSROOT_COMPILE", sysrootCompile);
   if (sysrootCompile) {
     roots.emplace_back(*sysrootCompile);
   }
+  debugRoot("CMAKE_SYSROOT_LINK", sysrootLink);
   if (sysrootLink) {
     roots.emplace_back(*sysrootLink);
   }
+  debugRoot("CMAKE_SYSROOT", sysroot);
   if (sysroot) {
     roots.emplace_back(*sysroot);
   }
-  for (std::string& r : roots) {
+  for (auto& r : roots) {
     cmSystemTools::ConvertToUnixSlashes(r);
   }
 
   cmValue stagePrefix = this->Makefile->GetDefinition("CMAKE_STAGING_PREFIX");
 
   // Copy the original set of unrooted paths.
-  std::vector<std::string> unrootedPaths = paths;
+  auto unrootedPaths = paths;
   paths.clear();
 
   auto isSameDirectoryOrSubDirectory = [](std::string const& l,
@@ -267,8 +292,8 @@ void cmFindCommon::RerootPaths(std::vector<std::string>& paths)
       cmSystemTools::IsSubDirectory(l, r);
   };
 
-  for (std::string const& r : roots) {
-    for (std::string const& up : unrootedPaths) {
+  for (auto const& r : roots) {
+    for (auto const& up : unrootedPaths) {
       // Place the unrooted path under the current root if it is not
       // already inside.  Skip the unrooted path if it is relative to
       // a user home directory or is empty.
@@ -308,7 +333,7 @@ void cmFindCommon::GetIgnoredPaths(std::vector<std::string>& ignore)
   // Construct the list of path roots with no trailing slashes.
   for (const char* pathName : paths) {
     // Get the list of paths to ignore from the variable.
-    this->Makefile->GetDefExpandList(pathName, ignore);
+    cmList::append(ignore, this->Makefile->GetDefinition(pathName));
   }
 
   for (std::string& i : ignore) {
@@ -333,7 +358,7 @@ void cmFindCommon::GetIgnoredPrefixPaths(std::vector<std::string>& ignore)
   // Construct the list of path roots with no trailing slashes.
   for (const char* pathName : paths) {
     // Get the list of paths to ignore from the variable.
-    this->Makefile->GetDefExpandList(pathName, ignore);
+    cmList::append(ignore, this->Makefile->GetDefinition(pathName));
   }
 
   for (std::string& i : ignore) {
@@ -410,7 +435,8 @@ static void AddTrailingSlash(std::string& s)
     s += '/';
   }
 }
-void cmFindCommon::ComputeFinalPaths(IgnorePaths ignorePaths)
+void cmFindCommon::ComputeFinalPaths(IgnorePaths ignorePaths,
+                                     std::string* debugBuffer)
 {
   // Filter out ignored paths from the prefix list
   std::set<std::string> ignoredPaths;
@@ -429,7 +455,7 @@ void cmFindCommon::ComputeFinalPaths(IgnorePaths ignorePaths)
   }
 
   // Expand list of paths inside all search roots.
-  this->RerootPaths(this->SearchPaths);
+  this->RerootPaths(this->SearchPaths, debugBuffer);
 
   // Add a trailing slash to all paths to aid the search process.
   std::for_each(this->SearchPaths.begin(), this->SearchPaths.end(),

@@ -7,6 +7,7 @@
 #include <cstring>
 #include <iostream>
 #include <iterator>
+#include <ratio>
 #include <sstream>
 #include <utility>
 
@@ -67,7 +68,7 @@ public:
     std::ostringstream ostr;
     ostr << name << ":\n";
     int i = 0;
-    for (; atts[i] != nullptr; i += 2) {
+    for (; atts[i]; i += 2) {
       ostr << "   " << atts[i] << " - " << atts[i + 1] << "\n";
     }
     ostr << "\n";
@@ -78,7 +79,7 @@ public:
   const char* GetAttribute(const char* name, const char** atts)
   {
     int i = 0;
-    for (; atts[i] != nullptr; ++i) {
+    for (; atts[i]; ++i) {
       if (strcmp(name, atts[i]) == 0) {
         return atts[i + 1];
       }
@@ -281,7 +282,7 @@ void cmCTestMemCheckHandler::InitializeResultsVectors()
     nullptr
   };
   this->GlobalResults.clear();
-  for (int i = 0; cmCTestMemCheckResultStrings[i] != nullptr; ++i) {
+  for (int i = 0; cmCTestMemCheckResultStrings[i]; ++i) {
     this->ResultStrings.emplace_back(cmCTestMemCheckResultStrings[i]);
     this->ResultStringsLong.emplace_back(cmCTestMemCheckResultLongStrings[i]);
     this->GlobalResults.push_back(0);
@@ -961,15 +962,15 @@ bool cmCTestMemCheckHandler::ProcessMemCheckValgrindOutput(
     "== .*[0-9,]+ bytes in [0-9,]+ blocks are still reachable"
     " in loss record [0-9,]+ of [0-9,]+");
   cmsys::RegularExpression vgUMC(
-    "== .*Conditional jump or move depends on uninitialised value\\(s\\)");
+    "== .*Conditional jump or move depends on uninitiali[sz]ed value\\(s\\)");
   cmsys::RegularExpression vgUMR1(
-    "== .*Use of uninitialised value of size [0-9,]+");
+    "== .*Use of uninitiali[sz]ed value of size [0-9,]+");
   cmsys::RegularExpression vgUMR2("== .*Invalid read of size [0-9,]+");
   cmsys::RegularExpression vgUMR3("== .*Jump to the invalid address ");
   cmsys::RegularExpression vgUMR4(
     "== .*Syscall param .* contains "
-    "uninitialised or unaddressable byte\\(s\\)");
-  cmsys::RegularExpression vgUMR5("== .*Syscall param .* uninitialised");
+    "uninitiali[sz]ed or unaddressable byte\\(s\\)");
+  cmsys::RegularExpression vgUMR5("== .*Syscall param .* uninitiali[sz]ed");
   cmsys::RegularExpression vgIPW("== .*Invalid write of size [0-9,]+");
   cmsys::RegularExpression vgABR("== .*pthread_mutex_unlock: mutex is "
                                  "locked by a different thread");

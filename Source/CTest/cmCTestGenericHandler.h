@@ -48,7 +48,7 @@ public:
    */
   virtual int ProcessCommandLineArguments(
     const std::string& /*currentArg*/, size_t& /*idx*/,
-    const std::vector<std::string>& /*allArgs*/)
+    const std::vector<std::string>& /*allArgs*/, bool& /*valid*/)
   {
     return 1;
   }
@@ -85,17 +85,9 @@ public:
    * so calling a single-getter for a key that has only been set
    * as a multi-value will return nullptr.
    */
-  void SetPersistentOption(const std::string& op, const char* value);
-  void SetPersistentOption(const std::string& op, const std::string& value)
-  {
-    this->SetPersistentOption(op, cmValue(value));
-  }
+  void SetPersistentOption(const std::string& op, const std::string& value);
   void SetPersistentOption(const std::string& op, cmValue value);
-  void SetOption(const std::string& op, const char* value);
-  void SetOption(const std::string& op, const std::string& value)
-  {
-    this->SetOption(op, cmValue(value));
-  }
+  void SetOption(const std::string& op, const std::string& value);
   void SetOption(const std::string& op, cmValue value);
   cmValue GetOption(const std::string& op);
 

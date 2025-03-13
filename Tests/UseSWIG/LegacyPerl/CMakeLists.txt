@@ -1,10 +1,12 @@
-cmake_minimum_required(VERSION 3.1)
+cmake_minimum_required(VERSION 3.10)
 
 project(TestLegacyPerl CXX)
 
 include(CTest)
 
-set(language "perl")
+if(NOT DEFINED language)
+  set(language "perl")
+endif()
 
 include (../LegacyConfiguration.cmake)
 

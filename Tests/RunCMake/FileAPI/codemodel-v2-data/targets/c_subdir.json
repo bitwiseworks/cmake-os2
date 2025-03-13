@@ -5,10 +5,12 @@
     "projectName": "codemodel-v2",
     "type": "STATIC_LIBRARY",
     "isGeneratorProvided": null,
+    "fileSets": null,
     "sources": [
         {
             "path": "^subdir/empty\\.c$",
             "isGenerated": null,
+            "fileSetName": null,
             "sourceGroupName": "Source Files",
             "compileGroupLanguage": "C",
             "backtrace": [
@@ -61,6 +63,7 @@
                 ]
               }
             ],
+            "frameworks": null,
             "defines": [
                 {
                     "define": "SUBDIR",
@@ -110,10 +113,10 @@
         }
     ],
     "folder": null,
-    "nameOnDisk": "^(lib)?c_subdir\\.(a|lib)$",
+    "nameOnDisk": "^(lib)?c_subdir\\.(a|lib|l)$",
     "artifacts": [
         {
-            "path": "^((Debug|Release|RelWithDebInfo|MinSizeRel)/)?(lib)?c_subdir\\.(a|lib)$",
+            "path": "^((Debug|Release|RelWithDebInfo|MinSizeRel)/)?(lib)?c_subdir\\.(a|lib|l)$",
             "_dllExtra": false
         }
     ],

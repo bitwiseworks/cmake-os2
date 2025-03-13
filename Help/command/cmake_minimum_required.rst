@@ -79,3 +79,10 @@ invokes
   cmake_policy(VERSION 2.4[...<max>])
 
 which enables compatibility features for CMake 2.4 and lower.
+
+.. include:: DEPRECATED_POLICY_VERSIONS.txt
+
+See Also
+^^^^^^^^
+
+* :command:`cmake_policy`

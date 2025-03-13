@@ -10,6 +10,7 @@
 #include <cm/iterator>
 
 #include "cmDefinitions.h"
+#include "cmLinkedTree.h"
 #include "cmListFileCache.h"
 #include "cmPropertyMap.h"
 #include "cmState.h"
@@ -297,18 +298,12 @@ void cmStateSnapshot::SetDefaultDefinitions()
   if (hostSystemName == "Windows") {
     this->SetDefinition("WIN32", "1");
     this->SetDefinition("CMAKE_HOST_WIN32", "1");
+    this->SetDefinition("CMAKE_HOST_EXECUTABLE_SUFFIX", ".exe");
   } else {
     this->SetDefinition("UNIX", "1");
     this->SetDefinition("CMAKE_HOST_UNIX", "1");
+    this->SetDefinition("CMAKE_HOST_EXECUTABLE_SUFFIX", "");
   }
-#if defined(__CYGWIN__)
-  std::string legacy;
-  if (cmSystemTools::GetEnv("CMAKE_LEGACY_CYGWIN_WIN32", legacy) &&
-      cmIsOn(legacy)) {
-    this->SetDefinition("WIN32", "1");
-    this->SetDefinition("CMAKE_HOST_WIN32", "1");
-  }
-#endif
 #if defined(__APPLE__)
   this->SetDefinition("APPLE", "1");
   this->SetDefinition("CMAKE_HOST_APPLE", "1");

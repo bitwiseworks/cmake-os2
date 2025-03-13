@@ -1,3 +1,6 @@
+# Distributed under the OSI-approved BSD 3-Clause License.  See accompanying
+# file Copyright.txt or https://cmake.org/licensing for details.
+
 foreach(
   arg
   IN ITEMS
@@ -11,8 +14,12 @@ foreach(
 endforeach()
 
 function(run_cmake test)
-  if(DEFINED ENV{RunCMake_TEST_FILTER} AND NOT test MATCHES "$ENV{RunCMake_TEST_FILTER}")
-    return()
+  if(DEFINED ENV{RunCMake_TEST_FILTER})
+    set(test_and_variant "${test}${RunCMake_TEST_VARIANT_DESCRIPTION}")
+    if(NOT test_and_variant MATCHES "$ENV{RunCMake_TEST_FILTER}")
+      return()
+    endif()
+    unset(test_and_variant)
   endif()
 
   set(top_src "${RunCMake_SOURCE_DIR}")
@@ -20,6 +27,8 @@ function(run_cmake test)
   if(EXISTS ${top_src}/${test}-result.txt)
     file(READ ${top_src}/${test}-result.txt expect_result)
     string(REGEX REPLACE "\n+$" "" expect_result "${expect_result}")
+  elseif(DEFINED RunCMake_TEST_EXPECT_RESULT)
+    set(expect_result "${RunCMake_TEST_EXPECT_RESULT}")
   else()
     set(expect_result 0)
   endif()
@@ -33,18 +42,25 @@ function(run_cmake test)
     set(platform_name msys)
   endif()
 
-  foreach(o IN ITEMS out err)
-    if(RunCMake-std${o}-file AND EXISTS ${top_src}/${RunCMake-std${o}-file})
-      file(READ ${top_src}/${RunCMake-std${o}-file} expect_std${o})
-      string(REGEX REPLACE "\n+$" "" expect_std${o} "${expect_std${o}}")
-    elseif(EXISTS ${top_src}/${test}-std${o}-${platform_name}.txt)
-      file(READ ${top_src}/${test}-std${o}-${platform_name}.txt expect_std${o})
-      string(REGEX REPLACE "\n+$" "" expect_std${o} "${expect_std${o}}")
-    elseif(EXISTS ${top_src}/${test}-std${o}.txt)
-      file(READ ${top_src}/${test}-std${o}.txt expect_std${o})
-      string(REGEX REPLACE "\n+$" "" expect_std${o} "${expect_std${o}}")
+  foreach(o IN ITEMS stdout stderr config)
+    if(RunCMake-${o}-file AND EXISTS ${top_src}/${RunCMake-${o}-file})
+      file(READ ${top_src}/${RunCMake-${o}-file} expect_${o})
+      string(REGEX REPLACE "\n+$" "" expect_${o} "${expect_${o}}")
+    elseif(EXISTS ${top_src}/${test}-${o}-${platform_name}.txt)
+      file(READ ${top_src}/${test}-${o}-${platform_name}.txt expect_${o})
+      string(REGEX REPLACE "\n+$" "" expect_${o} "${expect_${o}}")
+    elseif(EXISTS ${top_src}/${test}-${o}.txt)
+      file(READ ${top_src}/${test}-${o}.txt expect_${o})
+      string(REGEX REPLACE "\n+$" "" expect_${o} "${expect_${o}}")
+    elseif(DEFINED RunCMake_TEST_EXPECT_${o})
+      string(REGEX REPLACE "\n+$" "" expect_${o} "${RunCMake_TEST_EXPECT_${o}}")
     else()
-      unset(expect_std${o})
+      unset(expect_${o})
+    endif()
+  endforeach()
+  foreach(o IN ITEMS stdout stderr config)
+    if(DEFINED RunCMake_TEST_NOT_EXPECT_${o})
+      string(REGEX REPLACE "\n+$" "" not_expect_${o} "${RunCMake_TEST_NOT_EXPECT_${o}}")
     endif()
   endforeach()
   if (NOT expect_stderr)
@@ -94,7 +110,7 @@ function(run_cmake test)
     if(APPLE)
       list(APPEND RunCMake_TEST_OPTIONS -DCMAKE_POLICY_DEFAULT_CMP0025=NEW)
     endif()
-    if(NOT RunCMake_TEST_NO_CMP0129 AND CMAKE_C_COMPILER_ID STREQUAL "LCC")
+    if(RunCMake_TEST_LCC AND NOT RunCMake_TEST_NO_CMP0129)
       list(APPEND RunCMake_TEST_OPTIONS -DCMAKE_POLICY_DEFAULT_CMP0129=NEW)
     endif()
     if(RunCMake_MAKE_PROGRAM)
@@ -139,10 +155,28 @@ function(run_cmake test)
     ${maybe_timeout}
     ${maybe_input_file}
     )]])
+  if(DEFINED ENV{PWD})
+    set(old_pwd "$ENV{PWD}")
+  else()
+    set(old_pwd)
+  endif()
+  # Emulate a shell using this directory.
+  set(ENV{PWD} "${RunCMake_TEST_COMMAND_WORKING_DIRECTORY}")
   cmake_language(EVAL CODE "${_code}")
+  if(DEFINED old_pwd)
+    set(ENV{PWD} "${old_pwd}")
+  else()
+    set(ENV{PWD})
+  endif()
   set(msg "")
   if(NOT "${actual_result}" MATCHES "${expect_result}")
     string(APPEND msg "Result is [${actual_result}], not [${expect_result}].\n")
+  endif()
+  set(config_file "${RunCMake_TEST_COMMAND_WORKING_DIRECTORY}/CMakeFiles/CMakeConfigureLog.yaml")
+  if(EXISTS "${config_file}")
+    file(READ "${config_file}" actual_config)
+  else()
+    set(actual_config "")
   endif()
 
   # Special case: remove ninja no-op line from stderr, but not stdout.
@@ -155,6 +189,9 @@ function(run_cmake test)
     "|BullseyeCoverage"
     "|[a-z]+\\([0-9]+\\) malloc:"
     "|clang[^:]*: warning: the object size sanitizer has no effect at -O0, but is explicitly enabled:"
+    "|flang-new: warning: argument unused during compilation: .-flang-experimental-exec."
+    "|icp?x: remark: Note that use of .-g. without any optimization-level option will turn off most compiler optimizations"
+    "|ifx: remark #10440: Note that use of a debug option without any optimization-level option will turnoff most compiler optimizations"
     "|lld-link: warning: procedure symbol record for .* refers to PDB item index [0-9A-Fa-fx]+ which is not a valid function ID record"
     "|Error kstat returned"
     "|Hit xcodebuild bug"
@@ -164,9 +201,12 @@ function(run_cmake test)
     "|Your license to use PGI[^\n]*expired"
     "|Please obtain a new version at"
     "|contact PGI Sales at"
-    "|icp?c: remark #10441: The Intel\\(R\\) C\\+\\+ Compiler Classic \\(ICC\\) is deprecated"
+    "|ic(p?c|l): remark #10441: The Intel\\(R\\) C\\+\\+ Compiler Classic \\(ICC\\) is deprecated"
 
     "|[^\n]*install_name_tool: warning: changes being made to the file will invalidate the code signature in:"
+    "|[^\n]*(createItemModels|_NSMainThread|Please file a bug at)"
+    "|[^\n]*xcodebuild[^\n]*DVTAssertions: Warning"
+    "|[^\n]*xcodebuild[^\n]*DVTCoreDeviceEnabledState: DVTCoreDeviceEnabledState_Disabled set via user default"
     "|[^\n]*xcodebuild[^\n]*DVTPlugInManager"
     "|[^\n]*xcodebuild[^\n]*DVTSDK: Warning: SDK path collision for path"
     "|[^\n]*xcodebuild[^\n]*Requested but did not find extension point with identifier"
@@ -177,23 +217,39 @@ function(run_cmake test)
     "|[^\n]*offset in archive not a multiple of 8"
     "|[^\n]*from Time Machine by path"
     "|[^\n]*Bullseye Testing Technology"
+    ${RunCMake_TEST_EXTRA_IGNORE_LINE_REGEX}
     ")[^\n]*\n)+"
     )
-  foreach(o IN ITEMS out err)
-    string(REGEX REPLACE "\r\n" "\n" actual_std${o} "${actual_std${o}}")
-    string(REGEX REPLACE "${ignore_line_regex}" "\\1" actual_std${o} "${actual_std${o}}")
-    string(REGEX REPLACE "\n+$" "" actual_std${o} "${actual_std${o}}")
-    set(expect_${o} "")
-    if(DEFINED expect_std${o})
-      if(NOT "${actual_std${o}}" MATCHES "${expect_std${o}}")
-        string(REGEX REPLACE "\n" "\n expect-${o}> " expect_${o}
-          " expect-${o}> ${expect_std${o}}")
-        set(expect_${o} "Expected std${o} to match:\n${expect_${o}}\n")
-        string(APPEND msg "std${o} does not match that expected.\n")
+  if(RunCMake_IGNORE_POLICY_VERSION_DEPRECATION)
+    string(REGEX REPLACE [[
+^CMake Deprecation Warning at [^
+]*CMakeLists.txt:1 \(cmake_minimum_required\):
+  Compatibility with CMake < 3\.10 will be removed from a future version of
+  CMake.
+
+  Update the VERSION argument <min> value\.  Or, use the <min>\.\.\.<max> syntax
+  to tell CMake that the project requires at least <min> but has been updated
+  to work with policies introduced by <max> or earlier\.
++
+]] "" actual_stderr "${actual_stderr}")
+  endif()
+  foreach(o IN ITEMS stdout stderr config)
+    string(REGEX REPLACE "\r\n" "\n" actual_${o} "${actual_${o}}")
+    string(REGEX REPLACE "${ignore_line_regex}" "\\1" actual_${o} "${actual_${o}}")
+    string(REGEX REPLACE "\n+$" "" actual_${o} "${actual_${o}}")
+    if(DEFINED expect_${o})
+      if(NOT "${actual_${o}}" MATCHES "${expect_${o}}")
+        string(APPEND msg "${o} does not match that expected.\n")
+      endif()
+    endif()
+    if(DEFINED not_expect_${o})
+      if("${actual_${o}}" MATCHES "${not_expect_${o}}")
+        string(APPEND msg "${o} matches that not expected.\n")
       endif()
     endif()
   endforeach()
   unset(RunCMake_TEST_FAILED)
+  unset(RunCMake_TEST_FAILURE_MESSAGE)
   if(RunCMake-check-file AND EXISTS ${top_src}/${RunCMake-check-file})
     include(${top_src}/${RunCMake-check-file})
   else()
@@ -214,15 +270,20 @@ function(run_cmake test)
     string(APPEND msg "Command was:\n command> ${command}\n")
   endif()
   if(msg)
-    string(REGEX REPLACE "\n" "\n actual-out> " actual_out " actual-out> ${actual_stdout}")
-    string(REGEX REPLACE "\n" "\n actual-err> " actual_err " actual-err> ${actual_stderr}")
-    message(SEND_ERROR "${test}${RunCMake_TEST_VARIANT_DESCRIPTION} - FAILED:\n"
-      "${msg}"
-      "${expect_out}"
-      "Actual stdout:\n${actual_out}\n"
-      "${expect_err}"
-      "Actual stderr:\n${actual_err}\n"
-      )
+    foreach(o IN ITEMS stdout stderr config)
+      if(DEFINED expect_${o})
+        string(REGEX REPLACE "\n" "\n expect-${o}> " expect_${o} " expect-${o}> ${expect_${o}}")
+        string(APPEND msg "Expected ${o} to match:\n${expect_${o}}\n")
+      endif()
+      if(NOT o STREQUAL "config" OR DEFINED expect_${o})
+        string(REGEX REPLACE "\n" "\n actual-${o}> " actual_${o} " actual-${o}> ${actual_${o}}")
+        string(APPEND msg "Actual ${o}:\n${actual_${o}}\n")
+      endif()
+    endforeach()
+    if(RunCMake_TEST_FAILURE_MESSAGE)
+      string(APPEND msg "${RunCMake_TEST_FAILURE_MESSAGE}")
+    endif()
+    message(SEND_ERROR "${test}${RunCMake_TEST_VARIANT_DESCRIPTION} - FAILED:\n${msg}")
   else()
     message(STATUS "${test}${RunCMake_TEST_VARIANT_DESCRIPTION} - PASSED")
   endif()
@@ -268,6 +329,22 @@ function(ensure_files_match expected_file actual_file)
       actual content:\n
       ${actual_file_content}\n
     ")
+  endif()
+endfunction()
+
+# Get the user id on unix if possible.
+function(get_unix_uid var)
+  set("${var}" "" PARENT_SCOPE)
+  if(UNIX)
+    set(ID "id")
+    if(CMAKE_SYSTEM_NAME STREQUAL "SunOS" AND EXISTS "/usr/xpg4/bin/id")
+      set (ID "/usr/xpg4/bin/id")
+    endif()
+    execute_process(COMMAND ${ID} -u $ENV{USER} OUTPUT_VARIABLE uid ERROR_QUIET
+                    RESULT_VARIABLE status OUTPUT_STRIP_TRAILING_WHITESPACE)
+    if(status EQUAL 0)
+      set("${var}" "${uid}" PARENT_SCOPE)
+    endif()
   endif()
 endfunction()
 

@@ -12,6 +12,7 @@
 
 #include "cmExecutionStatus.h"
 #include "cmFunctionBlocker.h"
+#include "cmList.h"
 #include "cmListFileCache.h"
 #include "cmMakefile.h"
 #include "cmPolicies.h"
@@ -66,8 +67,9 @@ bool cmMacroHelperCommand::operator()(
   std::string argcDef = std::to_string(expandedArgs.size());
 
   auto eit = expandedArgs.begin() + (this->Args.size() - 1);
-  std::string expandedArgn = cmJoin(cmMakeRange(eit, expandedArgs.end()), ";");
-  std::string expandedArgv = cmJoin(expandedArgs, ";");
+  std::string expandedArgn =
+    cmList::to_string(cmMakeRange(eit, expandedArgs.end()));
+  std::string expandedArgv = cmList::to_string(expandedArgs);
   std::vector<std::string> variables;
   variables.reserve(this->Args.size() - 1);
   for (unsigned int j = 1; j < this->Args.size(); ++j) {
@@ -131,6 +133,10 @@ bool cmMacroHelperCommand::operator()(
     }
     if (status.GetBreakInvoked()) {
       inStatus.SetBreakInvoked();
+      return true;
+    }
+    if (status.HasExitCode()) {
+      inStatus.SetExitCode(status.GetExitCode());
       return true;
     }
   }

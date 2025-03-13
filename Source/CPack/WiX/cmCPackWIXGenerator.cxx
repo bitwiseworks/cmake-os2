@@ -7,6 +7,7 @@
 #include <cm/memory>
 #include <cm/string_view>
 #include <cmext/algorithm>
+#include <cmext/string_view>
 
 #include "cmsys/Directory.hxx"
 #include "cmsys/Encoding.hxx"
@@ -18,6 +19,7 @@
 #include "cmCryptoHash.h"
 #include "cmGeneratedFileStream.h"
 #include "cmInstalledFile.h"
+#include "cmList.h"
 #include "cmStringAlgorithms.h"
 #include "cmSystemTools.h"
 #include "cmUuid.h"
@@ -53,7 +55,7 @@ int cmCPackWIXGenerator::InitializeInternal()
 
 bool cmCPackWIXGenerator::RunWiXCommand(std::string const& command)
 {
-  std::string logFileName = this->CPackTopLevel + "/wix.log";
+  std::string logFileName = cmStrCat(this->CPackTopLevel, "/wix.log");
 
   cmCPackLogger(cmCPackLog::LOG_DEBUG,
                 "Running WiX command: " << command << std::endl);
@@ -61,8 +63,9 @@ bool cmCPackWIXGenerator::RunWiXCommand(std::string const& command)
   std::string output;
 
   int returnValue = 0;
-  bool status = cmSystemTools::RunSingleCommand(
-    command, &output, &output, &returnValue, 0, cmSystemTools::OUTPUT_NONE);
+  bool status =
+    cmSystemTools::RunSingleCommand(command, &output, &output, &returnValue,
+                                    nullptr, cmSystemTools::OUTPUT_NONE);
 
   cmsys::ofstream logFile(logFileName.c_str(), std::ios::app);
   logFile << command << std::endl;
@@ -71,7 +74,7 @@ bool cmCPackWIXGenerator::RunWiXCommand(std::string const& command)
 
   if (!status || returnValue) {
     cmCPackLogger(cmCPackLog::LOG_ERROR,
-                  "Problem running WiX candle. "
+                  "Problem running WiX. "
                   "Please check '"
                     << logFileName << "' for errors." << std::endl);
 
@@ -101,22 +104,22 @@ bool cmCPackWIXGenerator::RunCandleCommand(std::string const& sourceFile,
   }
 
   std::ostringstream command;
-  command << QuotePath(executable);
-  command << " -nologo";
-  command << " -arch " << arch;
-  command << " -out " << QuotePath(objectFile);
+  command << QuotePath(executable)
+          << " -nologo"
+             " -arch "
+          << arch << " -out " << QuotePath(objectFile);
 
   for (std::string const& ext : CandleExtensions) {
     command << " -ext " << QuotePath(ext);
   }
 
   if (!cmHasSuffix(sourceFile, this->CPackTopLevel)) {
-    command << " " << QuotePath("-I" + this->CPackTopLevel);
+    command << ' ' << QuotePath(cmStrCat("-I", this->CPackTopLevel));
   }
 
   AddCustomFlags("CPACK_WIX_CANDLE_EXTRA_FLAGS", command);
 
-  command << " " << QuotePath(sourceFile);
+  command << ' ' << QuotePath(sourceFile);
 
   return RunWiXCommand(command.str());
 }
@@ -129,9 +132,10 @@ bool cmCPackWIXGenerator::RunLightCommand(std::string const& objectFiles)
   }
 
   std::ostringstream command;
-  command << QuotePath(executable);
-  command << " -nologo";
-  command << " -out " << QuotePath(CMakeToWixPath(packageFileNames.at(0)));
+  command << QuotePath(executable)
+          << " -nologo"
+             " -out "
+          << QuotePath(CMakeToWixPath(packageFileNames.at(0)));
 
   for (std::string const& ext : this->LightExtensions) {
     command << " -ext " << QuotePath(ext);
@@ -144,7 +148,7 @@ bool cmCPackWIXGenerator::RunLightCommand(std::string const& objectFiles)
 
   AddCustomFlags("CPACK_WIX_LIGHT_EXTRA_FLAGS", command);
 
-  command << " " << objectFiles;
+  command << ' ' << objectFiles;
 
   return RunWiXCommand(command.str());
 }
@@ -162,6 +166,16 @@ int cmCPackWIXGenerator::PackageFiles()
 
 bool cmCPackWIXGenerator::InitializeWiXConfiguration()
 {
+  if (cmValue wixVersion = GetOption("CPACK_WIX_VERSION")) {
+    if (!cmStrToULong(*wixVersion, &this->WixVersion) ||
+        this->WixVersion < 3 || this->WixVersion > 4) {
+      cmCPackLogger(cmCPackLog::LOG_ERROR,
+                    "CPACK_WIX_VERSION has unknown value '"
+                      << *wixVersion << "'" << std::endl);
+      return false;
+    }
+  }
+
   if (!ReadListFile("Internal/CPack/CPackWIX.cmake")) {
     cmCPackLogger(cmCPackLog::LOG_ERROR,
                   "Error while executing CPackWIX.cmake" << std::endl);
@@ -195,7 +209,8 @@ bool cmCPackWIXGenerator::InitializeWiXConfiguration()
   }
 
   if (!GetOption("CPACK_WIX_LICENSE_RTF")) {
-    std::string licenseFilename = this->CPackTopLevel + "/License.rtf";
+    std::string licenseFilename =
+      cmStrCat(this->CPackTopLevel, "/License.rtf");
     SetOption("CPACK_WIX_LICENSE_RTF", licenseFilename);
 
     if (!CreateLicenseFile()) {
@@ -227,19 +242,27 @@ bool cmCPackWIXGenerator::InitializeWiXConfiguration()
     SetOption("CPACK_WIX_PROPERTY_ARPCONTACT", packageContact);
   }
 
-  CollectExtensions("CPACK_WIX_EXTENSIONS", this->CandleExtensions);
-  CollectExtensions("CPACK_WIX_CANDLE_EXTENSIONS", this->CandleExtensions);
+  if (this->WixVersion >= 4) {
+    CollectExtensions("CPACK_WIX_EXTENSIONS", this->WixExtensions);
+    if (!GetOption("CPACK_WIX_SKIP_WIX_UI_EXTENSION").IsOn()) {
+      this->WixExtensions.insert("WixToolset.UI.wixext");
+    }
+  } else {
+    CollectExtensions("CPACK_WIX_EXTENSIONS", this->CandleExtensions);
+    CollectExtensions("CPACK_WIX_CANDLE_EXTENSIONS", this->CandleExtensions);
 
-  if (!cmIsOn(GetOption("CPACK_WIX_SKIP_WIX_UI_EXTENSION"))) {
-    this->LightExtensions.insert("WixUIExtension");
+    if (!GetOption("CPACK_WIX_SKIP_WIX_UI_EXTENSION").IsOn()) {
+      this->LightExtensions.insert("WixUIExtension");
+    }
+    CollectExtensions("CPACK_WIX_EXTENSIONS", this->LightExtensions);
+    CollectExtensions("CPACK_WIX_LIGHT_EXTENSIONS", this->LightExtensions);
   }
-  CollectExtensions("CPACK_WIX_EXTENSIONS", this->LightExtensions);
-  CollectExtensions("CPACK_WIX_LIGHT_EXTENSIONS", this->LightExtensions);
+
   CollectXmlNamespaces("CPACK_WIX_CUSTOM_XMLNS", this->CustomXmlNamespaces);
 
   cmValue patchFilePath = GetOption("CPACK_WIX_PATCH_FILE");
   if (patchFilePath) {
-    std::vector<std::string> patchFilePaths = cmExpandedList(patchFilePath);
+    cmList patchFilePaths{ patchFilePath };
 
     for (std::string const& p : patchFilePaths) {
       if (!this->Patch->LoadFragments(p)) {
@@ -250,7 +273,7 @@ bool cmCPackWIXGenerator::InitializeWiXConfiguration()
 
   // if install folder is supposed to be set absolutely, the default
   // component guid "*" cannot be used
-  if (cmIsOn(GetOption("CPACK_WIX_SKIP_PROGRAM_FOLDER"))) {
+  if (GetOption("CPACK_WIX_SKIP_PROGRAM_FOLDER").IsOn()) {
     this->ComponentGuidType = cmWIXSourceWriter::CMAKE_GENERATED_GUID;
   }
 
@@ -273,6 +296,53 @@ bool cmCPackWIXGenerator::PackageFilesImpl()
 
   AppendUserSuppliedExtraSources();
 
+  return this->WixVersion >= 4 ? this->PackageWithWix()
+                               : this->PackageWithWix3();
+}
+
+bool cmCPackWIXGenerator::PackageWithWix()
+{
+  std::string wixExecutable;
+  if (!RequireOption("CPACK_WIX_EXECUTABLE", wixExecutable)) {
+    return false;
+  }
+
+  std::string arch;
+  if (cmValue archOpt = GetOption("CPACK_WIX_ARCHITECTURE")) {
+    arch = *archOpt;
+  } else {
+    arch = GetArchitecture();
+    cmCPackLogger(
+      cmCPackLog::LOG_VERBOSE,
+      "CPACK_WIX_ARCHITECTURE was not set. Invoking WiX with architecture "
+        << arch << ". " << std::endl);
+  }
+
+  std::ostringstream command;
+  command << QuotePath(wixExecutable) << " build"
+          << " -arch " << arch << " -out "
+          << QuotePath(CMakeToWixPath(packageFileNames.at(0)));
+
+  for (std::string const& ext : this->WixExtensions) {
+    command << " -ext " << QuotePath(ext);
+  }
+
+  cmList cultures{ GetOption("CPACK_WIX_CULTURES") };
+  for (std::string const& culture : cultures) {
+    command << " -culture \"" << culture << "\"";
+  }
+
+  AddCustomFlags("CPACK_WIX_BUILD_EXTRA_FLAGS", command);
+
+  for (std::string const& sourceFilename : this->WixSources) {
+    command << " -src " << QuotePath(CMakeToWixPath(sourceFilename));
+  }
+
+  return RunWiXCommand(command.str());
+}
+
+bool cmCPackWIXGenerator::PackageWithWix3()
+{
   std::set<std::string> usedBaseNames;
 
   std::ostringstream objectFiles;
@@ -292,14 +362,14 @@ bool cmCPackWIXGenerator::PackageFilesImpl()
     usedBaseNames.insert(uniqueBaseName);
 
     std::string objectFilename =
-      this->CPackTopLevel + "/" + uniqueBaseName + ".wixobj";
+      cmStrCat(this->CPackTopLevel, '/', uniqueBaseName, ".wixobj");
 
     if (!RunCandleCommand(CMakeToWixPath(sourceFilename),
                           CMakeToWixPath(objectFilename))) {
       return false;
     }
 
-    objectFiles << " " << QuotePath(CMakeToWixPath(objectFilename));
+    objectFiles << ' ' << QuotePath(CMakeToWixPath(objectFilename));
   }
 
   AppendUserSuppliedExtraObjects(objectFiles);
@@ -310,8 +380,9 @@ bool cmCPackWIXGenerator::PackageFilesImpl()
 void cmCPackWIXGenerator::AppendUserSuppliedExtraSources()
 {
   cmValue cpackWixExtraSources = GetOption("CPACK_WIX_EXTRA_SOURCES");
-  if (!cpackWixExtraSources)
+  if (!cpackWixExtraSources) {
     return;
+  }
 
   cmExpandList(cpackWixExtraSources, this->WixSources);
 }
@@ -319,11 +390,11 @@ void cmCPackWIXGenerator::AppendUserSuppliedExtraSources()
 void cmCPackWIXGenerator::AppendUserSuppliedExtraObjects(std::ostream& stream)
 {
   cmValue cpackWixExtraObjects = GetOption("CPACK_WIX_EXTRA_OBJECTS");
-  if (!cpackWixExtraObjects)
+  if (!cpackWixExtraObjects) {
     return;
+  }
 
-  std::vector<std::string> expandedExtraObjects =
-    cmExpandedList(cpackWixExtraObjects);
+  cmList expandedExtraObjects{ cpackWixExtraObjects };
 
   for (std::string const& obj : expandedExtraObjects) {
     stream << " " << QuotePath(obj);
@@ -332,10 +403,11 @@ void cmCPackWIXGenerator::AppendUserSuppliedExtraObjects(std::ostream& stream)
 
 void cmCPackWIXGenerator::CreateWiXVariablesIncludeFile()
 {
-  std::string includeFilename = this->CPackTopLevel + "/cpack_variables.wxi";
+  std::string includeFilename =
+    cmStrCat(this->CPackTopLevel, "/cpack_variables.wxi");
 
-  cmWIXSourceWriter includeFile(this->Logger, includeFilename,
-                                this->ComponentGuidType,
+  cmWIXSourceWriter includeFile(this->WixVersion, this->Logger,
+                                includeFilename, this->ComponentGuidType,
                                 cmWIXSourceWriter::INCLUDE_ELEMENT_ROOT);
   InjectXmlNamespaces(includeFile);
 
@@ -352,14 +424,16 @@ void cmCPackWIXGenerator::CreateWiXVariablesIncludeFile()
                     GetOption("CPACK_PACKAGE_NAME"));
   CopyDefinition(includeFile, "CPACK_WIX_PROGRAM_MENU_FOLDER");
   CopyDefinition(includeFile, "CPACK_WIX_UI_REF");
+  CopyDefinition(includeFile, "CPACK_WIX_INSTALL_SCOPE");
 }
 
 void cmCPackWIXGenerator::CreateWiXPropertiesIncludeFile()
 {
-  std::string includeFilename = this->CPackTopLevel + "/properties.wxi";
+  std::string includeFilename =
+    cmStrCat(this->CPackTopLevel, "/properties.wxi");
 
-  cmWIXSourceWriter includeFile(this->Logger, includeFilename,
-                                this->ComponentGuidType,
+  cmWIXSourceWriter includeFile(this->WixVersion, this->Logger,
+                                includeFilename, this->ComponentGuidType,
                                 cmWIXSourceWriter::INCLUDE_ELEMENT_ROOT);
   InjectXmlNamespaces(includeFile);
 
@@ -405,10 +479,11 @@ void cmCPackWIXGenerator::CreateWiXPropertiesIncludeFile()
 
 void cmCPackWIXGenerator::CreateWiXProductFragmentIncludeFile()
 {
-  std::string includeFilename = this->CPackTopLevel + "/product_fragment.wxi";
+  std::string includeFilename =
+    cmStrCat(this->CPackTopLevel, "/product_fragment.wxi");
 
-  cmWIXSourceWriter includeFile(this->Logger, includeFilename,
-                                this->ComponentGuidType,
+  cmWIXSourceWriter includeFile(this->WixVersion, this->Logger,
+                                includeFilename, this->ComponentGuidType,
                                 cmWIXSourceWriter::INCLUDE_ELEMENT_ROOT);
   InjectXmlNamespaces(includeFile);
 
@@ -422,9 +497,9 @@ void cmCPackWIXGenerator::CopyDefinition(cmWIXSourceWriter& source,
   cmValue value = GetOption(name);
   if (value) {
     if (type == DefinitionType::PATH) {
-      AddDefinition(source, name, CMakeToWixPath(value));
+      AddDefinition(source, name, CMakeToWixPath(*value));
     } else {
-      AddDefinition(source, name, value);
+      AddDefinition(source, name, *value);
     }
   }
 }
@@ -444,12 +519,13 @@ bool cmCPackWIXGenerator::CreateWiXSourceFiles()
   // if install folder is supposed to be set absolutely, the default
   // component guid "*" cannot be used
   std::string directoryDefinitionsFilename =
-    this->CPackTopLevel + "/directories.wxs";
+    cmStrCat(this->CPackTopLevel, "/directories.wxs");
 
   this->WixSources.push_back(directoryDefinitionsFilename);
 
   cmWIXDirectoriesSourceWriter directoryDefinitions(
-    this->Logger, directoryDefinitionsFilename, this->ComponentGuidType);
+    this->WixVersion, this->Logger, directoryDefinitionsFilename,
+    this->ComponentGuidType);
   InjectXmlNamespaces(directoryDefinitions);
   directoryDefinitions.BeginElement("Fragment");
 
@@ -458,31 +534,36 @@ bool cmCPackWIXGenerator::CreateWiXSourceFiles()
     return false;
   }
 
-  directoryDefinitions.BeginElement("Directory");
-  directoryDefinitions.AddAttribute("Id", "TARGETDIR");
-  directoryDefinitions.AddAttribute("Name", "SourceDir");
+  if (this->WixVersion == 3) {
+    directoryDefinitions.BeginElement("Directory");
+    directoryDefinitions.AddAttribute("Id", "TARGETDIR");
+    directoryDefinitions.AddAttribute("Name", "SourceDir");
+  }
 
-  size_t installRootSize =
+  auto installationPrefixDirectory =
     directoryDefinitions.BeginInstallationPrefixDirectory(GetRootFolderId(),
                                                           installRoot);
 
-  std::string fileDefinitionsFilename = this->CPackTopLevel + "/files.wxs";
+  std::string fileDefinitionsFilename =
+    cmStrCat(this->CPackTopLevel, "/files.wxs");
 
   this->WixSources.push_back(fileDefinitionsFilename);
 
-  cmWIXFilesSourceWriter fileDefinitions(this->Logger, fileDefinitionsFilename,
+  cmWIXFilesSourceWriter fileDefinitions(this->WixVersion, this->Logger,
+                                         fileDefinitionsFilename,
                                          this->ComponentGuidType);
   InjectXmlNamespaces(fileDefinitions);
 
   fileDefinitions.BeginElement("Fragment");
 
   std::string featureDefinitionsFilename =
-    this->CPackTopLevel + "/features.wxs";
+    cmStrCat(this->CPackTopLevel, "/features.wxs");
 
   this->WixSources.push_back(featureDefinitionsFilename);
 
-  cmWIXFeaturesSourceWriter featureDefinitions(
-    this->Logger, featureDefinitionsFilename, this->ComponentGuidType);
+  cmWIXFeaturesSourceWriter featureDefinitions(this->WixVersion, this->Logger,
+                                               featureDefinitionsFilename,
+                                               this->ComponentGuidType);
   InjectXmlNamespaces(featureDefinitions);
 
   featureDefinitions.BeginElement("Fragment");
@@ -490,7 +571,11 @@ bool cmCPackWIXGenerator::CreateWiXSourceFiles()
   featureDefinitions.BeginElement("Feature");
   featureDefinitions.AddAttribute("Id", "ProductFeature");
   featureDefinitions.AddAttribute("Display", "expand");
-  featureDefinitions.AddAttribute("Absent", "disallow");
+  if (this->WixVersion >= 4) {
+    featureDefinitions.AddAttribute("AllowAbsent", "no");
+  } else {
+    featureDefinitions.AddAttribute("Absent", "disallow");
+  }
   featureDefinitions.AddAttribute("ConfigurableDirectory", "INSTALL_ROOT");
 
   std::string cpackPackageName;
@@ -504,7 +589,7 @@ bool cmCPackWIXGenerator::CreateWiXSourceFiles()
   }
   featureDefinitions.AddAttribute("Title", featureTitle);
   if (cmValue desc = GetOption("CPACK_WIX_ROOT_FEATURE_DESCRIPTION")) {
-    featureDefinitions.AddAttribute("Description", desc);
+    featureDefinitions.AddAttribute("Description", *desc);
   }
   featureDefinitions.AddAttribute("Level", "1");
   this->Patch->ApplyFragment("#PRODUCTFEATURE", featureDefinitions);
@@ -512,7 +597,7 @@ bool cmCPackWIXGenerator::CreateWiXSourceFiles()
   cmValue package = GetOption("CPACK_WIX_CMAKE_PACKAGE_REGISTRY");
   if (package) {
     featureDefinitions.CreateCMakePackageRegistryEntry(
-      package, GetOption("CPACK_WIX_UPGRADE_GUID"));
+      *package, GetOption("CPACK_WIX_UPGRADE_GUID"));
   }
 
   if (!CreateFeatureHierarchy(featureDefinitions)) {
@@ -536,7 +621,7 @@ bool cmCPackWIXGenerator::CreateWiXSourceFiles()
 
       std::string componentPath = cmStrCat(toplevel, '/', component.Name);
 
-      std::string const componentFeatureId = "CM_C_" + component.Name;
+      std::string const componentFeatureId = cmStrCat("CM_C_", component.Name);
 
       cmWIXShortcuts featureShortcuts;
       AddComponentsToFeature(componentPath, componentFeatureId,
@@ -556,7 +641,7 @@ bool cmCPackWIXGenerator::CreateWiXSourceFiles()
   bool emitUninstallShortcut = true;
   cmValue cpackWixProgramMenuFolder =
     GetOption("CPACK_WIX_PROGRAM_MENU_FOLDER");
-  if (cpackWixProgramMenuFolder && cpackWixProgramMenuFolder == ".") {
+  if (cpackWixProgramMenuFolder && cpackWixProgramMenuFolder == "."_s) {
     emitUninstallShortcut = false;
   } else if (emittedShortcutTypes.find(cmWIXShortcuts::START_MENU) ==
              emittedShortcutTypes.end()) {
@@ -572,7 +657,8 @@ bool cmCPackWIXGenerator::CreateWiXSourceFiles()
   featureDefinitions.EndElement("Fragment");
   fileDefinitions.EndElement("Fragment");
 
-  directoryDefinitions.EndInstallationPrefixDirectory(installRootSize);
+  directoryDefinitions.EndInstallationPrefixDirectory(
+    installationPrefixDirectory);
 
   if (emittedShortcutTypes.find(cmWIXShortcuts::START_MENU) !=
       emittedShortcutTypes.end()) {
@@ -590,7 +676,9 @@ bool cmCPackWIXGenerator::CreateWiXSourceFiles()
     directoryDefinitions.EmitStartupFolder();
   }
 
-  directoryDefinitions.EndElement("Directory");
+  if (this->WixVersion == 3) {
+    directoryDefinitions.EndElement("Directory");
+  }
   directoryDefinitions.EndElement("Fragment");
 
   if (!GenerateMainSourceFileFromTemplate()) {
@@ -602,18 +690,22 @@ bool cmCPackWIXGenerator::CreateWiXSourceFiles()
 
 std::string cmCPackWIXGenerator::GetRootFolderId() const
 {
-  if (cmIsOn(GetOption("CPACK_WIX_SKIP_PROGRAM_FOLDER"))) {
-    return "";
-  }
+  std::string result;
 
-  std::string result = "ProgramFiles<64>Folder";
+  if (GetOption("CPACK_WIX_SKIP_PROGRAM_FOLDER").IsOn()) {
+    return result;
+  }
 
   cmValue rootFolderId = GetOption("CPACK_WIX_ROOT_FOLDER_ID");
   if (rootFolderId) {
     result = *rootFolderId;
+  } else if (this->WixVersion >= 4) {
+    result = "ProgramFiles6432Folder";
+  } else {
+    result = "ProgramFiles<64>Folder";
   }
 
-  if (GetArchitecture() == "x86") {
+  if (GetArchitecture() == "x86"_s) {
     cmSystemTools::ReplaceString(result, "<64>", "");
   } else {
     cmSystemTools::ReplaceString(result, "<64>", "64");
@@ -624,9 +716,15 @@ std::string cmCPackWIXGenerator::GetRootFolderId() const
 
 bool cmCPackWIXGenerator::GenerateMainSourceFileFromTemplate()
 {
-  std::string wixTemplate = FindTemplate("WIX.template.in");
+  std::string wixTemplate;
   if (cmValue wixtpl = GetOption("CPACK_WIX_TEMPLATE")) {
     wixTemplate = *wixtpl;
+  } else {
+    cm::optional<cm::string_view> alt;
+    if (this->WixVersion == 3) {
+      alt = "WIX-v3/"_s;
+    }
+    wixTemplate = FindTemplate("WIX.template.in"_s, alt);
   }
 
   if (wixTemplate.empty()) {
@@ -636,7 +734,7 @@ bool cmCPackWIXGenerator::GenerateMainSourceFileFromTemplate()
     return false;
   }
 
-  std::string mainSourceFilePath = this->CPackTopLevel + "/main.wxs";
+  std::string mainSourceFilePath = cmStrCat(this->CPackTopLevel, "/main.wxs");
 
   if (!ConfigureFile(wixTemplate, mainSourceFilePath)) {
     cmCPackLogger(cmCPackLog::LOG_ERROR,
@@ -656,7 +754,7 @@ bool cmCPackWIXGenerator::CreateFeatureHierarchy(
 {
   for (auto const& i : ComponentGroups) {
     cmCPackComponentGroup const& group = i.second;
-    if (group.ParentGroup == 0) {
+    if (!group.ParentGroup) {
       featureDefinitions.EmitFeatureForComponentGroup(group, *this->Patch);
     }
   }
@@ -681,10 +779,10 @@ bool cmCPackWIXGenerator::AddComponentsToFeature(
   featureDefinitions.BeginElement("FeatureRef");
   featureDefinitions.AddAttribute("Id", featureId);
 
-  std::vector<std::string> cpackPackageExecutablesList;
+  cmList cpackPackageExecutablesList;
   cmValue cpackPackageExecutables = GetOption("CPACK_PACKAGE_EXECUTABLES");
   if (cpackPackageExecutables) {
-    cmExpandList(cpackPackageExecutables, cpackPackageExecutablesList);
+    cpackPackageExecutablesList.assign(cpackPackageExecutables);
     if (cpackPackageExecutablesList.size() % 2 != 0) {
       cmCPackLogger(
         cmCPackLog::LOG_ERROR,
@@ -695,10 +793,10 @@ bool cmCPackWIXGenerator::AddComponentsToFeature(
     }
   }
 
-  std::vector<std::string> cpackPackageDesktopLinksList;
+  cmList cpackPackageDesktopLinksList;
   cmValue cpackPackageDesktopLinks = GetOption("CPACK_CREATE_DESKTOP_LINKS");
   if (cpackPackageDesktopLinks) {
-    cmExpandList(cpackPackageDesktopLinks, cpackPackageDesktopLinksList);
+    cpackPackageDesktopLinksList.assign(cpackPackageDesktopLinks);
   }
 
   AddDirectoryAndFileDefinitions(
@@ -753,21 +851,31 @@ bool cmCPackWIXGenerator::CreateShortcutsOfSpecificType(
   cmWIXFeaturesSourceWriter& featureDefinitions)
 {
   std::string directoryId;
+  std::string directoryRef = "DirectoryRef";
   switch (type) {
     case cmWIXShortcuts::START_MENU: {
       cmValue cpackWixProgramMenuFolder =
         GetOption("CPACK_WIX_PROGRAM_MENU_FOLDER");
-      if (cpackWixProgramMenuFolder && cpackWixProgramMenuFolder == ".") {
+      if (cpackWixProgramMenuFolder && cpackWixProgramMenuFolder == "."_s) {
         directoryId = "ProgramMenuFolder";
+        if (this->WixVersion >= 4) {
+          directoryRef = "StandardDirectory";
+        }
       } else {
         directoryId = "PROGRAM_MENU_FOLDER";
       }
     } break;
     case cmWIXShortcuts::DESKTOP:
       directoryId = "DesktopFolder";
+      if (this->WixVersion >= 4) {
+        directoryRef = "StandardDirectory";
+      }
       break;
     case cmWIXShortcuts::STARTUP:
       directoryId = "StartupFolder";
+      if (this->WixVersion >= 4) {
+        directoryRef = "StandardDirectory";
+      }
       break;
     default:
       return false;
@@ -788,18 +896,18 @@ bool cmCPackWIXGenerator::CreateShortcutsOfSpecificType(
 
   std::string idSuffix;
   if (!cpackComponentName.empty()) {
-    idSuffix += "_";
+    idSuffix += '_';
     idSuffix += cpackComponentName;
   }
 
   std::string componentId = "CM_SHORTCUT";
-  if (idPrefix.size()) {
-    componentId += "_" + idPrefix;
+  if (!idPrefix.empty()) {
+    componentId += cmStrCat('_', idPrefix);
   }
 
   componentId += idSuffix;
 
-  fileDefinitions.BeginElement("DirectoryRef");
+  fileDefinitions.BeginElement(directoryRef);
   fileDefinitions.AddAttribute("Id", directoryId);
 
   fileDefinitions.BeginElement("Component");
@@ -810,7 +918,7 @@ bool cmCPackWIXGenerator::CreateShortcutsOfSpecificType(
   this->Patch->ApplyFragment(componentId, fileDefinitions);
 
   std::string registryKey =
-    std::string("Software\\") + cpackVendor + "\\" + cpackPackageName;
+    cmStrCat("Software\\", cpackVendor, '\\', cpackPackageName);
 
   shortcuts.EmitShortcuts(type, registryKey, cpackComponentName,
                           fileDefinitions);
@@ -818,9 +926,9 @@ bool cmCPackWIXGenerator::CreateShortcutsOfSpecificType(
   if (type == cmWIXShortcuts::START_MENU) {
     cmValue cpackWixProgramMenuFolder =
       GetOption("CPACK_WIX_PROGRAM_MENU_FOLDER");
-    if (cpackWixProgramMenuFolder && cpackWixProgramMenuFolder != ".") {
-      fileDefinitions.EmitRemoveFolder("CM_REMOVE_PROGRAM_MENU_FOLDER" +
-                                       idSuffix);
+    if (cpackWixProgramMenuFolder && cpackWixProgramMenuFolder != "."_s) {
+      fileDefinitions.EmitRemoveFolder(
+        cmStrCat("CM_REMOVE_PROGRAM_MENU_FOLDER", idSuffix));
     }
   }
 
@@ -829,7 +937,7 @@ bool cmCPackWIXGenerator::CreateShortcutsOfSpecificType(
   }
 
   fileDefinitions.EndElement("Component");
-  fileDefinitions.EndElement("DirectoryRef");
+  fileDefinitions.EndElement(directoryRef);
 
   featureDefinitions.EmitComponentRef(componentId);
   featureDefinitions.EndElement("FeatureRef");
@@ -851,10 +959,10 @@ bool cmCPackWIXGenerator::CreateLicenseFile()
 
   std::string extension = GetRightmostExtension(licenseSourceFilename);
 
-  if (extension == ".rtf") {
+  if (extension == ".rtf"_s) {
     cmSystemTools::CopyAFile(licenseSourceFilename.c_str(),
                              licenseDestinationFilename.c_str());
-  } else if (extension == ".txt") {
+  } else if (extension == ".txt"_s) {
     cmWIXRichTextFormatWriter rtfWriter(licenseDestinationFilename);
 
     cmsys::ifstream licenseSource(licenseSourceFilename.c_str());
@@ -923,19 +1031,18 @@ void cmCPackWIXGenerator::AddDirectoryAndFileDefinitions(
   for (size_t i = 0; i < dir.GetNumberOfFiles(); ++i) {
     std::string fileName = dir.GetFile(static_cast<unsigned long>(i));
 
-    if (fileName == "." || fileName == "..") {
+    if (fileName == "."_s || fileName == ".."_s) {
       continue;
     }
 
-    std::string fullPath = topdir + "/" + fileName;
+    std::string fullPath = cmStrCat(topdir, '/', fileName);
 
-    std::string relativePath =
-      cmSystemTools::RelativePath(toplevel.c_str(), fullPath.c_str());
+    std::string relativePath = cmSystemTools::RelativePath(toplevel, fullPath);
 
     std::string id = PathToId(relativePath);
 
-    if (cmSystemTools::FileIsDirectory(fullPath.c_str())) {
-      std::string subDirectoryId = std::string("CM_D") + id;
+    if (cmSystemTools::FileIsDirectory(fullPath)) {
+      std::string subDirectoryId = cmStrCat("CM_D", id);
 
       directoryDefinitions.BeginElement("Directory");
       directoryDefinitions.AddAttribute("Id", subDirectoryId);
@@ -965,7 +1072,7 @@ void cmCPackWIXGenerator::AddDirectoryAndFileDefinitions(
         std::string const& textLabel = packageExecutables[j];
 
         if (cmSystemTools::LowerCase(fileName) ==
-            cmSystemTools::LowerCase(executableName) + ".exe") {
+            cmStrCat(cmSystemTools::LowerCase(executableName), ".exe")) {
           cmWIXShortcut shortcut;
           shortcut.label = textLabel;
           shortcut.workingDirectoryId = directoryId;
@@ -988,12 +1095,12 @@ bool cmCPackWIXGenerator::RequireOption(std::string const& name,
     value = *tmp;
 
     return true;
-  } else {
-    cmCPackLogger(cmCPackLog::LOG_ERROR,
-                  "Required variable " << name << " not set" << std::endl);
-
-    return false;
   }
+
+  cmCPackLogger(cmCPackLog::LOG_ERROR,
+                "Required variable " << name << " not set" << std::endl);
+
+  return false;
 }
 
 std::string cmCPackWIXGenerator::GetArchitecture() const
@@ -1001,11 +1108,10 @@ std::string cmCPackWIXGenerator::GetArchitecture() const
   std::string void_p_size;
   RequireOption("CPACK_WIX_SIZEOF_VOID_P", void_p_size);
 
-  if (void_p_size == "8") {
+  if (void_p_size == "8"_s) {
     return "x64";
-  } else {
-    return "x86";
   }
+  return "x86";
 }
 
 std::string cmCPackWIXGenerator::GenerateGUID()
@@ -1034,7 +1140,7 @@ std::string cmCPackWIXGenerator::GenerateGUID()
 
 std::string cmCPackWIXGenerator::QuotePath(std::string const& path)
 {
-  return std::string("\"") + path + '"';
+  return cmStrCat('"', path, '"');
 }
 
 std::string cmCPackWIXGenerator::GetRightmostExtension(
@@ -1042,7 +1148,7 @@ std::string cmCPackWIXGenerator::GetRightmostExtension(
 {
   std::string extension;
 
-  std::string::size_type i = filename.rfind(".");
+  std::string::size_type i = filename.rfind('.');
   if (i != std::string::npos) {
     extension = filename.substr(i);
   }
@@ -1052,9 +1158,10 @@ std::string cmCPackWIXGenerator::GetRightmostExtension(
 
 std::string cmCPackWIXGenerator::PathToId(std::string const& path)
 {
-  id_map_t::const_iterator i = PathToIdMap.find(path);
-  if (i != PathToIdMap.end())
+  auto i = PathToIdMap.find(path);
+  if (i != PathToIdMap.end()) {
     return i->second;
+  }
 
   std::string id = CreateNewIdForPath(path);
   return id;
@@ -1063,7 +1170,7 @@ std::string cmCPackWIXGenerator::PathToId(std::string const& path)
 std::string cmCPackWIXGenerator::CreateNewIdForPath(std::string const& path)
 {
   std::vector<std::string> components;
-  cmSystemTools::SplitPath(path.c_str(), components, false);
+  cmSystemTools::SplitPath(path, components, false);
 
   size_t replacementCount = 0;
 
@@ -1071,8 +1178,9 @@ std::string cmCPackWIXGenerator::CreateNewIdForPath(std::string const& path)
   std::string currentComponent;
 
   for (size_t i = 1; i < components.size(); ++i) {
-    if (i != 1)
+    if (i != 1) {
       identifier += '.';
+    }
 
     currentComponent =
       NormalizeComponentForId(components[i], replacementCount);
@@ -1088,18 +1196,19 @@ std::string cmCPackWIXGenerator::CreateNewIdForPath(std::string const& path)
   }
 
   std::ostringstream result;
-  result << idPrefix << "_" << identifier;
+  result << idPrefix << '_' << identifier;
 
   size_t ambiguityCount = ++IdAmbiguityCounter[identifier];
 
   if (ambiguityCount > 999) {
     cmCPackLogger(cmCPackLog::LOG_ERROR,
                   "Error while trying to generate a unique Id for '"
-                    << path << "'" << std::endl);
+                    << path << '\'' << std::endl);
 
     return std::string();
-  } else if (ambiguityCount > 1) {
-    result << "_" << ambiguityCount;
+  }
+  if (ambiguityCount > 1) {
+    result << '_' << ambiguityCount;
   }
 
   std::string resultString = result.str();
@@ -1157,22 +1266,18 @@ void cmCPackWIXGenerator::CollectExtensions(std::string const& variableName,
                                             extension_set_t& extensions)
 {
   cmValue variableContent = GetOption(variableName);
-  if (!variableContent)
+  if (!variableContent) {
     return;
+  }
 
-  std::vector<std::string> list = cmExpandedList(variableContent);
+  cmList list{ variableContent };
   extensions.insert(list.begin(), list.end());
 }
 
 void cmCPackWIXGenerator::CollectXmlNamespaces(std::string const& variableName,
                                                xmlns_map_t& namespaces)
 {
-  cmValue variableContent = GetOption(variableName);
-  if (!variableContent) {
-    return;
-  }
-
-  std::vector<std::string> list = cmExpandedList(variableContent);
+  cmList list{ GetOption(variableName) };
   for (std::string const& str : list) {
     auto pos = str.find('=');
     if (pos != std::string::npos) {
@@ -1182,28 +1287,36 @@ void cmCPackWIXGenerator::CollectXmlNamespaces(std::string const& variableName,
     } else {
       cmCPackLogger(cmCPackLog::LOG_ERROR,
                     "Invalid element in CPACK_WIX_CUSTOM_XMLNS ignored: "
-                      << "\"" << str << "\"" << std::endl);
+                    "\""
+                      << str << '"' << std::endl);
     }
   }
-  std::ostringstream oss;
-  for (auto& ns : namespaces) {
-    oss << " xmlns:" << ns.first << "=\""
-        << cmWIXSourceWriter::EscapeAttributeValue(ns.second) << '"';
+  std::string xmlns;
+  if (this->WixVersion >= 4 &&
+      cm::contains(this->WixExtensions, "WixToolset.UI.wixext") &&
+      !cm::contains(namespaces, "ui")) {
+    xmlns = cmStrCat(
+      xmlns, "\n    xmlns:ui=\"http://wixtoolset.org/schemas/v4/wxs/ui\"");
   }
-  SetOption("CPACK_WIX_CUSTOM_XMLNS_EXPANDED", oss.str());
+  for (auto& ns : namespaces) {
+    xmlns = cmStrCat(xmlns, "\n    xmlns:", ns.first, "=\"",
+                     cmWIXSourceWriter::EscapeAttributeValue(ns.second), '"');
+  }
+  SetOption("CPACK_WIX_CUSTOM_XMLNS_EXPANDED", xmlns);
 }
 
 void cmCPackWIXGenerator::AddCustomFlags(std::string const& variableName,
                                          std::ostream& stream)
 {
   cmValue variableContent = GetOption(variableName);
-  if (!variableContent)
+  if (!variableContent) {
     return;
+  }
 
-  std::vector<std::string> list = cmExpandedList(variableContent);
+  cmList list{ variableContent };
 
   for (std::string const& i : list) {
-    stream << " " << QuotePath(i);
+    stream << ' ' << QuotePath(i);
   }
 }
 
@@ -1222,6 +1335,7 @@ std::string cmCPackWIXGenerator::RelativePathWithoutComponentPrefix(
 void cmCPackWIXGenerator::InjectXmlNamespaces(cmWIXSourceWriter& sourceWriter)
 {
   for (auto& ns : this->CustomXmlNamespaces) {
-    sourceWriter.AddAttributeUnlessEmpty("xmlns:" + ns.first, ns.second);
+    sourceWriter.AddAttributeUnlessEmpty(cmStrCat("xmlns:", ns.first),
+                                         ns.second);
   }
 }

@@ -5,8 +5,8 @@
  *                            | (__| |_| |  _ <| |___
  *                             \___|\___/|_| \_\_____|
  *
- * Copyright (C) 2017, Florin Petriuc, <petriuc.florin@gmail.com>
- * Copyright (C) 2018 - 2022, Daniel Stenberg, <daniel@haxx.se>, et al.
+ * Copyright (C) Florin Petriuc, <petriuc.florin@gmail.com>
+ * Copyright (C) Daniel Stenberg, <daniel@haxx.se>, et al.
  *
  * This software is licensed as described in the file COPYING, which
  * you should have received as part of this distribution. The terms
@@ -25,7 +25,8 @@
 
 #include "curl_setup.h"
 
-#ifndef CURL_DISABLE_CRYPTO_AUTH
+#if !defined(CURL_DISABLE_AWS) || !defined(CURL_DISABLE_DIGEST_AUTH) \
+    || defined(USE_LIBSSH2)
 
 #include "warnless.h"
 #include "curl_sha256.h"
@@ -57,6 +58,34 @@
 #endif
 #endif /* USE_MBEDTLS */
 
+#if defined(USE_OPENSSL_SHA256)
+
+/* When OpenSSL or wolfSSL is available we use their SHA256-functions. */
+#if defined(USE_OPENSSL)
+#include <openssl/evp.h>
+#elif defined(USE_WOLFSSL)
+#include <wolfssl/openssl/evp.h>
+#endif
+
+#elif defined(USE_GNUTLS)
+#include <nettle/sha.h>
+#elif defined(USE_MBEDTLS)
+#include <mbedtls/sha256.h>
+#elif (defined(__MAC_OS_X_VERSION_MAX_ALLOWED) && \
+              (__MAC_OS_X_VERSION_MAX_ALLOWED >= 1040)) || \
+      (defined(__IPHONE_OS_VERSION_MAX_ALLOWED) && \
+              (__IPHONE_OS_VERSION_MAX_ALLOWED >= 20000))
+#include <CommonCrypto/CommonDigest.h>
+#define AN_APPLE_OS
+#elif defined(USE_WIN32_CRYPTO)
+#include <wincrypt.h>
+#endif
+
+/* The last 3 #include files should be in this order */
+#include "curl_printf.h"
+#include "curl_memory.h"
+#include "memdebug.h"
+
 /* Please keep the SSL backend-specific #if branches in this order:
  *
  * 1. USE_OPENSSL
@@ -71,24 +100,10 @@
 
 #if defined(USE_OPENSSL_SHA256)
 
-/* When OpenSSL or wolfSSL is available is available we use their
- * SHA256-functions.
- */
-#if defined(USE_OPENSSL)
-#include <openssl/evp.h>
-#elif defined(USE_WOLFSSL)
-#include <wolfssl/openssl/evp.h>
-#endif
-
-#include "curl_memory.h"
-
-/* The last #include file should be: */
-#include "memdebug.h"
-
-struct sha256_ctx {
+struct ossl_sha256_ctx {
   EVP_MD_CTX *openssl_ctx;
 };
-typedef struct sha256_ctx my_sha256_ctx;
+typedef struct ossl_sha256_ctx my_sha256_ctx;
 
 static CURLcode my_sha256_init(my_sha256_ctx *ctx)
 {
@@ -96,7 +111,10 @@ static CURLcode my_sha256_init(my_sha256_ctx *ctx)
   if(!ctx->openssl_ctx)
     return CURLE_OUT_OF_MEMORY;
 
-  EVP_DigestInit_ex(ctx->openssl_ctx, EVP_sha256(), NULL);
+  if(!EVP_DigestInit_ex(ctx->openssl_ctx, EVP_sha256(), NULL)) {
+    EVP_MD_CTX_destroy(ctx->openssl_ctx);
+    return CURLE_FAILED_INIT;
+  }
   return CURLE_OK;
 }
 
@@ -114,13 +132,6 @@ static void my_sha256_final(unsigned char *digest, my_sha256_ctx *ctx)
 }
 
 #elif defined(USE_GNUTLS)
-
-#include <nettle/sha.h>
-
-#include "curl_memory.h"
-
-/* The last #include file should be: */
-#include "memdebug.h"
 
 typedef struct sha256_ctx my_sha256_ctx;
 
@@ -143,13 +154,6 @@ static void my_sha256_final(unsigned char *digest, my_sha256_ctx *ctx)
 }
 
 #elif defined(USE_MBEDTLS)
-
-#include <mbedtls/sha256.h>
-
-#include "curl_memory.h"
-
-/* The last #include file should be: */
-#include "memdebug.h"
 
 typedef mbedtls_sha256_context my_sha256_ctx;
 
@@ -183,18 +187,7 @@ static void my_sha256_final(unsigned char *digest, my_sha256_ctx *ctx)
 #endif
 }
 
-#elif (defined(__MAC_OS_X_VERSION_MAX_ALLOWED) && \
-              (__MAC_OS_X_VERSION_MAX_ALLOWED >= 1040)) || \
-      (defined(__IPHONE_OS_VERSION_MAX_ALLOWED) && \
-              (__IPHONE_OS_VERSION_MAX_ALLOWED >= 20000))
-
-#include <CommonCrypto/CommonDigest.h>
-
-#include "curl_memory.h"
-
-/* The last #include file should be: */
-#include "memdebug.h"
-
+#elif defined(AN_APPLE_OS)
 typedef CC_SHA256_CTX my_sha256_ctx;
 
 static CURLcode my_sha256_init(my_sha256_ctx *ctx)
@@ -217,8 +210,6 @@ static void my_sha256_final(unsigned char *digest, my_sha256_ctx *ctx)
 
 #elif defined(USE_WIN32_CRYPTO)
 
-#include <wincrypt.h>
-
 struct sha256_ctx {
   HCRYPTPROV hCryptProv;
   HCRYPTHASH hHash;
@@ -231,9 +222,14 @@ typedef struct sha256_ctx my_sha256_ctx;
 
 static CURLcode my_sha256_init(my_sha256_ctx *ctx)
 {
-  if(CryptAcquireContext(&ctx->hCryptProv, NULL, NULL, PROV_RSA_AES,
-                         CRYPT_VERIFYCONTEXT | CRYPT_SILENT)) {
-    CryptCreateHash(ctx->hCryptProv, CALG_SHA_256, 0, 0, &ctx->hHash);
+  if(!CryptAcquireContext(&ctx->hCryptProv, NULL, NULL, PROV_RSA_AES,
+                         CRYPT_VERIFYCONTEXT | CRYPT_SILENT))
+    return CURLE_OUT_OF_MEMORY;
+
+  if(!CryptCreateHash(ctx->hCryptProv, CALG_SHA_256, 0, 0, &ctx->hHash)) {
+    CryptReleaseContext(ctx->hCryptProv, 0);
+    ctx->hCryptProv = 0;
+    return CURLE_FAILED_INIT;
   }
 
   return CURLE_OK;
@@ -251,7 +247,7 @@ static void my_sha256_final(unsigned char *digest, my_sha256_ctx *ctx)
   unsigned long length = 0;
 
   CryptGetHashParam(ctx->hHash, HP_HASHVAL, NULL, &length, 0);
-  if(length == SHA256_DIGEST_LENGTH)
+  if(length == CURL_SHA256_DIGEST_LENGTH)
     CryptGetHashParam(ctx->hHash, HP_HASHVAL, digest, &length, 0);
 
   if(ctx->hHash)
@@ -338,14 +334,14 @@ static const unsigned long K[64] = {
 #define RORc(x, y) \
 (((((unsigned long)(x) & 0xFFFFFFFFUL) >> (unsigned long)((y) & 31)) | \
    ((unsigned long)(x) << (unsigned long)(32 - ((y) & 31)))) & 0xFFFFFFFFUL)
-#define Ch(x,y,z)   (z ^ (x & (y ^ z)))
-#define Maj(x,y,z)  (((x | y) & z) | (x & y))
-#define S(x, n)     RORc((x), (n))
-#define R(x, n)     (((x)&0xFFFFFFFFUL)>>(n))
-#define Sigma0(x)   (S(x, 2) ^ S(x, 13) ^ S(x, 22))
-#define Sigma1(x)   (S(x, 6) ^ S(x, 11) ^ S(x, 25))
-#define Gamma0(x)   (S(x, 7) ^ S(x, 18) ^ R(x, 3))
-#define Gamma1(x)   (S(x, 17) ^ S(x, 19) ^ R(x, 10))
+#define Sha256_Ch(x,y,z)  (z ^ (x & (y ^ z)))
+#define Sha256_Maj(x,y,z) (((x | y) & z) | (x & y))
+#define Sha256_S(x, n)    RORc((x), (n))
+#define Sha256_R(x, n)    (((x)&0xFFFFFFFFUL)>>(n))
+#define Sigma0(x)         (Sha256_S(x, 2) ^ Sha256_S(x, 13) ^ Sha256_S(x, 22))
+#define Sigma1(x)         (Sha256_S(x, 6) ^ Sha256_S(x, 11) ^ Sha256_S(x, 25))
+#define Gamma0(x)         (Sha256_S(x, 7) ^ Sha256_S(x, 18) ^ Sha256_R(x, 3))
+#define Gamma1(x)         (Sha256_S(x, 17) ^ Sha256_S(x, 19) ^ Sha256_R(x, 10))
 
 /* Compress 512-bits */
 static int sha256_compress(struct sha256_state *md,
@@ -368,12 +364,12 @@ static int sha256_compress(struct sha256_state *md,
   }
 
   /* Compress */
-#define RND(a,b,c,d,e,f,g,h,i)                                          \
-  do {                                                                  \
-    unsigned long t0 = h + Sigma1(e) + Ch(e, f, g) + K[i] + W[i];       \
-    unsigned long t1 = Sigma0(a) + Maj(a, b, c);                        \
-    d += t0;                                                            \
-    h = t0 + t1;                                                        \
+#define RND(a,b,c,d,e,f,g,h,i)                                           \
+  do {                                                                   \
+    unsigned long t0 = h + Sigma1(e) + Sha256_Ch(e, f, g) + K[i] + W[i]; \
+    unsigned long t1 = Sigma0(a) + Sha256_Maj(a, b, c);                  \
+    d += t0;                                                             \
+    h = t0 + t1;                                                         \
   } while(0)
 
   for(i = 0; i < 64; ++i) {
@@ -471,7 +467,7 @@ static int my_sha256_final(unsigned char *out,
   md->buf[md->curlen++] = (unsigned char)0x80;
 
   /* If the length is currently above 56 bytes we append zeros
-   * then compress.  Then we can fall back to padding zeros and length
+   * then compress. Then we can fall back to padding zeros and length
    * encoding like normal.
    */
   if(md->curlen > 56) {
@@ -546,4 +542,4 @@ const struct HMAC_params Curl_HMAC_SHA256[] = {
 };
 
 
-#endif /* CURL_DISABLE_CRYPTO_AUTH */
+#endif /* AWS, DIGEST, or libssh2 */

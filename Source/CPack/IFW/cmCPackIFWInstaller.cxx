@@ -2,6 +2,7 @@
    file Copyright.txt or https://cmake.org/licensing for details.  */
 #include "cmCPackIFWInstaller.h"
 
+#include <algorithm>
 #include <cstddef>
 #include <sstream>
 #include <utility>
@@ -12,6 +13,7 @@
 #include "cmCPackIFWRepository.h"
 #include "cmCPackLog.h" // IWYU pragma: keep
 #include "cmGeneratedFileStream.h"
+#include "cmList.h"
 #include "cmStringAlgorithms.h"
 #include "cmSystemTools.h"
 #include "cmValue.h"
@@ -77,19 +79,20 @@ void cmCPackIFWInstaller::ConfigureFromOptions()
 
   // ApplicationIcon
   if (cmValue option = this->GetOption("CPACK_IFW_PACKAGE_ICON")) {
-    if (cmSystemTools::FileExists(option)) {
+    if (cmSystemTools::FileExists(*option)) {
       this->InstallerApplicationIcon = *option;
     } else {
-      this->printSkippedOptionWarning("CPACK_IFW_PACKAGE_ICON", option);
+      this->printSkippedOptionWarning("CPACK_IFW_PACKAGE_ICON", *option);
     }
   }
 
   // WindowIcon
   if (cmValue option = this->GetOption("CPACK_IFW_PACKAGE_WINDOW_ICON")) {
-    if (cmSystemTools::FileExists(option)) {
+    if (cmSystemTools::FileExists(*option)) {
       this->InstallerWindowIcon = *option;
     } else {
-      this->printSkippedOptionWarning("CPACK_IFW_PACKAGE_WINDOW_ICON", option);
+      this->printSkippedOptionWarning("CPACK_IFW_PACKAGE_WINDOW_ICON",
+                                      *option);
     }
   }
 
@@ -104,37 +107,37 @@ void cmCPackIFWInstaller::ConfigureFromOptions()
 
   // Logo
   if (cmValue option = this->GetOption("CPACK_IFW_PACKAGE_LOGO")) {
-    if (cmSystemTools::FileExists(option)) {
+    if (cmSystemTools::FileExists(*option)) {
       this->Logo = *option;
     } else {
-      this->printSkippedOptionWarning("CPACK_IFW_PACKAGE_LOGO", option);
+      this->printSkippedOptionWarning("CPACK_IFW_PACKAGE_LOGO", *option);
     }
   }
 
   // Watermark
   if (cmValue option = this->GetOption("CPACK_IFW_PACKAGE_WATERMARK")) {
-    if (cmSystemTools::FileExists(option)) {
+    if (cmSystemTools::FileExists(*option)) {
       this->Watermark = *option;
     } else {
-      this->printSkippedOptionWarning("CPACK_IFW_PACKAGE_WATERMARK", option);
+      this->printSkippedOptionWarning("CPACK_IFW_PACKAGE_WATERMARK", *option);
     }
   }
 
   // Banner
   if (cmValue option = this->GetOption("CPACK_IFW_PACKAGE_BANNER")) {
-    if (cmSystemTools::FileExists(option)) {
+    if (cmSystemTools::FileExists(*option)) {
       this->Banner = *option;
     } else {
-      this->printSkippedOptionWarning("CPACK_IFW_PACKAGE_BANNER", option);
+      this->printSkippedOptionWarning("CPACK_IFW_PACKAGE_BANNER", *option);
     }
   }
 
   // Background
   if (cmValue option = this->GetOption("CPACK_IFW_PACKAGE_BACKGROUND")) {
-    if (cmSystemTools::FileExists(option)) {
+    if (cmSystemTools::FileExists(*option)) {
       this->Background = *option;
     } else {
-      this->printSkippedOptionWarning("CPACK_IFW_PACKAGE_BACKGROUND", option);
+      this->printSkippedOptionWarning("CPACK_IFW_PACKAGE_BACKGROUND", *option);
     }
   }
 
@@ -155,10 +158,11 @@ void cmCPackIFWInstaller::ConfigureFromOptions()
 
   // StyleSheet
   if (cmValue option = this->GetOption("CPACK_IFW_PACKAGE_STYLE_SHEET")) {
-    if (cmSystemTools::FileExists(option)) {
+    if (cmSystemTools::FileExists(*option)) {
       this->StyleSheet = *option;
     } else {
-      this->printSkippedOptionWarning("CPACK_IFW_PACKAGE_STYLE_SHEET", option);
+      this->printSkippedOptionWarning("CPACK_IFW_PACKAGE_STYLE_SHEET",
+                                      *option);
     }
   }
 
@@ -276,9 +280,9 @@ void cmCPackIFWInstaller::ConfigureFromOptions()
   // Control script
   if (cmValue optIFW_CONTROL_SCRIPT =
         this->GetOption("CPACK_IFW_PACKAGE_CONTROL_SCRIPT")) {
-    if (!cmSystemTools::FileExists(optIFW_CONTROL_SCRIPT)) {
+    if (!cmSystemTools::FileExists(*optIFW_CONTROL_SCRIPT)) {
       this->printSkippedOptionWarning("CPACK_IFW_PACKAGE_CONTROL_SCRIPT",
-                                      optIFW_CONTROL_SCRIPT);
+                                      *optIFW_CONTROL_SCRIPT);
     } else {
       this->ControlScript = *optIFW_CONTROL_SCRIPT;
     }
@@ -303,12 +307,37 @@ void cmCPackIFWInstaller::ConfigureFromOptions()
         this->GetOption("CPACK_IFW_PACKAGE_PRODUCT_IMAGES")) {
     this->ProductImages.clear();
     cmExpandList(productImages, this->ProductImages);
-    for (const auto& file : this->ProductImages) {
+
+    auto erase_missing_file_pred = [this](const std::string& file) -> bool {
       if (!cmSystemTools::FileExists(file)) {
-        // The warning will say skipped, but there will later be a hard error
-        // when the binarycreator tool tries to read the missing file.
         this->printSkippedOptionWarning("CPACK_IFW_PACKAGE_PRODUCT_IMAGES",
                                         file);
+        return true;
+      }
+      return false;
+    };
+
+    this->ProductImages.erase(std::remove_if(this->ProductImages.begin(),
+                                             this->ProductImages.end(),
+                                             erase_missing_file_pred),
+                              this->ProductImages.end());
+  }
+
+  if (!this->ProductImages.empty()) {
+    if (cmValue productUrls =
+          this->GetOption("CPACK_IFW_PACKAGE_PRODUCT_IMAGE_URLS")) {
+      this->ProductImageUrls.clear();
+      cmExpandList(productUrls, this->ProductImageUrls);
+      if (this->ProductImageUrls.size() != this->ProductImages.size()) {
+        cmCPackIFWLogger(
+          WARNING,
+          "Option \"CPACK_IFW_PACKAGE_PRODUCT_IMAGE_URLS\" will be skipped "
+          "because it contains "
+            << this->ProductImageUrls.size()
+            << " elements while \"CPACK_IFW_PACKAGE_PRODUCT_IMAGES\" "
+               "contains "
+            << this->ProductImages.size() << " elements." << std::endl);
+        this->ProductImageUrls.clear();
       }
     }
   }
@@ -611,13 +640,20 @@ void cmCPackIFWInstaller::GenerateInstallerFile()
   // Product images (copy to config dir)
   if (!this->IsVersionLess("4.0") && !this->ProductImages.empty()) {
     xout.StartElement("ProductImages");
-    for (auto const& srcImg : this->ProductImages) {
+    const bool hasProductImageUrl = !this->ProductImageUrls.empty();
+    for (size_t i = 0; i < this->ProductImages.size(); ++i) {
+      xout.StartElement("ProductImage");
+      auto const& srcImg = this->ProductImages[i];
       std::string name = cmSystemTools::GetFilenameName(srcImg);
       std::string dstImg = this->Directory + "/config/" + name;
       cmsys::SystemTools::CopyFileIfDifferent(srcImg, dstImg);
       xout.Element("Image", name);
+      if (hasProductImageUrl) {
+        xout.Element("Url", this->ProductImageUrls.at(i));
+      }
+      xout.EndElement(); // </ProductImage>
     }
-    xout.EndElement();
+    xout.EndElement(); // </ProductImages>
   }
 
   // Resources (copy to resources dir)
@@ -653,9 +689,9 @@ void cmCPackIFWInstaller::GeneratePackageFiles()
     package.Installer = this;
     // Check package group
     if (cmValue option = this->GetOption("CPACK_IFW_PACKAGE_GROUP")) {
-      package.ConfigureFromGroup(option);
+      package.ConfigureFromGroup(*option);
       std::string forcedOption = "CPACK_IFW_COMPONENT_GROUP_" +
-        cmsys::SystemTools::UpperCase(option) + "_FORCED_INSTALLATION";
+        cmsys::SystemTools::UpperCase(*option) + "_FORCED_INSTALLATION";
       if (!this->GetOption(forcedOption)) {
         package.ForcedInstallation = "true";
       }

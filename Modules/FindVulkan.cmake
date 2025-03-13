@@ -221,6 +221,7 @@ environment.
 
 cmake_policy(PUSH)
 cmake_policy(SET CMP0057 NEW)
+cmake_policy(SET CMP0159 NEW) # file(STRINGS) with REGEX updates CMAKE_MATCH_<n>
 
 # Provide compatibility with a common invalid component request that
 # was silently ignored prior to CMake 3.24.
@@ -244,23 +245,26 @@ endif()
 if(WIN32)
   set(_Vulkan_library_name vulkan-1)
   set(_Vulkan_hint_include_search_paths
-    "$ENV{VULKAN_SDK}/Include"
+    "$ENV{VULKAN_SDK}/include"
   )
   if(CMAKE_SIZEOF_VOID_P EQUAL 8)
     set(_Vulkan_hint_executable_search_paths
-      "$ENV{VULKAN_SDK}/Bin"
+      "$ENV{VULKAN_SDK}/bin"
     )
     set(_Vulkan_hint_library_search_paths
-      "$ENV{VULKAN_SDK}/Lib"
-      "$ENV{VULKAN_SDK}/Bin"
+      "$ENV{VULKAN_SDK}/lib"
+      "$ENV{VULKAN_SDK}/bin"
     )
   else()
     set(_Vulkan_hint_executable_search_paths
-      "$ENV{VULKAN_SDK}/Bin32"
+      "$ENV{VULKAN_SDK}/bin32"
+      "$ENV{VULKAN_SDK}/bin"
     )
     set(_Vulkan_hint_library_search_paths
-      "$ENV{VULKAN_SDK}/Lib32"
-      "$ENV{VULKAN_SDK}/Bin32"
+      "$ENV{VULKAN_SDK}/lib32"
+      "$ENV{VULKAN_SDK}/bin32"
+      "$ENV{VULKAN_SDK}/lib"
+      "$ENV{VULKAN_SDK}/bin"
     )
   endif()
 else()
@@ -534,13 +538,7 @@ _Vulkan_set_library_component_found(glslang-oglcompiler NO_WARNING)
 _Vulkan_set_library_component_found(glslang-osdependent NO_WARNING)
 _Vulkan_set_library_component_found(glslang-machineindependent NO_WARNING)
 _Vulkan_set_library_component_found(glslang-genericcodegen NO_WARNING)
-_Vulkan_set_library_component_found(glslang
-  DEPENDENT_COMPONENTS
-    glslang-spirv
-    glslang-oglcompiler
-    glslang-osdependent
-    glslang-machineindependent
-    glslang-genericcodegen)
+_Vulkan_set_library_component_found(glslang DEPENDENT_COMPONENTS glslang-spirv)
 _Vulkan_set_library_component_found(shaderc_combined)
 _Vulkan_set_library_component_found(SPIRV-Tools)
 _Vulkan_set_library_component_found(volk)
@@ -744,10 +742,6 @@ if(Vulkan_FOUND)
 
   if((Vulkan_glslang_LIBRARY OR Vulkan_glslang_DEBUG_LIBRARY)
       AND TARGET Vulkan::glslang-spirv
-      AND TARGET Vulkan::glslang-oglcompiler
-      AND TARGET Vulkan::glslang-osdependent
-      AND TARGET Vulkan::glslang-machineindependent
-      AND TARGET Vulkan::glslang-genericcodegen
       AND NOT TARGET Vulkan::glslang)
     add_library(Vulkan::glslang STATIC IMPORTED)
     set_property(TARGET Vulkan::glslang
@@ -772,10 +766,13 @@ if(Vulkan_FOUND)
     target_link_libraries(Vulkan::glslang
       INTERFACE
         Vulkan::glslang-spirv
-        Vulkan::glslang-oglcompiler
-        Vulkan::glslang-osdependent
-        Vulkan::glslang-machineindependent
-        Vulkan::glslang-genericcodegen
+        # OGLCompiler library has been fully removed since version 14.0.0
+        # OSDependent, MachineIndependent, and GenericCodeGen may also be removed in the future.
+        # See https://github.com/KhronosGroup/glslang/issues/3462
+        $<TARGET_NAME_IF_EXISTS:Vulkan::glslang-oglcompiler>
+        $<TARGET_NAME_IF_EXISTS:Vulkan::glslang-osdependent>
+        $<TARGET_NAME_IF_EXISTS:Vulkan::glslang-machineindependent>
+        $<TARGET_NAME_IF_EXISTS:Vulkan::glslang-genericcodegen>
     )
   endif()
 

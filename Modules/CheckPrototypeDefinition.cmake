@@ -35,20 +35,20 @@ Check if the prototype we expect is correct.
 The following variables may be set before calling this function to modify
 the way the check is run:
 
-``CMAKE_REQUIRED_FLAGS``
-  string of compile command line flags.
-``CMAKE_REQUIRED_DEFINITIONS``
-  list of macros to define (-DFOO=bar).
-``CMAKE_REQUIRED_INCLUDES``
-  list of include directories.
-``CMAKE_REQUIRED_LINK_OPTIONS``
-  .. versionadded:: 3.14
-    list of options to pass to link command.
-``CMAKE_REQUIRED_LIBRARIES``
-  list of libraries to link.
-``CMAKE_REQUIRED_QUIET``
-  .. versionadded:: 3.1
-    execute quietly without messages.
+.. include:: /module/CMAKE_REQUIRED_FLAGS.txt
+
+.. include:: /module/CMAKE_REQUIRED_DEFINITIONS.txt
+
+.. include:: /module/CMAKE_REQUIRED_INCLUDES.txt
+
+.. include:: /module/CMAKE_REQUIRED_LINK_OPTIONS.txt
+
+.. include:: /module/CMAKE_REQUIRED_LIBRARIES.txt
+
+.. include:: /module/CMAKE_REQUIRED_LINK_DIRECTORIES.txt
+
+.. include:: /module/CMAKE_REQUIRED_QUIET.txt
+
 #]=======================================================================]
 
 #
@@ -85,6 +85,13 @@ function(check_prototype_definition _FUNCTION _PROTOTYPE _RETURN _HEADER _VARIAB
       set(CMAKE_SYMBOL_EXISTS_INCLUDES)
     endif()
 
+    if(CMAKE_REQUIRED_LINK_DIRECTORIES)
+      set(_CPD_LINK_DIRECTORIES
+        "-DLINK_DIRECTORIES:STRING=${CMAKE_REQUIRED_LINK_DIRECTORIES}")
+    else()
+      set(_CPD_LINK_DIRECTORIES)
+    endif()
+
     foreach(_FILE ${_HEADER})
       string(APPEND CHECK_PROTOTYPE_DEFINITION_HEADER
         "#include <${_FILE}>\n")
@@ -104,24 +111,20 @@ function(check_prototype_definition _FUNCTION _PROTOTYPE _RETURN _HEADER _VARIAB
       ${CHECK_PROTOTYPE_DEFINITION_LIBS}
       CMAKE_FLAGS -DCOMPILE_DEFINITIONS:STRING=${CHECK_PROTOTYPE_DEFINITION_FLAGS}
       "${CMAKE_SYMBOL_EXISTS_INCLUDES}"
-      OUTPUT_VARIABLE OUTPUT)
+      "${_CPD_LINK_DIRECTORIES}"
+      )
+    unset(_CPD_LINK_DIRECTORIES)
 
     if (${_VARIABLE})
       set(${_VARIABLE} 1 CACHE INTERNAL "Have correct prototype for ${_FUNCTION}")
       if(NOT CMAKE_REQUIRED_QUIET)
         message(CHECK_PASS "True")
       endif()
-      file(APPEND ${CMAKE_BINARY_DIR}${CMAKE_FILES_DIRECTORY}/CMakeOutput.log
-        "Determining if the prototype ${_FUNCTION} exists for ${_VARIABLE} passed with the following output:\n"
-        "${OUTPUT}\n\n")
     else ()
       if(NOT CMAKE_REQUIRED_QUIET)
         message(CHECK_FAIL "False")
       endif()
       set(${_VARIABLE} 0 CACHE INTERNAL "Have correct prototype for ${_FUNCTION}")
-      file(APPEND ${CMAKE_BINARY_DIR}${CMAKE_FILES_DIRECTORY}/CMakeError.log
-        "Determining if the prototype ${_FUNCTION} exists for ${_VARIABLE} failed with the following output:\n"
-        "${OUTPUT}\n\n${_SOURCE}\n\n")
     endif ()
   endif()
 

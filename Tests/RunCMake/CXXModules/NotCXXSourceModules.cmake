@@ -1,7 +1,6 @@
 enable_language(C)
 enable_language(CXX)
-set(CMAKE_EXPERIMENTAL_CXX_MODULE_DYNDEP 1)
-set(CMAKE_EXPERIMENTAL_CXX_SCANDEP_SOURCE "")
+set(CMAKE_CXX_SCANDEP_SOURCE "")
 
 add_library(not-cxx-source)
 target_sources(not-cxx-source

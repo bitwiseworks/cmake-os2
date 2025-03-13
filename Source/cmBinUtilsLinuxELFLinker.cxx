@@ -3,7 +3,10 @@
 
 #include "cmBinUtilsLinuxELFLinker.h"
 
+#include <queue>
 #include <sstream>
+#include <unordered_set>
+#include <utility>
 
 #include <cm/memory>
 #include <cm/string_view>
@@ -73,6 +76,9 @@ bool cmBinUtilsLinuxELFLinker::Prepare()
   if (ldConfigTool == "ldconfig") {
     this->LDConfigTool =
       cm::make_unique<cmLDConfigLDConfigTool>(this->Archive);
+    if (!this->LDConfigTool->GetLDConfigPaths(this->LDConfigPaths)) {
+      return false;
+    }
   } else {
     std::ostringstream e;
     e << "Invalid value for CMAKE_LDCONFIG_TOOL: " << ldConfigTool;
@@ -86,8 +92,6 @@ bool cmBinUtilsLinuxELFLinker::Prepare()
 bool cmBinUtilsLinuxELFLinker::ScanDependencies(
   std::string const& file, cmStateEnums::TargetType /* unused */)
 {
-  std::vector<std::string> parentRpaths;
-
   cmELF elf(file.c_str());
   if (!elf) {
     return false;
@@ -103,44 +107,53 @@ bool cmBinUtilsLinuxELFLinker::ScanDependencies(
     }
   }
 
-  return this->ScanDependencies(file, parentRpaths);
+  return this->ScanDependencies(file);
 }
 
-bool cmBinUtilsLinuxELFLinker::ScanDependencies(
-  std::string const& file, std::vector<std::string> const& parentRpaths)
+bool cmBinUtilsLinuxELFLinker::ScanDependencies(std::string const& mainFile)
 {
-  std::string origin = cmSystemTools::GetFilenamePath(file);
-  std::vector<std::string> needed;
-  std::vector<std::string> rpaths;
-  std::vector<std::string> runpaths;
-  if (!this->Tool->GetFileInfo(file, needed, rpaths, runpaths)) {
-    return false;
-  }
-  for (auto& runpath : runpaths) {
-    runpath = ReplaceOrigin(runpath, origin);
-  }
-  for (auto& rpath : rpaths) {
-    rpath = ReplaceOrigin(rpath, origin);
-  }
+  std::unordered_set<std::string> resolvedDependencies;
+  std::queue<std::pair<std::string, std::vector<std::string>>> queueToResolve;
+  queueToResolve.push(std::make_pair(mainFile, std::vector<std::string>{}));
 
-  std::vector<std::string> searchPaths;
-  if (!runpaths.empty()) {
-    searchPaths = runpaths;
-  } else {
-    searchPaths = rpaths;
-    searchPaths.insert(searchPaths.end(), parentRpaths.begin(),
-                       parentRpaths.end());
-  }
+  while (!queueToResolve.empty()) {
+    std::string file = std::move(queueToResolve.front().first);
+    std::vector<std::string> parentRpaths =
+      std::move(queueToResolve.front().second);
+    queueToResolve.pop();
 
-  std::vector<std::string> ldConfigPaths;
-  if (!this->LDConfigTool->GetLDConfigPaths(ldConfigPaths)) {
-    return false;
-  }
-  searchPaths.insert(searchPaths.end(), ldConfigPaths.begin(),
-                     ldConfigPaths.end());
+    std::string origin = cmSystemTools::GetFilenamePath(file);
+    std::vector<std::string> needed;
+    std::vector<std::string> rpaths;
+    std::vector<std::string> runpaths;
+    if (!this->Tool->GetFileInfo(file, needed, rpaths, runpaths)) {
+      return false;
+    }
+    for (auto& runpath : runpaths) {
+      runpath = ReplaceOrigin(runpath, origin);
+    }
+    for (auto& rpath : rpaths) {
+      rpath = ReplaceOrigin(rpath, origin);
+    }
 
-  for (auto const& dep : needed) {
-    if (!this->Archive->IsPreExcluded(dep)) {
+    std::vector<std::string> searchPaths;
+    if (!runpaths.empty()) {
+      searchPaths = runpaths;
+    } else {
+      searchPaths = rpaths;
+      searchPaths.insert(searchPaths.end(), parentRpaths.begin(),
+                         parentRpaths.end());
+    }
+
+    searchPaths.insert(searchPaths.end(), this->LDConfigPaths.begin(),
+                       this->LDConfigPaths.end());
+
+    for (auto const& dep : needed) {
+      if (resolvedDependencies.count(dep) != 0 ||
+          this->Archive->IsPreExcluded(dep)) {
+        continue;
+      }
+
       std::string path;
       bool resolved = false;
       if (dep.find('/') != std::string::npos) {
@@ -151,11 +164,16 @@ bool cmBinUtilsLinuxELFLinker::ScanDependencies(
         return false;
       }
       if (resolved) {
+        resolvedDependencies.emplace(dep);
         if (!this->Archive->IsPostExcluded(path)) {
           bool unique;
           this->Archive->AddResolvedPath(dep, path, unique);
-          if (unique && !this->ScanDependencies(path, rpaths)) {
-            return false;
+          if (unique) {
+            std::vector<std::string> combinedParentRpaths = parentRpaths;
+            combinedParentRpaths.insert(combinedParentRpaths.end(),
+                                        rpaths.begin(), rpaths.end());
+
+            queueToResolve.push(std::make_pair(path, combinedParentRpaths));
           }
         }
       } else {

@@ -5,7 +5,6 @@
 #include <algorithm>
 #include <cassert>
 #include <cstddef>
-#include <functional>
 #include <limits>
 #include <map>
 #include <memory>
@@ -17,6 +16,7 @@
 
 #include <cm/string_view>
 #include <cmext/algorithm>
+#include <cmext/string_view>
 
 #include <cm3p/json/value.h>
 
@@ -41,9 +41,12 @@
 #include "cmInstallSubdirectoryGenerator.h"
 #include "cmInstallTargetGenerator.h"
 #include "cmLinkLineComputer.h" // IWYU pragma: keep
+#include "cmList.h"
 #include "cmListFileCache.h"
 #include "cmLocalGenerator.h"
 #include "cmMakefile.h"
+#include "cmMessageType.h"
+#include "cmRange.h"
 #include "cmSourceFile.h"
 #include "cmSourceGroup.h"
 #include "cmState.h"
@@ -326,6 +329,7 @@ struct CompileData
   std::vector<JBT<std::string>> Defines;
   std::vector<JBT<std::string>> PrecompileHeaders;
   std::vector<IncludeEntry> Includes;
+  std::vector<IncludeEntry> Frameworks;
 
   friend bool operator==(CompileData const& l, CompileData const& r)
   {
@@ -333,7 +337,7 @@ struct CompileData
             l.Flags == r.Flags && l.Defines == r.Defines &&
             l.PrecompileHeaders == r.PrecompileHeaders &&
             l.LanguageStandard == r.LanguageStandard &&
-            l.Includes == r.Includes);
+            l.Includes == r.Includes && l.Frameworks == r.Frameworks);
   }
 };
 }
@@ -349,6 +353,12 @@ struct hash<CompileData>
     size_t result =
       hash<std::string>()(in.Language) ^ hash<std::string>()(in.Sysroot);
     for (auto const& i : in.Includes) {
+      result = result ^
+        (hash<std::string>()(i.Path.Value) ^
+         hash<Json::ArrayIndex>()(i.Path.Backtrace.Index) ^
+         (i.IsSystem ? std::numeric_limits<size_t>::max() : 0));
+    }
+    for (auto const& i : in.Frameworks) {
       result = result ^
         (hash<std::string>()(i.Path.Value) ^
          hash<Json::ArrayIndex>()(i.Path.Backtrace.Index) ^
@@ -434,6 +444,8 @@ class Target
   std::unordered_map<CompileData, Json::ArrayIndex> CompileGroupMap;
   std::vector<CompileGroup> CompileGroups;
 
+  using FileSetDatabase = std::map<std::string, Json::ArrayIndex>;
+
   template <typename T>
   JBT<T> ToJBT(BT<T> const& bt)
   {
@@ -444,6 +456,7 @@ class Target
   JBTs<T> ToJBTs(BTs<T> const& bts)
   {
     std::vector<JBTIndex> ids;
+    ids.reserve(bts.Backtraces.size());
     for (cmListFileBacktrace const& backtrace : bts.Backtraces) {
       ids.emplace_back(this->Backtraces.Add(backtrace));
     }
@@ -463,12 +476,16 @@ class Target
   Json::Value DumpPaths();
   Json::Value DumpCompileData(CompileData const& cd);
   Json::Value DumpInclude(CompileData::IncludeEntry const& inc);
+  Json::Value DumpFramework(CompileData::IncludeEntry const& fw);
   Json::Value DumpPrecompileHeader(JBT<std::string> const& header);
   Json::Value DumpLanguageStandard(JBTs<std::string> const& standard);
   Json::Value DumpDefine(JBT<std::string> const& def);
-  Json::Value DumpSources();
+  std::pair<Json::Value, FileSetDatabase> DumpFileSets();
+  Json::Value DumpFileSet(cmFileSet const* fs,
+                          std::vector<std::string> const& directories);
+  Json::Value DumpSources(FileSetDatabase const& fsdb);
   Json::Value DumpSource(cmGeneratorTarget::SourceAndKind const& sk,
-                         Json::ArrayIndex si);
+                         Json::ArrayIndex si, FileSetDatabase const& fsdb);
   Json::Value DumpSourceGroups();
   Json::Value DumpSourceGroup(SourceGroup& sg);
   Json::Value DumpCompileGroups();
@@ -488,6 +505,8 @@ class Target
   Json::Value DumpDependencies();
   Json::Value DumpDependency(cmTargetDepend const& td);
   Json::Value DumpFolder();
+  Json::Value DumpLauncher(const char* name, const char* type);
+  Json::Value DumpLaunchers();
 
 public:
   Target(cmGeneratorTarget* gt, std::string const& config);
@@ -663,6 +682,11 @@ Json::Value CodemodelConfig::DumpTargets()
   for (cmGeneratorTarget* gt : targetList) {
     if (gt->GetType() == cmStateEnums::GLOBAL_TARGET ||
         !gt->IsInBuildSystem()) {
+      continue;
+    }
+
+    // Ignore targets starting with `__cmake_` as they are internal.
+    if (cmHasLiteralPrefix(gt->GetName(), "__cmake_")) {
       continue;
     }
 
@@ -1208,6 +1232,13 @@ Json::Value Target::Dump()
     target["archive"] = this->DumpArchive();
   }
 
+  if (type == cmStateEnums::EXECUTABLE) {
+    Json::Value launchers = this->DumpLaunchers();
+    if (!launchers.empty()) {
+      target["launchers"] = std::move(launchers);
+    }
+  }
+
   Json::Value dependencies = this->DumpDependencies();
   if (!dependencies.empty()) {
     target["dependencies"] = dependencies;
@@ -1216,7 +1247,13 @@ Json::Value Target::Dump()
   {
     this->ProcessLanguages();
 
-    target["sources"] = this->DumpSources();
+    auto fileSetInfo = this->DumpFileSets();
+
+    if (!fileSetInfo.first.isNull()) {
+      target["fileSets"] = fileSetInfo.first;
+    }
+
+    target["sources"] = this->DumpSources(fileSetInfo.second);
 
     Json::Value folder = this->DumpFolder();
     if (!folder.isNull()) {
@@ -1280,9 +1317,15 @@ void Target::ProcessLanguage(std::string const& lang)
   std::vector<BT<std::string>> includePathList =
     lg->GetIncludeDirectories(this->GT, lang, this->Config);
   for (BT<std::string> const& i : includePathList) {
-    cd.Includes.emplace_back(
-      this->ToJBT(i),
-      this->GT->IsSystemIncludeDirectory(i.Value, this->Config, lang));
+    if (this->GT->IsApple() && cmSystemTools::IsPathToFramework(i.Value)) {
+      cd.Frameworks.emplace_back(
+        this->ToJBT(i),
+        this->GT->IsSystemIncludeDirectory(i.Value, this->Config, lang));
+    } else {
+      cd.Includes.emplace_back(
+        this->ToJBT(i),
+        this->GT->IsSystemIncludeDirectory(i.Value, this->Config, lang));
+    }
   }
   std::vector<BT<std::string>> precompileHeaders =
     this->GT->GetPrecompileHeaders(this->Config, lang);
@@ -1341,14 +1384,11 @@ CompileData Target::BuildCompileData(cmSourceFile* sf)
   }
 
   // Add precompile headers compile options.
-  std::vector<std::string> architectures;
-  this->GT->GetAppleArchs(this->Config, architectures);
-  if (architectures.empty()) {
-    architectures.emplace_back();
-  }
+  std::vector<std::string> pchArchs =
+    this->GT->GetPchArchs(this->Config, fd.Language);
 
   std::unordered_map<std::string, std::string> pchSources;
-  for (const std::string& arch : architectures) {
+  for (const std::string& arch : pchArchs) {
     const std::string pchSource =
       this->GT->GetPchSource(this->Config, fd.Language, arch);
     if (!pchSource.empty()) {
@@ -1394,7 +1434,11 @@ CompileData Target::BuildCompileData(cmSourceFile* sf)
         bool const isSystemInclude =
           this->GT->IsSystemIncludeDirectory(i, this->Config, fd.Language);
         BT<std::string> include(i, tmpInclude.Backtrace);
-        fd.Includes.emplace_back(this->ToJBT(include), isSystemInclude);
+        if (this->GT->IsApple() && cmSystemTools::IsPathToFramework(i)) {
+          fd.Frameworks.emplace_back(this->ToJBT(include), isSystemInclude);
+        } else {
+          fd.Includes.emplace_back(this->ToJBT(include), isSystemInclude);
+        }
       }
     }
   }
@@ -1467,6 +1511,13 @@ CompileData Target::MergeCompileData(CompileData const& fd)
   cd.Includes.insert(cd.Includes.end(), td.Includes.begin(),
                      td.Includes.end());
 
+  // Use source-specific frameworks followed by target-wide frameworks.
+  cd.Frameworks.reserve(fd.Frameworks.size() + td.Frameworks.size());
+  cd.Frameworks.insert(cd.Frameworks.end(), fd.Frameworks.begin(),
+                       fd.Frameworks.end());
+  cd.Frameworks.insert(cd.Frameworks.end(), td.Frameworks.begin(),
+                       td.Frameworks.end());
+
   // Use target-wide defines followed by source-specific defines.
   cd.Defines.reserve(td.Defines.size() + fd.Defines.size());
   cd.Defines.insert(cd.Defines.end(), td.Defines.begin(), td.Defines.end());
@@ -1527,28 +1578,112 @@ Json::Value Target::DumpPaths()
   return paths;
 }
 
-Json::Value Target::DumpSources()
+std::pair<Json::Value, Target::FileSetDatabase> Target::DumpFileSets()
+{
+  Json::Value fsJson = Json::nullValue;
+  FileSetDatabase fsdb;
+
+  // Build the fileset database.
+  auto const* tgt = this->GT->Target;
+  auto const& fs_names = tgt->GetAllFileSetNames();
+
+  if (!fs_names.empty()) {
+    fsJson = Json::arrayValue;
+    size_t fsIndex = 0;
+    for (auto const& fs_name : fs_names) {
+      auto const* fs = tgt->GetFileSet(fs_name);
+      if (!fs) {
+        this->GT->Makefile->IssueMessage(
+          MessageType::INTERNAL_ERROR,
+          cmStrCat("Target \"", tgt->GetName(),
+                   "\" is tracked to have file set \"", fs_name,
+                   "\", but it was not found."));
+        continue;
+      }
+
+      auto fileEntries = fs->CompileFileEntries();
+      auto directoryEntries = fs->CompileDirectoryEntries();
+
+      auto directories = fs->EvaluateDirectoryEntries(
+        directoryEntries, this->GT->LocalGenerator, this->Config, this->GT);
+
+      fsJson.append(this->DumpFileSet(fs, directories));
+
+      std::map<std::string, std::vector<std::string>> files_per_dirs;
+      for (auto const& entry : fileEntries) {
+        fs->EvaluateFileEntry(directories, files_per_dirs, entry,
+                              this->GT->LocalGenerator, this->Config,
+                              this->GT);
+      }
+
+      for (auto const& files_per_dir : files_per_dirs) {
+        auto const& dir = files_per_dir.first;
+        for (auto const& file : files_per_dir.second) {
+          std::string sf_path;
+          if (dir.empty()) {
+            sf_path = file;
+          } else {
+            sf_path = cmStrCat(dir, '/', file);
+          }
+          fsdb[sf_path] = static_cast<Json::ArrayIndex>(fsIndex);
+        }
+      }
+
+      ++fsIndex;
+    }
+  }
+
+  return std::make_pair(fsJson, fsdb);
+}
+
+Json::Value Target::DumpFileSet(cmFileSet const* fs,
+                                std::vector<std::string> const& directories)
+{
+  Json::Value fileSet = Json::objectValue;
+
+  fileSet["name"] = fs->GetName();
+  fileSet["type"] = fs->GetType();
+  fileSet["visibility"] =
+    std::string(cmFileSetVisibilityToName(fs->GetVisibility()));
+
+  Json::Value baseDirs = Json::arrayValue;
+  for (auto const& directory : directories) {
+    baseDirs.append(RelativeIfUnder(this->TopSource, directory));
+  }
+  fileSet["baseDirectories"] = baseDirs;
+
+  return fileSet;
+}
+
+Json::Value Target::DumpSources(FileSetDatabase const& fsdb)
 {
   Json::Value sources = Json::arrayValue;
   cmGeneratorTarget::KindedSources const& kinded =
     this->GT->GetKindedSources(this->Config);
   for (cmGeneratorTarget::SourceAndKind const& sk : kinded.Sources) {
-    sources.append(this->DumpSource(sk, sources.size()));
+    sources.append(this->DumpSource(sk, sources.size(), fsdb));
   }
   return sources;
 }
 
 Json::Value Target::DumpSource(cmGeneratorTarget::SourceAndKind const& sk,
-                               Json::ArrayIndex si)
+                               Json::ArrayIndex si,
+                               FileSetDatabase const& fsdb)
 {
   Json::Value source = Json::objectValue;
 
-  std::string const path = sk.Source.Value->ResolveFullPath();
+  cmSourceFile* sf = sk.Source.Value;
+  std::string const path = sf->ResolveFullPath();
   source["path"] = RelativeIfUnder(this->TopSource, path);
   if (sk.Source.Value->GetIsGenerated()) {
     source["isGenerated"] = true;
   }
   this->AddBacktrace(source, sk.Source.Backtrace);
+
+  auto fsit = fsdb.find(path);
+  if (fsit != fsdb.end()) {
+    source["fileSetIndex"] = fsit->second;
+  }
 
   if (cmSourceGroup* sg =
         this->GT->Makefile->FindSourceGroup(path, this->SourceGroupsLocal)) {
@@ -1556,6 +1691,7 @@ Json::Value Target::DumpSource(cmGeneratorTarget::SourceAndKind const& sk,
   }
 
   switch (sk.Kind) {
+    case cmGeneratorTarget::SourceKindCxxModuleSource:
     case cmGeneratorTarget::SourceKindObjectSource: {
       source["compileGroupIndex"] =
         this->AddSourceCompileGroup(sk.Source.Value, si);
@@ -1598,6 +1734,13 @@ Json::Value Target::DumpCompileData(CompileData const& cd)
     }
     result["includes"] = includes;
   }
+  if (!cd.Frameworks.empty()) {
+    Json::Value frameworks = Json::arrayValue;
+    for (auto const& i : cd.Frameworks) {
+      frameworks.append(this->DumpFramework(i));
+    }
+    result["frameworks"] = frameworks;
+  }
   if (!cd.Defines.empty()) {
     Json::Value defines = Json::arrayValue;
     for (JBT<std::string> const& d : cd.Defines) {
@@ -1629,6 +1772,12 @@ Json::Value Target::DumpInclude(CompileData::IncludeEntry const& inc)
   }
   this->AddBacktrace(include, inc.Path.Backtrace);
   return include;
+}
+
+Json::Value Target::DumpFramework(CompileData::IncludeEntry const& fw)
+{
+  // for now, idem as include
+  return this->DumpInclude(fw);
 }
 
 Json::Value Target::DumpPrecompileHeader(JBT<std::string> const& header)
@@ -1938,6 +2087,50 @@ Json::Value Target::DumpFolder()
     folder["name"] = *f;
   }
   return folder;
+}
+
+Json::Value Target::DumpLauncher(const char* name, const char* type)
+{
+  cmValue property = this->GT->GetProperty(name);
+  Json::Value launcher;
+  if (property) {
+    cmLocalGenerator* lg = this->GT->GetLocalGenerator();
+    cmGeneratorExpression ge(*lg->GetCMakeInstance());
+    cmList commandWithArgs{ ge.Parse(*property)->Evaluate(lg, this->Config) };
+    if (!commandWithArgs.empty() && !commandWithArgs[0].empty()) {
+      std::string command(commandWithArgs[0]);
+      cmSystemTools::ConvertToUnixSlashes(command);
+      launcher = Json::objectValue;
+      launcher["command"] = RelativeIfUnder(this->TopSource, command);
+      launcher["type"] = type;
+      Json::Value args;
+      for (std::string const& arg : cmMakeRange(commandWithArgs).advance(1)) {
+        args.append(arg);
+      }
+      if (!args.empty()) {
+        launcher["arguments"] = std::move(args);
+      }
+    }
+  }
+  return launcher;
+}
+
+Json::Value Target::DumpLaunchers()
+{
+  Json::Value launchers;
+  {
+    Json::Value launcher = DumpLauncher("TEST_LAUNCHER", "test");
+    if (!launcher.empty()) {
+      launchers.append(std::move(launcher));
+    }
+  }
+  if (this->GT->Makefile->IsOn("CMAKE_CROSSCOMPILING")) {
+    Json::Value emulator = DumpLauncher("CROSSCOMPILING_EMULATOR", "emulator");
+    if (!emulator.empty()) {
+      launchers.append(std::move(emulator));
+    }
+  }
+  return launchers;
 }
 }
 

@@ -119,7 +119,8 @@ do.
 The more modern approach is to behave as much like
 :ref:`config file packages <Config File Packages>` files as possible, by
 providing :ref:`imported target <Imported targets>`.  This has the advantage
-of propagating :ref:`Target Usage Requirements` to consumers.
+of propagating :ref:`usage requirements <Target Usage Requirements>`
+to consumers.
 
 In either case (or even when providing both variables and imported
 targets), find modules should provide backwards compatibility with old
@@ -407,7 +408,9 @@ starting point.
 .. code-block:: cmake
 
   find_package(PkgConfig)
-  pkg_check_modules(PC_Foo QUIET Foo)
+  if(PKG_CONFIG_FOUND)
+    pkg_check_modules(PC_Foo QUIET Foo)
+  endif()
 
 This should define some variables starting ``PC_Foo_`` that contain the
 information from the ``Foo.pc`` file.
@@ -560,7 +563,7 @@ The ``RELEASE`` variant should be listed first in the property
 so that the variant is chosen if the user uses a configuration which is
 not an exact match for any listed ``IMPORTED_CONFIGURATIONS``.
 
-Most of the cache variables should be hidden in the ``ccmake`` interface unless
+Most of the cache variables should be hidden in the :program:`ccmake` interface unless
 the user explicitly asks to edit them.
 
 .. code-block:: cmake
