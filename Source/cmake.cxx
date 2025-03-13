@@ -3586,7 +3586,6 @@ int cmake::GetSystemInformation(std::vector<std::string>& args)
   return 0;
 }
 
-<<<<<<< HEAD
 void cmake::IssueMessage(MessageType t, std::string const& text,
                          cmListFileBacktrace const& backtrace) const
 {
