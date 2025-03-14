@@ -125,7 +125,10 @@ SET(CMAKE_CXX_CREATE_SHARED_MODULE
 
 # create the timestamp and build maschine name
 string(TIMESTAMP TSbldLevel "%d %b %Y %H:%M:%S")
-exec_program(uname ARGS -n OUTPUT_VARIABLE unamebldLevel)
+execute_process(COMMAND ${CMAKE_UNAME} -n
+          OUTPUT_VARIABLE unamebldLevel
+          OUTPUT_STRIP_TRAILING_WHITESPACE
+          ERROR_QUIET)
 SET(bldLevelInfo "\#\#1\#\# ${TSbldLevel}\\ \\ \\ \\ \\ ${unamebldLevel}")
 
 # There is the possibility to rely on EMXEXP instead of dllexport on CXX and C.
