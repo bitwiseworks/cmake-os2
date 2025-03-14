@@ -2514,6 +2514,8 @@ int cmVSLink::LinkNonIncremental()
 #ifdef _WIN32
     std::replace(rcDir.begin(), rcDir.end(), '/', '\\');
     char const pathSep = ';';
+#elif defined(__OS2__)
+    char const pathSep = ';';
 #else
     char const pathSep = ':';
 #endif
