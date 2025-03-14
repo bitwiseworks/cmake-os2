@@ -47,7 +47,7 @@ extern "C" {
 	&& !(defined(__GLIBC__) && (__GLIBC__ < 2 || (__GLIBC__ == 2 && __GLIBC_MINOR__ < 16))) \
 	&& !(defined(__ibmxl__) && defined(__clang__) && defined(__linux__)) \
 	&& !defined(__APPLE__) && !defined(__HAIKU__) && !defined(__sun) \
-	&& (!defined(__ANDROID_API__) || __ANDROID_API__ >= 28)
+	&& (!defined(__ANDROID_API__) || __ANDROID_API__ >= 28) && !defined(__OS2__)
 
 # define HAS_STDC_ALIGNED_ALLOC
 # define rhash_aligned_alloc(alignment, size) aligned_alloc((alignment), ALIGN_SIZE_BY(size, alignment))
