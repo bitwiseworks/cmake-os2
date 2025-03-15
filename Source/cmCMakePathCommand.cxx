@@ -592,7 +592,7 @@ bool HandleNativePathCommand(std::vector<std::string> const& args,
 bool HandleConvertCommand(std::vector<std::string> const& args,
                           cmExecutionStatus& status)
 {
-#if defined(_WIN32) && !defined(__CYGWIN__)
+#if defined(_WIN32) && !defined(__CYGWIN__) || defined(__OS2__)
   const auto pathSep = ";"_s;
 #else
   const auto pathSep = ":"_s;
