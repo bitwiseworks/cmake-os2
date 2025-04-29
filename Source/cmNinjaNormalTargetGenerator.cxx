@@ -544,7 +544,8 @@ void cmNinjaNormalTargetGenerator::WriteLinkRule(bool useResponseFile,
     vars.TargetVersionMinor = targetVersionMinor.c_str();
 
 #ifdef __OS2__
-    vars.TargetNameOS2 = this->TargetNames(config).Base.c_str();
+    auto const tgtNames = this->TargetNames(config);
+    vars.TargetNameOS2 = tgtNames.Base.c_str();
     vars.OS2DefVendor = this->GeneratorTarget->GetProperty("OS2_DEF_VENDOR").GetCStr();
     vars.OS2DefVersion = this->GeneratorTarget->GetProperty("OS2_DEF_VERSION").GetCStr();
     vars.OS2DefPatch = this->GeneratorTarget->GetProperty("OS2_DEF_PATCH").GetCStr();
